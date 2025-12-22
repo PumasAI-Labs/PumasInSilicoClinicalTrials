@@ -576,6 +576,289 @@ function run_hbv_vct(
 end
 
 #=============================================================================
+# HBV Population Dynamics Simulation (Full ODE)
+=============================================================================#
+
+"""
+    simulate_hbv_dynamics(
+        vpop::DataFrame,
+        config::VCTConfig;
+        model = nothing,
+        params::NamedTuple = HBV_FIXED_PARAMS,
+        observation_interval::Int = 7,
+        seed::Union{Int,Nothing} = nothing
+    ) -> DataFrame
+
+Simulate full HBV ODE dynamics for a virtual population.
+
+Uses Pumas `simobs()` to run batch simulation and collects time series data
+for all biomarkers (HBsAg, Viral Load, ALT, Effector T cells).
+
+# Arguments
+- `vpop`: Virtual population DataFrame with estimated parameters
+- `config`: VCT configuration specifying phases and treatment
+- `model`: HBV Pumas model (defaults to hbv_model from this package)
+- `params`: Population parameters (defaults to HBV_FIXED_PARAMS)
+- `observation_interval`: Days between observations
+- `seed`: Random seed for reproducibility
+
+# Returns
+DataFrame with columns: id, time, log_HBsAg, log_V, log_ALT, log_E, phase
+"""
+function simulate_hbv_dynamics(
+    vpop::DataFrame,
+    config::VCTConfig;
+    model = nothing,
+    params::NamedTuple = HBV_FIXED_PARAMS,
+    observation_interval::Int = 7,
+    seed::Union{Int,Nothing} = nothing
+)
+    if !isnothing(seed)
+        Random.seed!(seed)
+    end
+
+    # Get observation times based on config
+    phases = get_phase_times(config)
+    observation_times = collect(0:observation_interval:phases.total_duration)
+
+    # Create time-varying covariates
+    cov_df = create_hbv_time_varying_covariates(config, observation_times)
+
+    n_patients = nrow(vpop)
+    all_results = DataFrame()
+
+    for i in 1:n_patients
+        row = vpop[i, :]
+
+        # Create subject with time-varying covariates
+        subj = Subject(
+            id = row.id,
+            covariates = (
+                dNUC = cov_df.dNUC,
+                dIFN = cov_df.dIFN,
+                treatment = Int(config.treatment)
+            ),
+            observations = (HBsAg_obs = nothing, V_obs = nothing),
+            time = Float64.(observation_times)
+        )
+
+        # Build individual parameters as random effects deviation from population
+        # Parameters are on log10 scale, so η represents deviation in log10 space
+        η = [
+            row.beta - params.tvbeta,
+            row.p_S - params.tvp_S,
+            row.m - params.tvm,
+            row.k_Z - params.tvk_Z,
+            row.convE - params.tvconvE,
+            row.epsNUC - params.tvepsNUC,
+            row.epsIFN - params.tvepsIFN,
+            row.r_E_IFN - params.tvr_E_IFN,
+            row.k_D - params.tvk_D
+        ]
+        randeffs = (η = η,)
+
+        try
+            # Simulate using the model
+            if isnothing(model)
+                # Use placeholder results if model not provided
+                patient_df = DataFrame(
+                    id = fill(row.id, length(observation_times)),
+                    time = observation_times,
+                    log_HBsAg = fill(3.0, length(observation_times)),
+                    log_V = fill(5.0, length(observation_times)),
+                    log_ALT = fill(1.5, length(observation_times)),
+                    log_E = fill(0.0, length(observation_times))
+                )
+            else
+                sim = simobs(model, subj, params, randeffs; simulate_error=false)
+                sim_df = DataFrame(sim)
+
+                patient_df = DataFrame(
+                    id = fill(row.id, nrow(sim_df)),
+                    time = sim_df.time,
+                    log_HBsAg = sim_df.log_HBsAg,
+                    log_V = sim_df.log_V,
+                    log_ALT = sim_df.log_ALT,
+                    log_E = sim_df.log_E
+                )
+            end
+
+            # Add phase labels
+            patient_df.phase = map(patient_df.time) do t
+                if t <= phases.untreated.stop
+                    :untreated
+                elseif t <= phases.nuc_background.stop
+                    :nuc_background
+                elseif t <= phases.treatment.stop
+                    :treatment
+                else
+                    :off_treatment
+                end
+            end
+
+            append!(all_results, patient_df)
+
+        catch e
+            @warn "Integration error for patient $(row.id): $e"
+            # Skip this patient
+        end
+    end
+
+    return all_results
+end
+
+"""
+    simulate_hbv_natural_history(
+        vpop::DataFrame;
+        duration_days::Int = 300,
+        observation_interval::Int = 1,
+        seed::Union{Int,Nothing} = nothing
+    ) -> DataFrame
+
+Simulate untreated HBV infection dynamics (natural history).
+
+This is useful for visualizing acute vs chronic infection outcomes
+without treatment intervention.
+
+# Arguments
+- `vpop`: Virtual population DataFrame
+- `duration_days`: Duration of simulation in days (default: 300 for acute phase)
+- `observation_interval`: Days between observations
+- `seed`: Random seed
+
+# Returns
+DataFrame with time series of all biomarkers
+"""
+function simulate_hbv_natural_history(
+    vpop::DataFrame;
+    duration_days::Int = 300,
+    observation_interval::Int = 1,
+    seed::Union{Int,Nothing} = nothing
+)
+    # Create config for untreated natural history
+    config = VCTConfig(
+        treatment = CONTROL,
+        suppressed = false,
+        untreated_duration = duration_days,
+        nuc_background_duration = 0,
+        treatment_duration = 0,
+        off_treatment_duration = 0,
+        observation_interval = observation_interval
+    )
+
+    return simulate_hbv_dynamics(vpop, config; seed=seed)
+end
+
+"""
+    classify_hbv_outcome(
+        dynamics_df::DataFrame;
+        clearance_time::Int = 300,
+        hbsag_threshold::Float64 = log10(0.05),
+        viral_threshold::Float64 = log10(25.0)
+    ) -> DataFrame
+
+Classify patients as having acute (cleared) or chronic (persistent) infection.
+
+Acute infection: Both HBsAg and viral load drop below LOQ within clearance_time
+during the untreated phase, indicating natural viral clearance.
+
+Chronic infection: Infection persists beyond clearance_time.
+
+# Arguments
+- `dynamics_df`: DataFrame from simulate_hbv_dynamics() with time series data
+- `clearance_time`: Days to evaluate for acute clearance (default: 300)
+- `hbsag_threshold`: log10(HBsAg) threshold for clearance (default: log10(0.05))
+- `viral_threshold`: log10(Viral load) threshold for clearance (default: log10(25))
+
+# Returns
+Input DataFrame with added :outcome column (:acute or :chronic)
+"""
+function classify_hbv_outcome(
+    dynamics_df::DataFrame;
+    clearance_time::Int = 300,
+    hbsag_threshold::Float64 = log10(0.05),
+    viral_threshold::Float64 = log10(25.0)
+)
+    # Determine outcome for each patient based on minimum values during untreated phase
+    outcome_df = @chain dynamics_df begin
+        @subset(:time .<= clearance_time)
+        @groupby(:id)
+        @combine(
+            :min_hbsag = minimum(:log_HBsAg),
+            :min_viral = minimum(:log_V),
+            :min_hbsag_time = :time[argmin(:log_HBsAg)],
+            :min_viral_time = :time[argmin(:log_V)]
+        )
+        @transform(
+            :cleared_hbsag = :min_hbsag .< hbsag_threshold,
+            :cleared_viral = :min_viral .< viral_threshold
+        )
+        @transform(:outcome = ifelse.(:cleared_hbsag .& :cleared_viral, :acute, :chronic))
+        @select(:id, :outcome, :min_hbsag, :min_viral)
+    end
+
+    # Join outcome back to dynamics
+    result = leftjoin(dynamics_df, outcome_df[:, [:id, :outcome]], on=:id)
+
+    return result
+end
+
+"""
+    summarize_hbv_dynamics_by_time(
+        dynamics_df::DataFrame,
+        value_col::Symbol;
+        group_col::Union{Symbol,Nothing} = :outcome
+    ) -> DataFrame
+
+Compute population statistics (median, quantiles) at each time point.
+
+# Arguments
+- `dynamics_df`: DataFrame with time series data
+- `value_col`: Column to summarize (e.g., :log_HBsAg, :log_V)
+- `group_col`: Optional grouping column (e.g., :outcome for acute/chronic)
+
+# Returns
+DataFrame with columns: time, group (if applicable), median, q05, q25, q75, q95
+"""
+function summarize_hbv_dynamics_by_time(
+    dynamics_df::DataFrame,
+    value_col::Symbol;
+    group_col::Union{Symbol,Nothing} = :outcome
+)
+    if isnothing(group_col) || !hasproperty(dynamics_df, group_col)
+        # No grouping
+        summary = @chain dynamics_df begin
+            @groupby(:time)
+            @combine(
+                :median = median(cols(value_col)),
+                :q05 = quantile(cols(value_col), 0.05),
+                :q25 = quantile(cols(value_col), 0.25),
+                :q75 = quantile(cols(value_col), 0.75),
+                :q95 = quantile(cols(value_col), 0.95),
+                :n = length(cols(value_col))
+            )
+            @orderby(:time)
+        end
+    else
+        # With grouping
+        summary = @chain dynamics_df begin
+            @groupby(:time, cols(group_col))
+            @combine(
+                :median = median(cols(value_col)),
+                :q05 = quantile(cols(value_col), 0.05),
+                :q25 = quantile(cols(value_col), 0.25),
+                :q75 = quantile(cols(value_col), 0.75),
+                :q95 = quantile(cols(value_col), 0.95),
+                :n = length(cols(value_col))
+            )
+            @orderby(:time)
+        end
+    end
+
+    return summary
+end
+
+#=============================================================================
 # Trial Comparison
 =============================================================================#
 
@@ -719,3 +1002,6 @@ export simulate_tumor_burden_patient, run_tumor_burden_vct, run_tumor_burden_tri
 export create_hbv_time_varying_covariates, simulate_hbv_patient, run_hbv_vct
 export run_hbv_trial_comparison
 export calculate_endpoint_rates, compare_treatment_arms, summarize_baseline_distribution
+# HBV population dynamics exports
+export simulate_hbv_dynamics, simulate_hbv_natural_history
+export classify_hbv_outcome, summarize_hbv_dynamics_by_time

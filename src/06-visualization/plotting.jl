@@ -56,6 +56,38 @@ const TREATMENT_COLORS = Dict(
 )
 
 """
+    HBV_OUTCOME_COLORS
+
+Color palette for acute vs chronic infection outcomes.
+"""
+const HBV_OUTCOME_COLORS = Dict(
+    :acute => colorant"#2ca02c",        # Green (cleared)
+    :chronic => colorant"#d62728"       # Red (persistent)
+)
+
+"""
+    HBV_BIOMARKER_LABELS
+
+Display labels for HBV biomarkers.
+"""
+const HBV_BIOMARKER_LABELS = Dict(
+    :log_HBsAg => "log₁₀(HBsAg) IU/mL",
+    :log_V => "log₁₀(HBV DNA) copies/mL",
+    :log_ALT => "log₁₀(ALT) U/L",
+    :log_E => "log₁₀(Effector T cells)"
+)
+
+"""
+    HBV_LOQ_THRESHOLDS
+
+Limit of quantification thresholds for HBV biomarkers.
+"""
+const HBV_LOQ_THRESHOLDS = Dict(
+    :log_HBsAg => log10(0.05),  # -1.301
+    :log_V => log10(25.0)       # 1.398
+)
+
+"""
     set_isct_theme!()
 
 Apply the ISCT theme globally.
@@ -487,6 +519,376 @@ function plot_hbv_dynamics(
 end
 
 #=============================================================================
+# HBV Population Dynamics Plots
+=============================================================================#
+
+"""
+    plot_hbv_population_dynamics(
+        dynamics_df::DataFrame;
+        biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V, :log_ALT, :log_E],
+        stratify_by::Union{Symbol,Nothing} = :outcome,
+        show_loq::Bool = true,
+        time_unit::Symbol = :days,
+        title::String = "HBV Infection Dynamics"
+    ) -> Figure
+
+Create population-level dynamics plot with median and CI bands for HBV biomarkers.
+
+Shows 2x2 panel layout for up to 4 biomarkers, with optional stratification
+by infection outcome (acute vs chronic) or treatment arm.
+
+# Arguments
+- `dynamics_df`: DataFrame with time series data (from simulate_hbv_dynamics)
+- `biomarkers`: Biomarker columns to plot (max 4)
+- `stratify_by`: Column to stratify by (e.g., :outcome, :treatment)
+- `show_loq`: Whether to show LOQ threshold lines
+- `time_unit`: Display time in :days or :weeks
+- `title`: Overall figure title
+
+# Returns
+Makie Figure with 2x2 panel layout
+"""
+function plot_hbv_population_dynamics(
+    dynamics_df::DataFrame;
+    biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V, :log_ALT, :log_E],
+    stratify_by::Union{Symbol,Nothing} = :outcome,
+    show_loq::Bool = true,
+    time_unit::Symbol = :days,
+    title::String = "HBV Infection Dynamics"
+)
+    # Limit to 4 biomarkers
+    biomarkers = biomarkers[1:min(4, length(biomarkers))]
+    n_biomarkers = length(biomarkers)
+
+    # Determine layout
+    nrows = n_biomarkers <= 2 ? 1 : 2
+    ncols = n_biomarkers <= 2 ? n_biomarkers : 2
+
+    fig = Figure(size = (400 * ncols, 350 * nrows + 50))
+
+    # Get stratification groups
+    if !isnothing(stratify_by) && hasproperty(dynamics_df, stratify_by)
+        groups = sort(unique(dynamics_df[!, stratify_by]))
+    else
+        groups = [nothing]
+        stratify_by = nothing
+    end
+
+    # Time conversion
+    time_divisor = time_unit == :weeks ? 7.0 : 1.0
+    time_label = time_unit == :weeks ? "Time (weeks)" : "Time (days)"
+
+    for (i, biomarker) in enumerate(biomarkers)
+        row = div(i - 1, 2) + 1
+        col = mod(i - 1, 2) + 1
+
+        # Get biomarker label
+        ylabel = get(HBV_BIOMARKER_LABELS, biomarker, string(biomarker))
+
+        ax = Axis(fig[row, col],
+            xlabel = time_label,
+            ylabel = ylabel,
+            title = string(biomarker)
+        )
+
+        # Plot each group
+        for group in groups
+            if isnothing(stratify_by)
+                group_df = dynamics_df
+                group_color = :blue
+                group_label = "All"
+            else
+                group_df = @subset(dynamics_df, cols(stratify_by) .== group)
+                group_color = get(HBV_OUTCOME_COLORS, group, colorant"#1f77b4")
+                group_label = string(group)
+            end
+
+            # Skip if no data for this group
+            if nrow(group_df) == 0
+                continue
+            end
+
+            # Compute summary statistics
+            summary = @chain group_df begin
+                @groupby(:time)
+                @combine(
+                    :median = median(cols(biomarker)),
+                    :q05 = quantile(cols(biomarker), 0.05),
+                    :q25 = quantile(cols(biomarker), 0.25),
+                    :q75 = quantile(cols(biomarker), 0.75),
+                    :q95 = quantile(cols(biomarker), 0.95)
+                )
+                @transform(:time_plot = :time ./ time_divisor)
+                @orderby(:time)
+            end
+
+            # Plot 90% CI band
+            band!(ax, summary.time_plot, summary.q05, summary.q95,
+                  color = (group_color, 0.2))
+
+            # Plot IQR band
+            band!(ax, summary.time_plot, summary.q25, summary.q75,
+                  color = (group_color, 0.3))
+
+            # Plot median line
+            lines!(ax, summary.time_plot, summary.median,
+                   color = group_color, linewidth = 2, label = group_label)
+        end
+
+        # Add LOQ threshold lines
+        if show_loq && haskey(HBV_LOQ_THRESHOLDS, biomarker)
+            hlines!(ax, [HBV_LOQ_THRESHOLDS[biomarker]],
+                    color = :red, linestyle = :dash, linewidth = 1)
+        end
+
+        # Add legend only to first panel
+        if i == 1 && !isnothing(stratify_by)
+            axislegend(ax, position = :rt)
+        end
+    end
+
+    Label(fig[0, :], title, fontsize = 16)
+
+    return fig
+end
+
+"""
+    plot_hbv_natural_history(
+        dynamics_df::DataFrame;
+        biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V, :log_ALT, :log_E],
+        title::String = "HBV Natural History: Acute vs Chronic"
+    ) -> Figure
+
+Plot natural history (untreated) HBV dynamics showing acute vs chronic outcomes.
+
+Specialized wrapper around plot_hbv_population_dynamics for natural history
+visualization with appropriate defaults.
+"""
+function plot_hbv_natural_history(
+    dynamics_df::DataFrame;
+    biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V, :log_ALT, :log_E],
+    title::String = "HBV Natural History: Acute vs Chronic"
+)
+    return plot_hbv_population_dynamics(
+        dynamics_df;
+        biomarkers = biomarkers,
+        stratify_by = :outcome,
+        show_loq = true,
+        time_unit = :days,
+        title = title
+    )
+end
+
+"""
+    plot_hbv_treatment_response(
+        dynamics_df::DataFrame;
+        biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V],
+        show_phases::Bool = true,
+        phase_times::Union{NamedTuple,Nothing} = nothing,
+        title::String = "HBV Treatment Response"
+    ) -> Figure
+
+Plot HBV treatment response dynamics with optional phase markers.
+
+# Arguments
+- `dynamics_df`: DataFrame with time series data
+- `biomarkers`: Biomarker columns to plot
+- `show_phases`: Whether to show treatment phase vertical lines
+- `phase_times`: NamedTuple with phase timing (from get_phase_times)
+- `title`: Plot title
+"""
+function plot_hbv_treatment_response(
+    dynamics_df::DataFrame;
+    biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V],
+    show_phases::Bool = true,
+    phase_times::Union{NamedTuple,Nothing} = nothing,
+    title::String = "HBV Treatment Response"
+)
+    fig = plot_hbv_population_dynamics(
+        dynamics_df;
+        biomarkers = biomarkers,
+        stratify_by = hasproperty(dynamics_df, :treatment) ? :treatment : nothing,
+        show_loq = true,
+        time_unit = :days,
+        title = title
+    )
+
+    # Add phase markers if requested and times provided
+    if show_phases && !isnothing(phase_times)
+        for ax in fig.content
+            if ax isa Axis
+                add_treatment_phase_markers!(ax, phase_times)
+            end
+        end
+    end
+
+    return fig
+end
+
+"""
+    add_treatment_phase_markers!(
+        ax::Axis,
+        phase_times::NamedTuple;
+        label_phases::Bool = false
+    )
+
+Add vertical lines marking treatment phase transitions to an axis.
+
+# Arguments
+- `ax`: Makie Axis to add markers to
+- `phase_times`: NamedTuple from get_phase_times() with phase boundaries
+- `label_phases`: Whether to add phase labels (experimental)
+"""
+function add_treatment_phase_markers!(
+    ax::Axis,
+    phase_times::NamedTuple;
+    label_phases::Bool = false
+)
+    # Phase transition times
+    phase_colors = Dict(
+        :untreated => :gray,
+        :nuc_background => :blue,
+        :treatment => :green,
+        :off_treatment => :orange
+    )
+
+    # Add vertical lines at phase boundaries
+    if haskey(phase_times, :untreated)
+        vlines!(ax, [phase_times.untreated.stop],
+                color = :black, linestyle = :dash, linewidth = 1)
+    end
+
+    if haskey(phase_times, :nuc_background) && phase_times.nuc_background.stop > phase_times.nuc_background.start
+        vlines!(ax, [phase_times.nuc_background.stop],
+                color = :black, linestyle = :dash, linewidth = 1)
+    end
+
+    if haskey(phase_times, :treatment)
+        vlines!(ax, [phase_times.treatment.stop],
+                color = :black, linestyle = :solid, linewidth = 1)
+    end
+
+    if haskey(phase_times, :off_treatment)
+        vlines!(ax, [phase_times.off_treatment.stop],
+                color = :black, linestyle = :solid, linewidth = 1)
+    end
+end
+
+"""
+    plot_hbv_biomarker_panel(
+        dynamics_df::DataFrame,
+        biomarker::Symbol;
+        stratify_by::Union{Symbol,Nothing} = :outcome,
+        time_unit::Symbol = :days,
+        show_individual::Bool = false,
+        n_individual::Int = 20,
+        title::String = ""
+    ) -> Figure
+
+Create a single-panel plot for one HBV biomarker.
+
+# Arguments
+- `dynamics_df`: DataFrame with time series data
+- `biomarker`: Single biomarker to plot
+- `stratify_by`: Column to stratify by
+- `time_unit`: :days or :weeks
+- `show_individual`: Whether to show individual patient trajectories
+- `n_individual`: Number of individual trajectories to show
+- `title`: Plot title
+"""
+function plot_hbv_biomarker_panel(
+    dynamics_df::DataFrame,
+    biomarker::Symbol;
+    stratify_by::Union{Symbol,Nothing} = :outcome,
+    time_unit::Symbol = :days,
+    show_individual::Bool = false,
+    n_individual::Int = 20,
+    title::String = ""
+)
+    fig = Figure(size = (700, 500))
+
+    time_divisor = time_unit == :weeks ? 7.0 : 1.0
+    time_label = time_unit == :weeks ? "Time (weeks)" : "Time (days)"
+    ylabel = get(HBV_BIOMARKER_LABELS, biomarker, string(biomarker))
+
+    if isempty(title)
+        title = ylabel
+    end
+
+    ax = Axis(fig[1, 1],
+        xlabel = time_label,
+        ylabel = ylabel,
+        title = title
+    )
+
+    # Get stratification groups
+    if !isnothing(stratify_by) && hasproperty(dynamics_df, stratify_by)
+        groups = sort(unique(dynamics_df[!, stratify_by]))
+    else
+        groups = [nothing]
+        stratify_by = nothing
+    end
+
+    for group in groups
+        if isnothing(stratify_by)
+            group_df = dynamics_df
+            group_color = :blue
+            group_label = "All"
+        else
+            group_df = @subset(dynamics_df, cols(stratify_by) .== group)
+            group_color = get(HBV_OUTCOME_COLORS, group, colorant"#1f77b4")
+            group_label = string(group)
+        end
+
+        if nrow(group_df) == 0
+            continue
+        end
+
+        # Show individual trajectories if requested
+        if show_individual
+            unique_ids = unique(group_df.id)
+            sample_ids = unique_ids[1:min(n_individual, length(unique_ids))]
+            for id in sample_ids
+                patient_df = @subset(group_df, :id .== id)
+                lines!(ax, patient_df.time ./ time_divisor, patient_df[!, biomarker],
+                       color = (group_color, 0.2), linewidth = 0.5)
+            end
+        end
+
+        # Compute and plot population summary
+        summary = @chain group_df begin
+            @groupby(:time)
+            @combine(
+                :median = median(cols(biomarker)),
+                :q05 = quantile(cols(biomarker), 0.05),
+                :q25 = quantile(cols(biomarker), 0.25),
+                :q75 = quantile(cols(biomarker), 0.75),
+                :q95 = quantile(cols(biomarker), 0.95)
+            )
+            @transform(:time_plot = :time ./ time_divisor)
+            @orderby(:time)
+        end
+
+        band!(ax, summary.time_plot, summary.q05, summary.q95, color = (group_color, 0.2))
+        band!(ax, summary.time_plot, summary.q25, summary.q75, color = (group_color, 0.3))
+        lines!(ax, summary.time_plot, summary.median,
+               color = group_color, linewidth = 2, label = group_label)
+    end
+
+    # LOQ threshold
+    if haskey(HBV_LOQ_THRESHOLDS, biomarker)
+        hlines!(ax, [HBV_LOQ_THRESHOLDS[biomarker]],
+                color = :red, linestyle = :dash, linewidth = 1, label = "LOQ")
+    end
+
+    if !isnothing(stratify_by)
+        axislegend(ax, position = :rt)
+    end
+
+    return fig
+end
+
+#=============================================================================
 # MILP Calibration Plots
 =============================================================================#
 
@@ -871,12 +1273,19 @@ end
 
 export ISCT_THEME, TREATMENT_COLORS, set_isct_theme!
 
+# HBV-specific constants
+export HBV_OUTCOME_COLORS, HBV_BIOMARKER_LABELS, HBV_LOQ_THRESHOLDS
+
 # Vpop distribution plots
 export plot_parameter_distributions, plot_parameter_correlations, plot_vpop_comparison
 
 # VCT result plots
 export plot_tumor_dynamics, plot_response_waterfall, plot_treatment_comparison
 export plot_hbv_dynamics
+
+# HBV population dynamics plots
+export plot_hbv_population_dynamics, plot_hbv_natural_history, plot_hbv_treatment_response
+export plot_hbv_biomarker_panel, add_treatment_phase_markers!
 
 # Calibration plots
 export plot_calibration_result, plot_pareto_front

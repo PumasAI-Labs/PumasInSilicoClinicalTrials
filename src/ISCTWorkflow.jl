@@ -2,18 +2,25 @@
     ISCTWorkflow
 
 Julia/Pumas implementation of the In Silico Clinical Trial (ISCT) workflow
-as described in the accompanying publication.
+as described in the accompanying publication (DOI: 10.1002/psp4.70122).
 
-This module provides tools for:
-1. Model definition (Tumor Burden, HBV QSP)
-2. Parameter sampling using Gaussian copulas
-3. Virtual population calibration using MILP
-4. Virtual clinical trial simulation
-5. Global sensitivity analysis
-6. Results analysis and visualization
+This module is organized following the 7-step ISCT workflow from the paper:
+
+    01-models/       Step 1-2: Mathematical Models & Parameterization
+    02-sensitivity/  Step 3:   Sensitivity & Identifiability Analysis
+    03-sampling/     Step 4:   Generate Plausible Patients (Vpop Generation)
+    04-calibration/  Step 5:   VP Selection & Calibration (MILP)
+    05-simulation/   Step 6:   Run In Silico Clinical Trial
+    06-visualization/ Step 7:  Answer Questions of Interest (Analysis)
+
+Two disease models are implemented:
+- Tumor Burden Model (Section 3.1) - Simple 3-parameter example
+- HBV QSP Model (Section 3.2) - Complex 11-ODE mechanistic model
 
 Reference:
-    See accompanying PDF publication for the complete 7-step ISCT workflow.
+    Cortés-Ríos et al. "A Step-by-Step Workflow for Performing In Silico
+    Clinical Trials With Nonlinear Mixed Effects Models"
+    CPT: Pharmacometrics & Systems Pharmacology (2025)
 """
 module ISCTWorkflow
 
@@ -25,25 +32,27 @@ using DataFrames
 using DataFramesMeta
 using Random
 
-# Include submodules - Models
-include("models/tumor_burden_model.jl")
-include("models/hbv_model.jl")
+# Include submodules in workflow order (matches paper steps)
 
-# Include submodules - Sampling
-include("sampling/copula_sampling.jl")
-include("sampling/hbv_sampling.jl")
+# Step 1-2: Mathematical Models & Parameterization
+include("01-models/tumor_burden_model.jl")
+include("01-models/hbv_model.jl")
 
-# Include submodules - Calibration
-include("calibration/milp_calibration.jl")
+# Step 3: Sensitivity & Identifiability Analysis
+include("02-sensitivity/gsa_analysis.jl")
 
-# Include submodules - Simulation
-include("simulation/vct_simulation.jl")
+# Step 4: Parameter Sampling (Vpop Generation)
+include("03-sampling/copula_sampling.jl")
+include("03-sampling/hbv_sampling.jl")
 
-# Include submodules - Sensitivity Analysis
-include("sensitivity/gsa_analysis.jl")
+# Step 5: VP Selection & Calibration
+include("04-calibration/milp_calibration.jl")
 
-# Include submodules - Visualization
-include("visualization/plotting.jl")
+# Step 6: Virtual Clinical Trial Simulation
+include("05-simulation/vct_simulation.jl")
+
+# Step 7: Analysis & Visualization
+include("06-visualization/plotting.jl")
 
 # Re-export Tumor Burden model components
 # Note: _fixed variants removed - use zero_randeffs() or pass individual randeffs to simobs()
@@ -88,6 +97,10 @@ export create_hbv_time_varying_covariates, simulate_hbv_patient, run_hbv_vct
 export run_hbv_trial_comparison
 export calculate_endpoint_rates, compare_treatment_arms, summarize_baseline_distribution
 
+# HBV population dynamics exports
+export simulate_hbv_dynamics, simulate_hbv_natural_history
+export classify_hbv_outcome, summarize_hbv_dynamics_by_time
+
 # Re-export GSA components
 # Note: tumor_burden_gsa_model and hbv_gsa_model removed - use main models with constantcoef
 export GSAParameterRange, GSAResult
@@ -98,9 +111,13 @@ export summarize_gsa, get_influential_params, print_gsa_summary
 
 # Re-export Visualization components
 export ISCT_THEME, TREATMENT_COLORS, set_isct_theme!
+export HBV_OUTCOME_COLORS, HBV_BIOMARKER_LABELS, HBV_LOQ_THRESHOLDS
 export plot_parameter_distributions, plot_parameter_correlations, plot_vpop_comparison
 export plot_tumor_dynamics, plot_response_waterfall, plot_treatment_comparison
 export plot_hbv_dynamics
+# HBV population dynamics plots
+export plot_hbv_population_dynamics, plot_hbv_natural_history, plot_hbv_treatment_response
+export plot_hbv_biomarker_panel, add_treatment_phase_markers!
 export plot_calibration_result, plot_pareto_front
 export plot_gsa_indices, plot_gsa_heatmap, plot_gsa_comparison
 export create_isct_summary_figure, save_figure, quick_hist, quick_scatter

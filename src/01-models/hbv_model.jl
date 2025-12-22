@@ -249,6 +249,9 @@ const hbv_model = @model begin
         # ALT proxy
         log_ALT = @. log10(max(Z, 1e-6))
 
+        # Effector T cells (log10 scale for plotting)
+        log_E = @. log10(max(E, 1e-6))
+
         # Observations with residual error
         HBsAg_obs ~ @. Normal(log_HBsAg, σ_HBsAg)
         V_obs ~ @. Normal(log_V, σ_V)
