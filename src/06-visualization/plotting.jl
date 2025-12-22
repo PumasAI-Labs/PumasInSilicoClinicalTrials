@@ -150,6 +150,44 @@ function plot_parameter_distributions(
 end
 
 """
+    plot_parameter_distributions_aog(
+        vpop::DataFrame,
+        params::Vector{Symbol};
+        nbins::Int = 30,
+        title::String = "Parameter Distributions"
+    ) -> Figure
+
+AlgebraOfGraphics version: Create histogram panel for virtual population parameters.
+
+Uses data() |> mapping() |> visual() |> draw() pattern.
+"""
+function plot_parameter_distributions_aog(
+    vpop::DataFrame,
+    params::Vector{Symbol};
+    nbins::Int = 30,
+    title::String = "Parameter Distributions"
+)
+    # Stack parameters into long format for AOG faceting
+    long_df = stack(vpop[:, params], params, variable_name=:parameter, value_name=:value)
+
+    # Create the plot specification
+    plt = data(long_df) *
+          mapping(:value) *
+          histogram(bins=nbins) *
+          mapping(col=:parameter)
+
+    # Draw with layout
+    fig = draw(
+        plt;
+        axis = (ylabel = "Count",),
+        figure = (title = title,),
+        facet = (linkxaxes = :none, linkyaxes = :minimal)
+    )
+
+    return fig
+end
+
+"""
     plot_parameter_correlations(
         vpop::DataFrame,
         params::Vector{Symbol};
@@ -217,6 +255,66 @@ function plot_parameter_correlations(
 end
 
 """
+    plot_parameter_correlations_aog(
+        vpop::DataFrame,
+        params::Vector{Symbol};
+        title::String = "Parameter Correlations"
+    ) -> Figure
+
+AlgebraOfGraphics version: Create pairplot showing parameter correlations.
+
+Uses AOG's pairplot functionality for scatter matrix with histograms on diagonal.
+"""
+function plot_parameter_correlations_aog(
+    vpop::DataFrame,
+    params::Vector{Symbol};
+    title::String = "Parameter Correlations"
+)
+    # Sample for performance if large dataset
+    sample_size = min(nrow(vpop), 1000)
+    sample_idx = rand(1:nrow(vpop), sample_size)
+    vpop_sample = vpop[sample_idx, params]
+
+    # Create pairplot specification
+    # Diagonal: histograms
+    # Off-diagonal: scatter plots
+    layers = data(vpop_sample) * mapping(params..., params...)
+
+    # Build the layers: histogram on diagonal, scatter elsewhere
+    diag = mapping(params) * histogram(bins=20)
+    offdiag = mapping(params..., params...) * visual(Scatter, markersize=3, alpha=0.3)
+
+    # Alternative simpler approach using basic AOG patterns
+    # Create pairs plot manually
+    n_params = length(params)
+    fig = Figure(size = (200 * n_params, 200 * n_params))
+
+    for i in 1:n_params
+        for j in 1:n_params
+            if i == j
+                # Diagonal: histogram using AOG
+                plt = data(vpop_sample) * mapping(params[i]) * histogram(bins=20)
+                ag = draw!(fig[i, j], plt)
+            elseif i > j
+                # Lower triangle: scatter plot using AOG
+                plt = data(vpop_sample) * mapping(params[j], params[i]) *
+                      visual(Scatter, markersize=3, alpha=0.3)
+                ag = draw!(fig[i, j], plt)
+            else
+                # Upper triangle: hide
+                ax = Axis(fig[i, j])
+                hidedecorations!(ax)
+                hidespines!(ax)
+            end
+        end
+    end
+
+    Label(fig[0, :], title, fontsize = 16)
+
+    return fig
+end
+
+"""
     plot_vpop_comparison(
         vpop_original::DataFrame,
         vpop_calibrated::DataFrame,
@@ -256,6 +354,52 @@ function plot_vpop_comparison(
     linkyaxes!(ax1, ax2)
 
     Label(fig[0, :], title, fontsize = 16)
+
+    return fig
+end
+
+"""
+    plot_vpop_comparison_aog(
+        vpop_original::DataFrame,
+        vpop_calibrated::DataFrame,
+        param::Symbol;
+        nbins::Int = 30,
+        title::String = "Before vs After Calibration"
+    ) -> Figure
+
+AlgebraOfGraphics version: Compare parameter distribution before and after calibration.
+
+Uses AOG faceting with combined DataFrame.
+"""
+function plot_vpop_comparison_aog(
+    vpop_original::DataFrame,
+    vpop_calibrated::DataFrame,
+    param::Symbol;
+    nbins::Int = 30,
+    title::String = "Before vs After Calibration"
+)
+    # Combine data with source label
+    df_orig = DataFrame(
+        value = vpop_original[!, param],
+        source = fill("Original (n=$(nrow(vpop_original)))", nrow(vpop_original))
+    )
+    df_calib = DataFrame(
+        value = vpop_calibrated[!, param],
+        source = fill("Calibrated (n=$(nrow(vpop_calibrated)))", nrow(vpop_calibrated))
+    )
+    combined_df = vcat(df_orig, df_calib)
+
+    # Create AOG plot with faceting
+    plt = data(combined_df) *
+          mapping(:value) *
+          histogram(bins=nbins, normalization=:pdf) *
+          mapping(col=:source => sorter(["Original (n=$(nrow(vpop_original)))", "Calibrated (n=$(nrow(vpop_calibrated)))"]))
+
+    fig = draw(
+        plt;
+        axis = (xlabel = string(param), ylabel = "Density"),
+        figure = (title = title,)
+    )
 
     return fig
 end
@@ -344,6 +488,69 @@ function plot_tumor_dynamics(
 end
 
 """
+    plot_tumor_dynamics_aog(
+        treatment_df::DataFrame,
+        control_df::DataFrame;
+        time_col::Symbol = :time,
+        value_col::Symbol = :Nt,
+        title::String = "Tumor Burden Dynamics"
+    ) -> Figure
+
+AlgebraOfGraphics version: Plot tumor burden dynamics for treatment vs control arms.
+
+Uses AOG layering with summary statistics computed beforehand.
+"""
+function plot_tumor_dynamics_aog(
+    treatment_df::DataFrame,
+    control_df::DataFrame;
+    time_col::Symbol = :time,
+    value_col::Symbol = :Nt,
+    title::String = "Tumor Burden Dynamics"
+)
+    # Calculate summary statistics with arm labels
+    function summarize_with_arm(df, arm_name)
+        @chain df begin
+            @groupby(cols(time_col))
+            @combine(
+                :median = median(cols(value_col)),
+                :q25 = quantile(cols(value_col), 0.25),
+                :q75 = quantile(cols(value_col), 0.75),
+                :q05 = quantile(cols(value_col), 0.05),
+                :q95 = quantile(cols(value_col), 0.95)
+            )
+            @transform(:time_weeks = cols(time_col) ./ 7, :arm = arm_name)
+        end
+    end
+
+    tx_summary = summarize_with_arm(treatment_df, "Treatment")
+    ctrl_summary = summarize_with_arm(control_df, "Control")
+    combined = vcat(ctrl_summary, tx_summary)
+
+    # Create the plot layers
+    # Median lines with color by arm
+    line_layer = data(combined) *
+                 mapping(:time_weeks => "Time (weeks)", :median => "Tumor Size",
+                        color=:arm => "Arm") *
+                 visual(Lines, linewidth=2)
+
+    # Band layer for IQR (Note: AOG doesn't have native band, so we use separate approach)
+    # For bands, we'll use a hybrid approach
+    fig = Figure(size = (700, 500))
+    ax = Axis(fig[1, 1], xlabel = "Time (weeks)", ylabel = "Baseline-Normalized Tumor Diameter", title = title)
+
+    # Draw bands manually (AOG doesn't directly support ribbon/band)
+    for (summary, color) in [(ctrl_summary, :gray), (tx_summary, :blue)]
+        band!(ax, summary.time_weeks, summary.q05, summary.q95, color = (color, 0.2))
+        band!(ax, summary.time_weeks, summary.q25, summary.q75, color = (color, 0.3))
+    end
+
+    # Draw lines using AOG on top
+    draw!(fig[1, 1], line_layer)
+
+    return fig
+end
+
+"""
     plot_response_waterfall(
         sim_results::DataFrame,
         baseline_time::Real,
@@ -414,6 +621,77 @@ function plot_response_waterfall(
 end
 
 """
+    plot_response_waterfall_aog(
+        sim_results::DataFrame,
+        baseline_time::Real,
+        final_time::Real;
+        id_col::Symbol = :id,
+        time_col::Symbol = :time,
+        value_col::Symbol = :Nt,
+        threshold::Float64 = 0.14,
+        title::String = "Response Waterfall Plot",
+        max_patients::Int = 100
+    ) -> Figure
+
+AlgebraOfGraphics version: Create waterfall plot showing percent change from baseline.
+
+Uses AOG with computed response categories for coloring.
+"""
+function plot_response_waterfall_aog(
+    sim_results::DataFrame,
+    baseline_time::Real,
+    final_time::Real;
+    id_col::Symbol = :id,
+    time_col::Symbol = :time,
+    value_col::Symbol = :Nt,
+    threshold::Float64 = 0.14,
+    title::String = "Response Waterfall Plot",
+    max_patients::Int = 100
+)
+    # Calculate percent change
+    baseline = @chain sim_results begin
+        @subset(cols(time_col) .== baseline_time)
+        @select(cols(id_col), baseline = cols(value_col))
+    end
+
+    final = @chain sim_results begin
+        @subset(cols(time_col) .== final_time)
+        @select(cols(id_col), final = cols(value_col))
+    end
+
+    changes = innerjoin(baseline, final, on = id_col)
+    changes[!, :pct_change] = (changes.final .- changes.baseline) ./ changes.baseline .* 100
+
+    # Sort and sample
+    sort!(changes, :pct_change)
+    if nrow(changes) > max_patients
+        sample_idx = round.(Int, range(1, nrow(changes), length=max_patients))
+        changes = changes[sample_idx, :]
+    end
+
+    # Add response category and patient order
+    changes[!, :response] = [c < (threshold - 1) * 100 ? "CR" : (c > 20 ? "PD" : "SD")
+                             for c in changes.pct_change]
+    changes[!, :patient_order] = 1:nrow(changes)
+
+    # Create AOG bar plot with color by response
+    plt = data(changes) *
+          mapping(:patient_order => "Patient", :pct_change => "Change from Baseline (%)",
+                  color=:response => "Response") *
+          visual(BarPlot)
+
+    fig = draw(plt; axis = (title = title,))
+
+    # Add reference lines
+    ax = current_axis()
+    hlines!(ax, [0], color = :black, linestyle = :solid)
+    hlines!(ax, [-30], color = :blue, linestyle = :dash)
+    hlines!(ax, [20], color = :red, linestyle = :dash)
+
+    return fig
+end
+
+"""
     plot_treatment_comparison(
         results_dict::Dict,
         endpoint::Symbol;
@@ -452,6 +730,51 @@ function plot_treatment_comparison(
 
     barplot!(ax, 1:n_treatments, rates, color = colors)
     errorbars!(ax, 1:n_treatments, rates, rates .- ci_low, ci_high .- rates,
+               color = :black, whiskerwidth = 10)
+
+    return fig
+end
+
+"""
+    plot_treatment_comparison_aog(
+        results_dict::Dict,
+        endpoint::Symbol;
+        title::String = "Treatment Comparison"
+    ) -> Figure
+
+AlgebraOfGraphics version: Create bar chart comparing endpoints across treatment arms.
+
+Uses AOG with DataFrame of results for cleaner declarative syntax.
+"""
+function plot_treatment_comparison_aog(
+    results_dict::Dict,
+    endpoint::Symbol;
+    title::String = "Treatment Comparison"
+)
+    # Build DataFrame from results
+    df = DataFrame(
+        treatment = String[],
+        rate = Float64[],
+        ci_low = Float64[],
+        ci_high = Float64[]
+    )
+
+    for (t, vals) in results_dict
+        push!(df, (string(t), vals[1], vals[2], vals[3]))
+    end
+
+    # Create AOG bar plot
+    plt = data(df) *
+          mapping(:treatment => "Treatment Arm", :rate => "$(endpoint) Rate (%)",
+                  color=:treatment => "Treatment") *
+          visual(BarPlot)
+
+    fig = draw(plt; axis = (title = title,))
+
+    # Add error bars manually (AOG doesn't directly support asymmetric error bars)
+    ax = current_axis()
+    x_positions = 1:nrow(df)
+    errorbars!(ax, x_positions, df.rate, df.rate .- df.ci_low, df.ci_high .- df.rate,
                color = :black, whiskerwidth = 10)
 
     return fig
@@ -511,6 +834,60 @@ function plot_hbv_dynamics(
         end
         hlines!(ax2, [log10(25)], color = :red, linestyle = :dash,
                 label = "LOQ (25 copies/mL)")
+    end
+
+    Label(fig[0, :], title, fontsize = 16)
+
+    return fig
+end
+
+"""
+    plot_hbv_dynamics_aog(
+        dynamics_df::DataFrame;
+        id_sample::Int = 10,
+        title::String = "HBV Viral Dynamics"
+    ) -> Figure
+
+AlgebraOfGraphics version: Plot HBV viral and HBsAg dynamics for sample of patients.
+
+Uses AOG with group aesthetic for individual patient trajectories.
+"""
+function plot_hbv_dynamics_aog(
+    dynamics_df::DataFrame;
+    id_sample::Int = 10,
+    title::String = "HBV Viral Dynamics"
+)
+    # Sample patients
+    unique_ids = unique(dynamics_df.id)
+    sample_ids = unique_ids[1:min(id_sample, length(unique_ids))]
+    sample_df = @subset(dynamics_df, :id .∈ Ref(sample_ids))
+
+    fig = Figure(size = (800, 600))
+
+    # HBsAg panel using AOG
+    if :log_HBsAg in names(dynamics_df)
+        plt_hbsag = data(sample_df) *
+                    mapping(:time => "Time (days)", :log_HBsAg => "log₁₀(HBsAg) IU/mL",
+                           group=:id => nonnumeric) *
+                    visual(Lines, alpha=0.3, linewidth=0.5)
+        draw!(fig[1, 1], plt_hbsag; axis = (title = "HBsAg Dynamics",))
+
+        # Add LOQ line
+        ax1 = contents(fig[1, 1])[1]
+        hlines!(ax1, [log10(0.05)], color = :red, linestyle = :dash)
+    end
+
+    # Viral load panel using AOG
+    if :log_V in names(dynamics_df)
+        plt_viral = data(sample_df) *
+                    mapping(:time => "Time (days)", :log_V => "log₁₀(HBV DNA) copies/mL",
+                           group=:id => nonnumeric) *
+                    visual(Lines, alpha=0.3, linewidth=0.5)
+        draw!(fig[2, 1], plt_viral; axis = (title = "Viral Load Dynamics",))
+
+        # Add LOQ line
+        ax2 = contents(fig[2, 1])[1]
+        hlines!(ax2, [log10(25)], color = :red, linestyle = :dash)
     end
 
     Label(fig[0, :], title, fontsize = 16)
@@ -648,6 +1025,108 @@ function plot_hbv_population_dynamics(
     end
 
     Label(fig[0, :], title, fontsize = 16)
+
+    return fig
+end
+
+"""
+    plot_hbv_population_dynamics_aog(
+        dynamics_df::DataFrame;
+        biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V, :log_ALT, :log_E],
+        stratify_by::Union{Symbol,Nothing} = :outcome,
+        show_loq::Bool = true,
+        time_unit::Symbol = :days,
+        title::String = "HBV Infection Dynamics"
+    ) -> Figure
+
+AlgebraOfGraphics version: Create population-level dynamics plot with median and CI bands.
+
+Uses AOG faceting for multi-panel layout and layers for summary statistics.
+Note: AOG doesn't natively support ribbon/band plots, so this uses a hybrid approach
+with AOG for line plots and CairoMakie for bands.
+"""
+function plot_hbv_population_dynamics_aog(
+    dynamics_df::DataFrame;
+    biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V, :log_ALT, :log_E],
+    stratify_by::Union{Symbol,Nothing} = :outcome,
+    show_loq::Bool = true,
+    time_unit::Symbol = :days,
+    title::String = "HBV Infection Dynamics"
+)
+    # Limit to 4 biomarkers
+    biomarkers = biomarkers[1:min(4, length(biomarkers))]
+
+    # Time conversion
+    time_divisor = time_unit == :weeks ? 7.0 : 1.0
+    time_label = time_unit == :weeks ? "Time (weeks)" : "Time (days)"
+
+    # Stack data into long format for AOG
+    long_df = stack(dynamics_df[:, vcat([:id, :time], stratify_by !== nothing ? [stratify_by] : Symbol[], biomarkers)],
+                    biomarkers, variable_name=:biomarker, value_name=:value)
+    long_df[!, :time_plot] = long_df.time ./ time_divisor
+
+    # Compute summary statistics by time, biomarker, and stratification
+    group_cols = stratify_by !== nothing ? [:time_plot, :biomarker, stratify_by] : [:time_plot, :biomarker]
+
+    summary_df = combine(groupby(long_df, group_cols)) do gdf
+        (median = median(gdf.value),
+         q05 = quantile(gdf.value, 0.05),
+         q25 = quantile(gdf.value, 0.25),
+         q75 = quantile(gdf.value, 0.75),
+         q95 = quantile(gdf.value, 0.95))
+    end
+    sort!(summary_df, :time_plot)
+
+    # Create the median line plot using AOG
+    if stratify_by !== nothing
+        plt = data(summary_df) *
+              mapping(:time_plot => time_label, :median => "Value",
+                     color=stratify_by => string(stratify_by),
+                     layout=:biomarker) *
+              visual(Lines, linewidth=2)
+    else
+        plt = data(summary_df) *
+              mapping(:time_plot => time_label, :median => "Value",
+                     layout=:biomarker) *
+              visual(Lines, linewidth=2)
+    end
+
+    # Draw using AOG faceting
+    fig = draw(plt;
+        axis = (ylabel = "Value",),
+        figure = (title = title,),
+        facet = (linkxaxes = :minimal, linkyaxes = :none)
+    )
+
+    # Add bands manually to each axis (AOG doesn't support bands natively)
+    for (i, biomarker) in enumerate(biomarkers)
+        ax = contents(fig.figure[div(i-1, 2)+1, mod(i-1, 2)+1])[1]
+
+        biomarker_summary = @subset(summary_df, :biomarker .== string(biomarker))
+
+        if stratify_by !== nothing
+            groups = unique(biomarker_summary[!, stratify_by])
+            for group in groups
+                group_summary = @subset(biomarker_summary, cols(stratify_by) .== group)
+                group_color = get(HBV_OUTCOME_COLORS, group, colorant"#1f77b4")
+
+                band!(ax, group_summary.time_plot, group_summary.q05, group_summary.q95,
+                      color = (group_color, 0.2))
+                band!(ax, group_summary.time_plot, group_summary.q25, group_summary.q75,
+                      color = (group_color, 0.3))
+            end
+        else
+            band!(ax, biomarker_summary.time_plot, biomarker_summary.q05, biomarker_summary.q95,
+                  color = (:blue, 0.2))
+            band!(ax, biomarker_summary.time_plot, biomarker_summary.q25, biomarker_summary.q75,
+                  color = (:blue, 0.3))
+        end
+
+        # Add LOQ lines
+        if show_loq && haskey(HBV_LOQ_THRESHOLDS, biomarker)
+            hlines!(ax, [HBV_LOQ_THRESHOLDS[biomarker]], color = :red, linestyle = :dash, linewidth = 1)
+        end
+    end
 
     return fig
 end
@@ -888,6 +1367,122 @@ function plot_hbv_biomarker_panel(
     return fig
 end
 
+"""
+    plot_hbv_biomarker_panel_aog(
+        dynamics_df::DataFrame,
+        biomarker::Symbol;
+        stratify_by::Union{Symbol,Nothing} = :outcome,
+        time_unit::Symbol = :days,
+        show_individual::Bool = false,
+        n_individual::Int = 20,
+        title::String = ""
+    ) -> Figure
+
+AlgebraOfGraphics version: Create a single-panel plot for one HBV biomarker.
+
+Uses AOG for line plots with group aesthetic, with CairoMakie bands overlaid.
+"""
+function plot_hbv_biomarker_panel_aog(
+    dynamics_df::DataFrame,
+    biomarker::Symbol;
+    stratify_by::Union{Symbol,Nothing} = :outcome,
+    time_unit::Symbol = :days,
+    show_individual::Bool = false,
+    n_individual::Int = 20,
+    title::String = ""
+)
+    time_divisor = time_unit == :weeks ? 7.0 : 1.0
+    time_label = time_unit == :weeks ? "Time (weeks)" : "Time (days)"
+    ylabel = get(HBV_BIOMARKER_LABELS, biomarker, string(biomarker))
+
+    if isempty(title)
+        title = ylabel
+    end
+
+    # Prepare data with time_plot column
+    plot_df = copy(dynamics_df)
+    plot_df[!, :time_plot] = plot_df.time ./ time_divisor
+
+    fig = Figure(size = (700, 500))
+
+    # Show individual trajectories using AOG if requested
+    if show_individual
+        # Sample patients
+        unique_ids = unique(plot_df.id)
+        sample_ids = unique_ids[1:min(n_individual, length(unique_ids))]
+        sample_df = @subset(plot_df, :id .∈ Ref(sample_ids))
+
+        if stratify_by !== nothing && hasproperty(plot_df, stratify_by)
+            indiv_plt = data(sample_df) *
+                        mapping(:time_plot, biomarker,
+                               group=:id => nonnumeric, color=stratify_by) *
+                        visual(Lines, alpha=0.2, linewidth=0.5)
+        else
+            indiv_plt = data(sample_df) *
+                        mapping(:time_plot, biomarker, group=:id => nonnumeric) *
+                        visual(Lines, alpha=0.2, linewidth=0.5)
+        end
+
+        draw!(fig[1, 1], indiv_plt;
+              axis = (xlabel = time_label, ylabel = ylabel, title = title))
+    else
+        ax = Axis(fig[1, 1], xlabel = time_label, ylabel = ylabel, title = title)
+    end
+
+    ax = contents(fig[1, 1])[1]
+
+    # Compute and plot population summary with bands (hybrid approach)
+    if stratify_by !== nothing && hasproperty(plot_df, stratify_by)
+        groups = sort(unique(plot_df[!, stratify_by]))
+        for group in groups
+            group_df = @subset(plot_df, cols(stratify_by) .== group)
+            group_color = get(HBV_OUTCOME_COLORS, group, colorant"#1f77b4")
+
+            summary = @chain group_df begin
+                @groupby(:time_plot)
+                @combine(
+                    :median = median(cols(biomarker)),
+                    :q05 = quantile(cols(biomarker), 0.05),
+                    :q25 = quantile(cols(biomarker), 0.25),
+                    :q75 = quantile(cols(biomarker), 0.75),
+                    :q95 = quantile(cols(biomarker), 0.95)
+                )
+                @orderby(:time_plot)
+            end
+
+            band!(ax, summary.time_plot, summary.q05, summary.q95, color = (group_color, 0.2))
+            band!(ax, summary.time_plot, summary.q25, summary.q75, color = (group_color, 0.3))
+            lines!(ax, summary.time_plot, summary.median,
+                   color = group_color, linewidth = 2, label = string(group))
+        end
+        axislegend(ax, position = :rt)
+    else
+        summary = @chain plot_df begin
+            @groupby(:time_plot)
+            @combine(
+                :median = median(cols(biomarker)),
+                :q05 = quantile(cols(biomarker), 0.05),
+                :q25 = quantile(cols(biomarker), 0.25),
+                :q75 = quantile(cols(biomarker), 0.75),
+                :q95 = quantile(cols(biomarker), 0.95)
+            )
+            @orderby(:time_plot)
+        end
+
+        band!(ax, summary.time_plot, summary.q05, summary.q95, color = (:blue, 0.2))
+        band!(ax, summary.time_plot, summary.q25, summary.q75, color = (:blue, 0.3))
+        lines!(ax, summary.time_plot, summary.median, color = :blue, linewidth = 2)
+    end
+
+    # LOQ threshold
+    if haskey(HBV_LOQ_THRESHOLDS, biomarker)
+        hlines!(ax, [HBV_LOQ_THRESHOLDS[biomarker]],
+                color = :red, linestyle = :dash, linewidth = 1)
+    end
+
+    return fig
+end
+
 #=============================================================================
 # MILP Calibration Plots
 =============================================================================#
@@ -947,6 +1542,57 @@ function plot_calibration_result(
 end
 
 """
+    plot_calibration_result_aog(
+        original_values::AbstractVector,
+        calibrated_values::AbstractVector,
+        target;
+        title::String = "MILP Calibration Result"
+    ) -> Figure
+
+AlgebraOfGraphics version: Compare original, calibrated, and target distributions.
+
+Uses AOG with faceting for stacked histogram panels.
+"""
+function plot_calibration_result_aog(
+    original_values::AbstractVector,
+    calibrated_values::AbstractVector,
+    target;
+    title::String = "MILP Calibration Result"
+)
+    # Combine data into long format
+    combined_df = DataFrame(
+        value = vcat(original_values, calibrated_values),
+        source = vcat(
+            fill("Original (n=$(length(original_values)))", length(original_values)),
+            fill("Calibrated (n=$(length(calibrated_values)))", length(calibrated_values))
+        )
+    )
+
+    # Create histogram layer
+    plt = data(combined_df) *
+          mapping(:value => string(target.variable_name)) *
+          histogram(bins=length(target.percentages), normalization=:probability) *
+          mapping(row=:source => sorter(["Original (n=$(length(original_values)))",
+                                         "Calibrated (n=$(length(calibrated_values)))"]))
+
+    fig = draw(plt;
+        axis = (ylabel = "Percentage (%)",),
+        figure = (title = title,)
+    )
+
+    # Add target as separate panel using CairoMakie
+    ax_target = Axis(fig.figure[3, 1],
+        xlabel = string(target.variable_name),
+        ylabel = "Percentage (%)",
+        title = "Target Distribution"
+    )
+    barplot!(ax_target, 1:length(target.percentages), target.percentages,
+             color = (:orange, 0.7))
+
+    return fig
+end
+
+"""
     plot_pareto_front(
         pareto_points::Vector;
         optimal_idx::Union{Int, Nothing} = nothing,
@@ -980,6 +1626,50 @@ function plot_pareto_front(
     end
 
     axislegend(ax, position = :rt)
+
+    return fig
+end
+
+"""
+    plot_pareto_front_aog(
+        pareto_points::Vector;
+        optimal_idx::Union{Int, Nothing} = nothing,
+        title::String = "Pareto Front: VPs vs Distribution Error"
+    ) -> Figure
+
+AlgebraOfGraphics version: Plot Pareto front for MILP calibration.
+
+Uses AOG scatter and lines with point highlighting for optimal.
+"""
+function plot_pareto_front_aog(
+    pareto_points::Vector;
+    optimal_idx::Union{Int, Nothing} = nothing,
+    title::String = "Pareto Front: VPs vs Distribution Error"
+)
+    # Build DataFrame from pareto points
+    df = DataFrame(
+        n_selected = [p.n_selected for p in pareto_points],
+        mean_error = [p.mean_error for p in pareto_points],
+        point_type = fill("Pareto", length(pareto_points))
+    )
+
+    # Mark optimal point if specified
+    if !isnothing(optimal_idx) && optimal_idx <= length(pareto_points)
+        df[optimal_idx, :point_type] = "Optimal"
+    end
+
+    # Create plot with scatter and line
+    plt_scatter = data(df) *
+                  mapping(:n_selected => "Number of Selected VPs",
+                         :mean_error => "Mean Distribution Error (%)",
+                         color=:point_type) *
+                  visual(Scatter, markersize=10)
+
+    plt_line = data(df) *
+               mapping(:n_selected, :mean_error) *
+               visual(Lines, color=(:blue, 0.3))
+
+    fig = draw(plt_scatter + plt_line; axis = (title = title,))
 
     return fig
 end
@@ -1040,6 +1730,62 @@ function plot_gsa_indices(
 end
 
 """
+    plot_gsa_indices_aog(
+        gsa_result,
+        output::Symbol;
+        title::String = "Sensitivity Indices"
+    ) -> Figure
+
+AlgebraOfGraphics version: Create bar chart of GSA sensitivity indices.
+
+Uses AOG with dodged bar plot for first and total order indices.
+"""
+function plot_gsa_indices_aog(
+    gsa_result,
+    output::Symbol;
+    title::String = "Sensitivity Indices"
+)
+    # Extract data for this output
+    fo = filter(row -> row.output == output, gsa_result.first_order)
+    to = filter(row -> row.output == output, gsa_result.total_order)
+
+    # Sort by total order
+    sort!(to, :index, rev = true)
+    param_order = to.parameter
+
+    # Build long-format DataFrame
+    df = DataFrame(
+        parameter = String[],
+        index_type = String[],
+        index_value = Float64[]
+    )
+
+    for p in param_order
+        fo_val = filter(r -> r.parameter == p, fo)[1, :index]
+        to_val = filter(r -> r.parameter == p, to)[1, :index]
+        push!(df, (string(p), "First Order (S₁)", fo_val))
+        push!(df, (string(p), "Total Order (Sₜ)", to_val))
+    end
+
+    # Create AOG plot with dodged bars
+    plt = data(df) *
+          mapping(:parameter => sorter(string.(param_order)) => "Parameter",
+                 :index_value => "Sensitivity Index",
+                 dodge=:index_type, color=:index_type => "Index Type") *
+          visual(BarPlot)
+
+    fig = draw(plt;
+        axis = (title = "$title: $output", xticklabelrotation = π/6)
+    )
+
+    # Add threshold line
+    ax = current_axis()
+    hlines!(ax, [0.1], color = :red, linestyle = :dash)
+
+    return fig
+end
+
+"""
     plot_gsa_heatmap(
         gsa_result::GSAResult;
         index_type::Symbol = :total_order,
@@ -1084,6 +1830,43 @@ function plot_gsa_heatmap(
                   colormap = :viridis)
 
     Colorbar(fig[1, 2], hm, label = "Sensitivity Index")
+
+    return fig
+end
+
+"""
+    plot_gsa_heatmap_aog(
+        gsa_result;
+        index_type::Symbol = :total_order,
+        title::String = "GSA Heatmap"
+    ) -> Figure
+
+AlgebraOfGraphics version: Create heatmap of sensitivity indices across outputs.
+
+Uses AOG's heatmap visual with mapping for output and parameter.
+"""
+function plot_gsa_heatmap_aog(
+    gsa_result;
+    index_type::Symbol = :total_order,
+    title::String = "GSA Heatmap"
+)
+    indices_df = index_type == :total_order ? gsa_result.total_order : gsa_result.first_order
+
+    # Convert to string columns for AOG
+    df = DataFrame(
+        output = string.(indices_df.output),
+        parameter = string.(indices_df.parameter),
+        index = indices_df.index
+    )
+
+    # Create heatmap using AOG
+    plt = data(df) *
+          mapping(:parameter => "Parameter", :output => "Output", :index => "Sensitivity Index") *
+          visual(Heatmap, colormap=:viridis)
+
+    fig = draw(plt;
+        axis = (title = title, xticklabelrotation = π/4)
+    )
 
     return fig
 end
@@ -1138,6 +1921,54 @@ function plot_gsa_comparison(
     end
 
     axislegend(ax, position = :rt)
+
+    return fig
+end
+
+"""
+    plot_gsa_comparison_aog(
+        gsa_results::Dict,
+        output::Symbol;
+        title::String = "GSA Treatment Comparison"
+    ) -> Figure
+
+AlgebraOfGraphics version: Compare GSA results across different treatments/conditions.
+
+Uses AOG with dodged bars for treatment comparison.
+"""
+function plot_gsa_comparison_aog(
+    gsa_results::Dict,
+    output::Symbol;
+    title::String = "GSA Treatment Comparison"
+)
+    treatments = collect(keys(gsa_results))
+    first_result = gsa_results[first(treatments)]
+    params = first_result.parameters
+
+    # Build long-format DataFrame
+    df = DataFrame(
+        parameter = String[],
+        treatment = String[],
+        index_value = Float64[]
+    )
+
+    for treatment in treatments
+        to = filter(row -> row.output == output, gsa_results[treatment].total_order)
+        for p in params
+            idx_val = filter(r -> r.parameter == p, to)[1, :index]
+            push!(df, (string(p), string(treatment), idx_val))
+        end
+    end
+
+    # Create AOG plot with dodged bars
+    plt = data(df) *
+          mapping(:parameter => "Parameter", :index_value => "Total Order Index",
+                 dodge=:treatment, color=:treatment => "Treatment") *
+          visual(BarPlot)
+
+    fig = draw(plt;
+        axis = (title = title, xticklabelrotation = π/4)
+    )
 
     return fig
 end
@@ -1267,6 +2098,40 @@ function quick_scatter(x::AbstractVector, y::AbstractVector;
     return fig
 end
 
+"""
+    quick_hist_aog(values::AbstractVector; title::String = "Distribution", bins::Int = 30) -> Figure
+
+AlgebraOfGraphics version: Create quick histogram for exploration.
+
+Uses simple AOG histogram pattern.
+"""
+function quick_hist_aog(values::AbstractVector; title::String = "Distribution", bins::Int = 30)
+    df = DataFrame(value = values)
+    plt = data(df) * mapping(:value => "Value") * histogram(bins=bins)
+    fig = draw(plt; axis = (ylabel = "Count", title = title))
+    return fig
+end
+
+"""
+    quick_scatter_aog(x::AbstractVector, y::AbstractVector;
+                      xlabel::String = "x", ylabel::String = "y",
+                      title::String = "Scatter Plot") -> Figure
+
+AlgebraOfGraphics version: Create quick scatter plot for exploration.
+
+Uses simple AOG scatter pattern.
+"""
+function quick_scatter_aog(x::AbstractVector, y::AbstractVector;
+                           xlabel::String = "x", ylabel::String = "y",
+                           title::String = "Scatter Plot")
+    df = DataFrame(x = x, y = y)
+    plt = data(df) *
+          mapping(:x => xlabel, :y => ylabel) *
+          visual(Scatter, markersize=5, alpha=0.5)
+    fig = draw(plt; axis = (title = title,))
+    return fig
+end
+
 #=============================================================================
 # Exports
 =============================================================================#
@@ -1276,22 +2141,41 @@ export ISCT_THEME, TREATMENT_COLORS, set_isct_theme!
 # HBV-specific constants
 export HBV_OUTCOME_COLORS, HBV_BIOMARKER_LABELS, HBV_LOQ_THRESHOLDS
 
-# Vpop distribution plots
+# Vpop distribution plots (CairoMakie)
 export plot_parameter_distributions, plot_parameter_correlations, plot_vpop_comparison
 
-# VCT result plots
+# Vpop distribution plots (AlgebraOfGraphics)
+export plot_parameter_distributions_aog, plot_parameter_correlations_aog, plot_vpop_comparison_aog
+
+# VCT result plots (CairoMakie)
 export plot_tumor_dynamics, plot_response_waterfall, plot_treatment_comparison
 export plot_hbv_dynamics
 
-# HBV population dynamics plots
+# VCT result plots (AlgebraOfGraphics)
+export plot_tumor_dynamics_aog, plot_response_waterfall_aog, plot_treatment_comparison_aog
+export plot_hbv_dynamics_aog
+
+# HBV population dynamics plots (CairoMakie)
 export plot_hbv_population_dynamics, plot_hbv_natural_history, plot_hbv_treatment_response
 export plot_hbv_biomarker_panel, add_treatment_phase_markers!
 
-# Calibration plots
+# HBV population dynamics plots (AlgebraOfGraphics)
+export plot_hbv_population_dynamics_aog, plot_hbv_biomarker_panel_aog
+
+# Calibration plots (CairoMakie)
 export plot_calibration_result, plot_pareto_front
 
-# GSA plots
+# Calibration plots (AlgebraOfGraphics)
+export plot_calibration_result_aog, plot_pareto_front_aog
+
+# GSA plots (CairoMakie)
 export plot_gsa_indices, plot_gsa_heatmap, plot_gsa_comparison
 
-# Summary and utility
+# GSA plots (AlgebraOfGraphics)
+export plot_gsa_indices_aog, plot_gsa_heatmap_aog, plot_gsa_comparison_aog
+
+# Summary and utility (CairoMakie)
 export create_isct_summary_figure, save_figure, quick_hist, quick_scatter
+
+# Utility plots (AlgebraOfGraphics)
+export quick_hist_aog, quick_scatter_aog
