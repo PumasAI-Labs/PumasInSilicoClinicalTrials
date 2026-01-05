@@ -16,10 +16,7 @@ Reference:
     Lung Cancer. CPT Pharmacometrics Syst Pharmacol. 2023;12:236-249.
 =#
 
-using Pkg
-Pkg.activate(joinpath(@__DIR__, ".."))
-
-using ISCTWorkflow
+using .ISCTWorkflow
 using DataFrames
 using DataFramesMeta
 using Statistics

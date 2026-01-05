@@ -19,10 +19,7 @@ Reference:
     Pharmacology (2025)
 =#
 
-using Pkg
-Pkg.activate(joinpath(@__DIR__, ".."))
-
-using ISCTWorkflow
+using .ISCTWorkflow
 using DataFrames
 using DataFramesMeta
 using Statistics

@@ -15,10 +15,7 @@ Reference:
     Section 2, Step 5 of the ISCT workflow paper (Figure 3)
 =#
 
-using Pkg
-Pkg.activate(joinpath(@__DIR__, ".."))
-
-using ISCTWorkflow
+using .ISCTWorkflow
 using DataFrames
 using DataFramesMeta
 using Statistics

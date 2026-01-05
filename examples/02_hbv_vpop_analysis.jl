@@ -14,9 +14,6 @@ Reference:
     Section 3.2 of the ISCT workflow paper - HBV QSP Model
 =#
 
-# using Pkg
-# Pkg.activate(joinpath(@__DIR__, ".."))
-
 using .ISCTWorkflow
 using DataFrames
 using DataFramesMeta

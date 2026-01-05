@@ -18,9 +18,6 @@ Reference:
     Section 2, Step 6 of the ISCT workflow paper
 =#
 
-# using Pkg
-# Pkg.activate(joinpath(@__DIR__, ".."))
-
 using .ISCTWorkflow
 using DataFrames
 using DataFramesMeta

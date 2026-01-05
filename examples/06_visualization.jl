@@ -16,9 +16,6 @@ Reference:
     Supporting visualization for the 7-step ISCT workflow
 =#
 
-using Pkg
-Pkg.activate(joinpath(@__DIR__, ".."))
-
 using .ISCTWorkflow
 using DataFrames
 using DataFramesMeta
