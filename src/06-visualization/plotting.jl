@@ -16,7 +16,7 @@ Reference:
 using AlgebraOfGraphics
 using CairoMakie
 using DataFrames
-using DataFramesMeta
+using DataFramesMeta: @chain, @subset
 using Statistics
 
 #=============================================================================
@@ -436,19 +436,18 @@ function plot_tumor_dynamics(
     value_col::Symbol = :Nt,
     title::String = "Tumor Burden Dynamics"
 )
-    # Calculate summary statistics
+    # Calculate summary statistics using plain DataFrames (avoids macro scoping issues)
     function summarize_by_time(df, time_col, value_col)
-        @chain df begin
-            @groupby(cols(time_col))
-            @combine(
-                :median = median(cols(value_col)),
-                :q25 = quantile(cols(value_col), 0.25),
-                :q75 = quantile(cols(value_col), 0.75),
-                :q05 = quantile(cols(value_col), 0.05),
-                :q95 = quantile(cols(value_col), 0.95)
-            )
-            @transform(:time_weeks = cols(time_col) ./ 7)
-        end
+        gdf = groupby(df, time_col)
+        result = combine(gdf,
+            value_col => median => :median,
+            value_col => (x -> quantile(x, 0.25)) => :q25,
+            value_col => (x -> quantile(x, 0.75)) => :q75,
+            value_col => (x -> quantile(x, 0.05)) => :q05,
+            value_col => (x -> quantile(x, 0.95)) => :q95
+        )
+        result[!, :time_weeks] = result[!, time_col] ./ 7
+        return result
     end
 
     tx_summary = summarize_by_time(treatment_df, time_col, value_col)
@@ -507,19 +506,19 @@ function plot_tumor_dynamics_aog(
     value_col::Symbol = :Nt,
     title::String = "Tumor Burden Dynamics"
 )
-    # Calculate summary statistics with arm labels
+    # Calculate summary statistics with arm labels (plain DataFrames)
     function summarize_with_arm(df, arm_name)
-        @chain df begin
-            @groupby(cols(time_col))
-            @combine(
-                :median = median(cols(value_col)),
-                :q25 = quantile(cols(value_col), 0.25),
-                :q75 = quantile(cols(value_col), 0.75),
-                :q05 = quantile(cols(value_col), 0.05),
-                :q95 = quantile(cols(value_col), 0.95)
-            )
-            @transform(:time_weeks = cols(time_col) ./ 7, :arm = arm_name)
-        end
+        gdf = groupby(df, time_col)
+        result = combine(gdf,
+            value_col => median => :median,
+            value_col => (x -> quantile(x, 0.25)) => :q25,
+            value_col => (x -> quantile(x, 0.75)) => :q75,
+            value_col => (x -> quantile(x, 0.05)) => :q05,
+            value_col => (x -> quantile(x, 0.95)) => :q95
+        )
+        result[!, :time_weeks] = result[!, time_col] ./ 7
+        result[!, :arm] .= arm_name
+        return result
     end
 
     tx_summary = summarize_with_arm(treatment_df, "Treatment")
@@ -575,16 +574,12 @@ function plot_response_waterfall(
     title::String = "Response Waterfall Plot",
     max_patients::Int = 100
 )
-    # Calculate percent change
-    baseline = @chain sim_results begin
-        @subset(cols(time_col) .== baseline_time)
-        @select(cols(id_col), baseline = cols(value_col))
-    end
+    # Calculate percent change (plain DataFrames)
+    baseline = sim_results[sim_results[!, time_col] .== baseline_time, [id_col, value_col]]
+    baseline = rename(baseline, value_col => :baseline)
 
-    final = @chain sim_results begin
-        @subset(cols(time_col) .== final_time)
-        @select(cols(id_col), final = cols(value_col))
-    end
+    final = sim_results[sim_results[!, time_col] .== final_time, [id_col, value_col]]
+    final = rename(final, value_col => :final)
 
     changes = innerjoin(baseline, final, on = id_col)
     changes[!, :pct_change] = (changes.final .- changes.baseline) ./ changes.baseline .* 100
@@ -648,16 +643,12 @@ function plot_response_waterfall_aog(
     title::String = "Response Waterfall Plot",
     max_patients::Int = 100
 )
-    # Calculate percent change
-    baseline = @chain sim_results begin
-        @subset(cols(time_col) .== baseline_time)
-        @select(cols(id_col), baseline = cols(value_col))
-    end
+    # Calculate percent change (plain DataFrames)
+    baseline = sim_results[sim_results[!, time_col] .== baseline_time, [id_col, value_col]]
+    baseline = rename(baseline, value_col => :baseline)
 
-    final = @chain sim_results begin
-        @subset(cols(time_col) .== final_time)
-        @select(cols(id_col), final = cols(value_col))
-    end
+    final = sim_results[sim_results[!, time_col] .== final_time, [id_col, value_col]]
+    final = rename(final, value_col => :final)
 
     changes = innerjoin(baseline, final, on = id_col)
     changes[!, :pct_change] = (changes.final .- changes.baseline) ./ changes.baseline .* 100
@@ -975,7 +966,7 @@ function plot_hbv_population_dynamics(
                 group_color = :blue
                 group_label = "All"
             else
-                group_df = @subset(dynamics_df, cols(stratify_by) .== group)
+                group_df = dynamics_df[dynamics_df[!, stratify_by] .== group, :]
                 group_color = get(HBV_OUTCOME_COLORS, group, colorant"#1f77b4")
                 group_label = string(group)
             end
@@ -985,19 +976,17 @@ function plot_hbv_population_dynamics(
                 continue
             end
 
-            # Compute summary statistics
-            summary = @chain group_df begin
-                @groupby(:time)
-                @combine(
-                    :median = median(cols(biomarker)),
-                    :q05 = quantile(cols(biomarker), 0.05),
-                    :q25 = quantile(cols(biomarker), 0.25),
-                    :q75 = quantile(cols(biomarker), 0.75),
-                    :q95 = quantile(cols(biomarker), 0.95)
-                )
-                @transform(:time_plot = :time ./ time_divisor)
-                @orderby(:time)
-            end
+            # Compute summary statistics (plain DataFrames)
+            gdf = groupby(group_df, :time)
+            summary = combine(gdf,
+                biomarker => median => :median,
+                biomarker => (x -> quantile(x, 0.05)) => :q05,
+                biomarker => (x -> quantile(x, 0.25)) => :q25,
+                biomarker => (x -> quantile(x, 0.75)) => :q75,
+                biomarker => (x -> quantile(x, 0.95)) => :q95
+            )
+            summary[!, :time_plot] = summary[!, :time] ./ time_divisor
+            sort!(summary, :time)
 
             # Plot 90% CI band
             band!(ax, summary.time_plot, summary.q05, summary.q95,
@@ -1107,7 +1096,7 @@ function plot_hbv_population_dynamics_aog(
         if stratify_by !== nothing
             groups = unique(biomarker_summary[!, stratify_by])
             for group in groups
-                group_summary = @subset(biomarker_summary, cols(stratify_by) .== group)
+                group_summary = biomarker_summary[biomarker_summary[!, stratify_by] .== group, :]
                 group_color = get(HBV_OUTCOME_COLORS, group, colorant"#1f77b4")
 
                 band!(ax, group_summary.time_plot, group_summary.q05, group_summary.q95,
@@ -1314,7 +1303,7 @@ function plot_hbv_biomarker_panel(
             group_color = :blue
             group_label = "All"
         else
-            group_df = @subset(dynamics_df, cols(stratify_by) .== group)
+            group_df = dynamics_df[dynamics_df[!, stratify_by] .== group, :]
             group_color = get(HBV_OUTCOME_COLORS, group, colorant"#1f77b4")
             group_label = string(group)
         end
@@ -1328,25 +1317,23 @@ function plot_hbv_biomarker_panel(
             unique_ids = unique(group_df.id)
             sample_ids = unique_ids[1:min(n_individual, length(unique_ids))]
             for id in sample_ids
-                patient_df = @subset(group_df, :id .== id)
+                patient_df = group_df[group_df.id .== id, :]
                 lines!(ax, patient_df.time ./ time_divisor, patient_df[!, biomarker],
                        color = (group_color, 0.2), linewidth = 0.5)
             end
         end
 
-        # Compute and plot population summary
-        summary = @chain group_df begin
-            @groupby(:time)
-            @combine(
-                :median = median(cols(biomarker)),
-                :q05 = quantile(cols(biomarker), 0.05),
-                :q25 = quantile(cols(biomarker), 0.25),
-                :q75 = quantile(cols(biomarker), 0.75),
-                :q95 = quantile(cols(biomarker), 0.95)
-            )
-            @transform(:time_plot = :time ./ time_divisor)
-            @orderby(:time)
-        end
+        # Compute and plot population summary (plain DataFrames)
+        gdf = groupby(group_df, :time)
+        summary = combine(gdf,
+            biomarker => median => :median,
+            biomarker => (x -> quantile(x, 0.05)) => :q05,
+            biomarker => (x -> quantile(x, 0.25)) => :q25,
+            biomarker => (x -> quantile(x, 0.75)) => :q75,
+            biomarker => (x -> quantile(x, 0.95)) => :q95
+        )
+        summary[!, :time_plot] = summary[!, :time] ./ time_divisor
+        sort!(summary, :time)
 
         band!(ax, summary.time_plot, summary.q05, summary.q95, color = (group_color, 0.2))
         band!(ax, summary.time_plot, summary.q25, summary.q75, color = (group_color, 0.3))
@@ -1435,20 +1422,18 @@ function plot_hbv_biomarker_panel_aog(
     if stratify_by !== nothing && hasproperty(plot_df, stratify_by)
         groups = sort(unique(plot_df[!, stratify_by]))
         for group in groups
-            group_df = @subset(plot_df, cols(stratify_by) .== group)
+            group_df = plot_df[plot_df[!, stratify_by] .== group, :]
             group_color = get(HBV_OUTCOME_COLORS, group, colorant"#1f77b4")
 
-            summary = @chain group_df begin
-                @groupby(:time_plot)
-                @combine(
-                    :median = median(cols(biomarker)),
-                    :q05 = quantile(cols(biomarker), 0.05),
-                    :q25 = quantile(cols(biomarker), 0.25),
-                    :q75 = quantile(cols(biomarker), 0.75),
-                    :q95 = quantile(cols(biomarker), 0.95)
-                )
-                @orderby(:time_plot)
-            end
+            gdf = groupby(group_df, :time_plot)
+            summary = combine(gdf,
+                biomarker => median => :median,
+                biomarker => (x -> quantile(x, 0.05)) => :q05,
+                biomarker => (x -> quantile(x, 0.25)) => :q25,
+                biomarker => (x -> quantile(x, 0.75)) => :q75,
+                biomarker => (x -> quantile(x, 0.95)) => :q95
+            )
+            sort!(summary, :time_plot)
 
             band!(ax, summary.time_plot, summary.q05, summary.q95, color = (group_color, 0.2))
             band!(ax, summary.time_plot, summary.q25, summary.q75, color = (group_color, 0.3))
@@ -1457,17 +1442,15 @@ function plot_hbv_biomarker_panel_aog(
         end
         axislegend(ax, position = :rt)
     else
-        summary = @chain plot_df begin
-            @groupby(:time_plot)
-            @combine(
-                :median = median(cols(biomarker)),
-                :q05 = quantile(cols(biomarker), 0.05),
-                :q25 = quantile(cols(biomarker), 0.25),
-                :q75 = quantile(cols(biomarker), 0.75),
-                :q95 = quantile(cols(biomarker), 0.95)
-            )
-            @orderby(:time_plot)
-        end
+        gdf = groupby(plot_df, :time_plot)
+        summary = combine(gdf,
+            biomarker => median => :median,
+            biomarker => (x -> quantile(x, 0.05)) => :q05,
+            biomarker => (x -> quantile(x, 0.25)) => :q25,
+            biomarker => (x -> quantile(x, 0.75)) => :q75,
+            biomarker => (x -> quantile(x, 0.95)) => :q95
+        )
+        sort!(summary, :time_plot)
 
         band!(ax, summary.time_plot, summary.q05, summary.q95, color = (:blue, 0.2))
         band!(ax, summary.time_plot, summary.q25, summary.q75, color = (:blue, 0.3))

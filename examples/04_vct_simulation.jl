@@ -18,10 +18,10 @@ Reference:
     Section 2, Step 6 of the ISCT workflow paper
 =#
 
-using Pkg
-Pkg.activate(joinpath(@__DIR__, ".."))
+# using Pkg
+# Pkg.activate(joinpath(@__DIR__, ".."))
 
-using ISCTWorkflow
+using .ISCTWorkflow
 using DataFrames
 using DataFramesMeta
 using Statistics
@@ -245,7 +245,7 @@ lines!(ax1, tx_summary.time_weeks, tx_summary.median,
 xlims!(ax1, 0, 18)
 ylims!(ax1, 0.5, 1.7)
 axislegend(ax1, position = :lt)
-
+fig1
 save(joinpath(@__DIR__, "..", "outputs", "vct_tumor_burden.png"), fig1)
 println("Saved: outputs/vct_tumor_burden.png")
 
@@ -257,7 +257,7 @@ ax2 = Axis(fig2[1, 1],
     title = "HBV VCT: Functional Cure Rates by Treatment",
     xticks = (1:4, ["Control", "NUC", "IFN", "NUC+IFN"])
 )
-
+fig2
 # Get FC rates for naive population
 fc_rates = @chain comparison begin
     @subset(:endpoint .== "Functional Cure")
@@ -271,7 +271,7 @@ ci_high = [fc_rates[fc_rates.treatment .== t, :ci_upper][1] for t in treatments_
 barplot!(ax2, 1:4, rates, color = [:gray, :blue, :orange, :green])
 errorbars!(ax2, 1:4, rates, rates .- ci_low, ci_high .- rates,
            color = :black, whiskerwidth = 10)
-
+fig2
 save(joinpath(@__DIR__, "..", "outputs", "vct_hbv_fc_rates.png"), fig2)
 println("Saved: outputs/vct_hbv_fc_rates.png")
 
@@ -304,7 +304,7 @@ barplot!(ax3, (1:3) .+ barwidth/2, rates_sup, width = barwidth,
          color = :orange, label = "Suppressed")
 
 axislegend(ax3, position = :lt)
-
+fig3
 save(joinpath(@__DIR__, "..", "outputs", "vct_naive_vs_suppressed.png"), fig3)
 println("Saved: outputs/vct_naive_vs_suppressed.png")
 

@@ -46,7 +46,7 @@ include("03-sampling/copula_sampling.jl")
 include("03-sampling/hbv_sampling.jl")
 
 # Step 5: VP Selection & Calibration
-include("04-calibration/milp_calibration.jl")
+# include("04-calibration/milp_calibration.jl")
 
 # Step 6: Virtual Clinical Trial Simulation
 include("05-simulation/vct_simulation.jl")

@@ -14,6 +14,8 @@ using Pumas
 using GlobalSensitivity
 using DataFrames
 using Statistics
+using LinearAlgebra: Diagonal
+using Printf
 
 #=============================================================================
 # GSA Parameter Specification
@@ -202,7 +204,6 @@ function run_tumor_burden_gsa(;
 
     # Base parameters - uses tumor_burden_model (with random effects)
     # We fix Ω and σ to tiny values via constantcoef to make simulation deterministic
-    using LinearAlgebra: Diagonal
     base_params = (
         tvf = 0.27,
         tvg = 0.0013,
@@ -516,8 +517,8 @@ function print_gsa_summary(result::GSAResult)
     println("=" ^ 60)
     println("Method: $(result.method)")
     println("Samples: $(result.n_samples)")
-    println("Parameters: $(join(result.parameters, \", \"))")
-    println("Outputs: $(join(result.outputs, \", \"))")
+    println("Parameters: " * join(string.(result.parameters), ", "))
+    println("Outputs: " * join(string.(result.outputs), ", "))
     println()
 
     summary = summarize_gsa(result)
@@ -548,8 +549,6 @@ function print_gsa_summary(result::GSAResult)
         end
     end
 end
-
-using Printf
 
 #=============================================================================
 # Exports
