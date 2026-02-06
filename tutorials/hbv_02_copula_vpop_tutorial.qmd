@@ -1,0 +1,422 @@
+---
+title: "HBV Series: Virtual Population Generation with Copulas"
+subtitle: "Generating Realistic HBV Virtual Patients"
+author:
+  - Vijay Ivaturi
+execute:
+  cache: true
+  error: false
+julia: 
+  exeflags: ["+Pumas@2.7.1"]
+format:
+  html:
+    include-in-header:
+      text: |
+        <style>
+          .header-container {
+            width: 100%;
+          }
+          .logo {
+            display: block;
+            width: 150px;
+            margin-left: -2.5%;
+          }
+        </style>
+        <link rel = "shortcut icon" href = "https://pumas.ai/favicon.ico" />
+    include-before-body:
+      text: |
+        <div class="header-container">
+          <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
+        </div>
+    self-contained-math: true
+    anchor-sections: true
+    theme: default
+    toc: true
+    toc-depth: 4
+    toc-expand: 2
+    toc-location: left
+    toc-title: Contents
+    number-sections: true
+    code-summary: Show/Hide Code
+embed-resources: true
+fig-format: svg
+fig-width: 8
+fig-height: 6
+bibliography: references.bib
+csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
+---
+
+:::{.callout-note}
+## HBV Tutorial Series
+
+This is **Tutorial 2 of 6** in the HBV series.
+
+| # | Tutorial | Status |
+|---|----------|--------|
+| 1 | [Model Introduction](hbv_01_model_introduction_tutorial.qmd) | ✓ Complete |
+| 2 | **Copula Vpop Generation (current)** | ← You are here |
+| 3 | [Global Sensitivity Analysis](hbv_03_gsa_tutorial.qmd) | |
+| 4 | [Structural Identifiability](hbv_04_structural_identifiability_tutorial.qmd) | |
+| 5 | [MILP Calibration](hbv_05_milp_calibration_tutorial.qmd) | |
+| 6 | [VCT Simulation](hbv_06_vct_simulation_tutorial.qmd) | |
+:::
+
+## Learning Outcomes
+
+In this tutorial, you will learn how to generate a virtual population for the HBV model using Gaussian copula sampling, adapting the techniques from [TB-02](tb_02_copula_vpop_tutorial.qmd).
+
+In this tutorial, you will learn:
+
+- How to specify the 9 HBV estimated parameters
+- How to define correlation structures from clinical data
+- How to generate HBV virtual patients using Gaussian copulas
+- How to validate the generated population
+
+:::{.callout-tip}
+## Prerequisites
+
+This tutorial builds on:
+
+- **[HBV-01](hbv_01_model_introduction_tutorial.qmd)**: HBV model structure and parameters
+- **[TB-02](tb_02_copula_vpop_tutorial.qmd)**: Detailed copula theory (we'll reference, not repeat)
+:::
+
+## Libraries
+
+```{julia}
+#| output: false
+using Copulas
+using DataFrames
+using DataFramesMeta
+using Statistics
+using StatsBase
+using Pumas.Distributions
+using LogExpFunctions
+using AlgebraOfGraphics
+using CairoMakie
+using SummaryTables
+using Random
+using LinearAlgebra
+using CategoricalArrays
+```
+
+## Part 1: HBV Parameter Specifications
+
+### The 9 Estimated Parameters
+
+From [HBV-01](hbv_01_model_introduction_tutorial.qmd), the HBV model has 9 parameters with inter-individual variability:
+
+```{julia}
+# HBV parameter specifications (log10 scale)
+const HBV_PARAM_SPECS = [
+    (name = :beta,     tv = -5.0,  omega = 0.5,  desc = "Infection rate"),
+    (name = :p_S,      tv = 8.0,   omega = 0.4,  desc = "HBsAg production"),
+    (name = :m,        tv = 2.5,   omega = 0.3,  desc = "Immune killing rate"),
+    (name = :k_Z,      tv = -5.0,  omega = 0.4,  desc = "ALT production"),
+    (name = :convE,    tv = 2.5,   omega = 0.3,  desc = "Effector conversion"),
+    (name = :epsNUC,   tv = -2.0,  omega = 0.5,  desc = "NUC efficacy"),
+    (name = :epsIFN,   tv = -1.5,  omega = 0.6,  desc = "IFN efficacy"),
+    (name = :r_E_IFN,  tv = 0.3,   omega = 0.4,  desc = "IFN immune boost"),
+    (name = :k_D,      tv = -4.0,  omega = 0.4,  desc = "DC activation")
+]
+
+println("HBV Estimated Parameters (log10 scale):")
+for spec in HBV_PARAM_SPECS
+    println("  $(spec.name): TV=$(spec.tv), ω=$(spec.omega) - $(spec.desc)")
+end
+```
+
+### Correlation Matrix
+
+Based on clinical data analysis, some parameters are correlated. For example:
+
+- HBsAg production (p_S) may correlate with viral suppression efficacy
+- Treatment efficacies (epsNUC, epsIFN) may be correlated
+
+```{julia}
+# Correlation matrix for 9 parameters
+# Based on NLME fitting results (simplified for illustration)
+const HBV_CORRELATION = [
+    #beta  p_S    m    k_Z  convE  epsNUC epsIFN r_E_IFN k_D
+    1.0   0.0   0.0   0.0   0.0   0.0    0.0    0.0     0.0;   # beta
+    0.0   1.0   0.2   0.0   0.0   0.0    0.0    0.0     0.0;   # p_S
+    0.0   0.2   1.0   0.0   0.3   0.0    0.0    0.0     0.0;   # m
+    0.0   0.0   0.0   1.0   0.0   0.0    0.0    0.0     0.0;   # k_Z
+    0.0   0.0   0.3   0.0   1.0   0.0    0.0    0.0     0.0;   # convE
+    0.0   0.0   0.0   0.0   0.0   1.0    0.4    0.0     0.0;   # epsNUC
+    0.0   0.0   0.0   0.0   0.0   0.4    1.0    0.3     0.0;   # epsIFN
+    0.0   0.0   0.0   0.0   0.0   0.0    0.3    1.0     0.0;   # r_E_IFN
+    0.0   0.0   0.0   0.0   0.0   0.0    0.0    0.0     1.0    # k_D
+]
+
+# Verify symmetric and positive definite
+@assert issymmetric(HBV_CORRELATION)
+@assert isposdef(HBV_CORRELATION)
+
+println("\nCorrelation matrix verified: symmetric and positive definite")
+println("Notable correlations:")
+println("  p_S ↔ m: $(HBV_CORRELATION[2,3])")
+println("  m ↔ convE: $(HBV_CORRELATION[3,5])")
+println("  epsNUC ↔ epsIFN: $(HBV_CORRELATION[6,7])")
+println("  epsIFN ↔ r_E_IFN: $(HBV_CORRELATION[7,8])")
+```
+
+## Part 2: Generating the Virtual Population
+
+### The Generation Function
+
+```{julia}
+"""
+    generate_hbv_vpop(n; seed=nothing)
+
+Generate n virtual patients for the HBV model using Gaussian copula sampling.
+
+Parameters are sampled on log10 scale with additive random effects:
+  individual_value = tv + η  where η ~ N(0, ω²)
+
+Returns DataFrame with columns: id, beta, p_S, m, k_Z, convE, epsNUC, epsIFN, r_E_IFN, k_D
+"""
+function generate_hbv_vpop(n::Int; seed::Union{Int,Nothing}=nothing)
+    if !isnothing(seed)
+        Random.seed!(seed)
+    end
+
+    n_params = length(HBV_PARAM_SPECS)
+
+    # Create Gaussian copula with correlation structure
+    copula = GaussianCopula(HBV_CORRELATION)
+
+    # Sample uniform marginals
+    U = rand(copula, n)'  # n × n_params
+
+    # Transform to normal marginals (η values)
+    eta = similar(U)
+    for j in 1:n_params
+        ω = HBV_PARAM_SPECS[j].omega
+        eta[:, j] = quantile.(Normal(0, ω), U[:, j])
+    end
+
+    # Compute individual parameters (tv + η on log10 scale)
+    params = similar(eta)
+    for j in 1:n_params
+        tv = HBV_PARAM_SPECS[j].tv
+        params[:, j] = tv .+ eta[:, j]
+    end
+
+    # Create DataFrame
+    vpop = DataFrame(
+        id = 1:n,
+        beta = params[:, 1],
+        p_S = params[:, 2],
+        m = params[:, 3],
+        k_Z = params[:, 4],
+        convE = params[:, 5],
+        epsNUC = params[:, 6],
+        epsIFN = params[:, 7],
+        r_E_IFN = params[:, 8],
+        k_D = params[:, 9]
+    )
+
+    return vpop
+end
+```
+
+### Generate the Population
+
+```{julia}
+# Generate virtual population
+n_vps = 5000
+vpop = generate_hbv_vpop(n_vps; seed=42)
+
+println("Generated $(nrow(vpop)) virtual patients")
+println("\nFirst 5 patients:")
+simple_table(first(vpop, 5))
+```
+
+## Part 3: Validating the Population
+
+### Parameter Statistics
+
+```{julia}
+# Compute summary statistics
+param_names = [spec.name for spec in HBV_PARAM_SPECS]
+stats_df = DataFrame(
+    parameter = param_names,
+    target_tv = [spec.tv for spec in HBV_PARAM_SPECS],
+    target_omega = [spec.omega for spec in HBV_PARAM_SPECS],
+    sampled_mean = [mean(vpop[!, name]) for name in param_names],
+    sampled_std = [std(vpop[!, name]) for name in param_names]
+)
+
+stats_df.mean_error = stats_df.sampled_mean .- stats_df.target_tv
+stats_df.std_error = stats_df.sampled_std .- stats_df.target_omega
+
+println("Parameter Statistics:")
+simple_table(stats_df)
+```
+
+### Correlation Validation
+
+```{julia}
+# Compute sampled correlations
+param_matrix = Matrix(vpop[:, param_names])
+sampled_corr = cor(param_matrix)
+
+# Compare with target for notable correlations
+println("Correlation Validation:")
+println("  Parameter pair     | Target | Sampled")
+println("  -------------------|--------|--------")
+pairs = [(2,3), (3,5), (6,7), (7,8)]  # Notable correlations
+for (i, j) in pairs
+    target = HBV_CORRELATION[i, j]
+    sampled = sampled_corr[i, j]
+    println("  $(param_names[i]) ↔ $(param_names[j]) | $(round(target, digits=2)) | $(round(sampled, digits=2))")
+end
+```
+
+### Distribution Visualization
+
+```{julia}
+#| fig-cap: "Distribution of HBV model parameters. Dashed vertical lines show typical values (TV)."
+
+# Reshape data to long format for AlgebraOfGraphics
+vpop_long = stack(vpop, param_names, variable_name = :parameter, value_name = :value)
+vpop_long.parameter = String.(vpop_long.parameter)
+
+# Create reference lines DataFrame for TV values
+tv_df = DataFrame(
+    parameter = String.(param_names),
+    tv = [spec.tv for spec in HBV_PARAM_SPECS]
+)
+
+# AlgebraOfGraphics histogram plot
+plt = data(vpop_long) *
+    mapping(:value => "Value", layout = :parameter) *
+    visual(Hist, bins = 30, normalization = :pdf, color = (:steelblue, 0.6))
+
+fig = Figure(size = (1200, 800))
+ag = draw!(fig[1, 1], plt, facet = (linkxaxes = :none, linkyaxes = :none))
+
+# Add TV reference lines using Makie
+# Get the axes from the figure's content
+param_order = unique(vpop_long.parameter)
+axes = [c for c in fig.content if c isa Axis]
+for (i, ax) in enumerate(axes)
+    if i <= length(param_order)
+        param_name = param_order[i]
+        spec = HBV_PARAM_SPECS[findfirst(s -> String(s.name) == param_name, HBV_PARAM_SPECS)]
+        vlines!(ax, [spec.tv], color = :red, linestyle = :dash, linewidth = 2)
+    end
+end
+
+fig
+```
+
+### Correlation Heatmap
+
+```{julia}
+#| fig-cap: "Correlation matrix for sampled HBV parameters."
+
+# Create long-format DataFrame for correlation matrix
+corr_df = DataFrame(
+    param_x = String[],
+    param_y = String[],
+    correlation = Float64[]
+)
+
+for i in 1:9
+    for j in 1:9
+        push!(corr_df, (String(param_names[i]), String(param_names[j]), sampled_corr[i, j]))
+    end
+end
+
+# Convert to categorical to preserve ordering
+corr_df.param_x = CategoricalArray(corr_df.param_x, levels = String.(param_names))
+corr_df.param_y = CategoricalArray(corr_df.param_y, levels = String.(param_names))
+
+# AlgebraOfGraphics heatmap
+plt = data(corr_df) *
+    mapping(:param_x => "Parameter", :param_y => "Parameter", :correlation => "Correlation") *
+    visual(Heatmap, colormap = :RdBu, colorrange = (-1, 1))
+
+fig = Figure(size = (700, 600))
+ag = draw!(fig[1, 1], plt)
+Colorbar(fig[1, 2], colormap = :RdBu, colorrange = (-1, 1), label = "Correlation")
+
+# Rotate x-axis labels
+ax = current_axis()
+ax.xticklabelrotation = π/4
+
+fig
+```
+
+## Part 4: Computing Random Effects
+
+For VCT simulation, we need to convert individual parameters to random effects (η).
+
+```{julia}
+"""
+    compute_hbv_randeffs(row)
+
+Compute random effects (η) from individual HBV parameters.
+
+Since parameters are on log10 scale with additive IIV:
+  individual = tv + η
+  → η = individual - tv
+"""
+function compute_hbv_randeffs(row)
+    η = zeros(9)
+    for (i, spec) in enumerate(HBV_PARAM_SPECS)
+        η[i] = row[spec.name] - spec.tv
+    end
+    return (η = η,)
+end
+
+# Test with first patient
+test_randeffs = compute_hbv_randeffs(vpop[1, :])
+println("Random effects for patient 1:")
+for (i, spec) in enumerate(HBV_PARAM_SPECS)
+    println("  η[$(spec.name)] = $(round(test_randeffs.η[i], digits=3))")
+end
+```
+
+## Part 5: Optional Save
+
+```{julia}
+# Optional: Save the vpop for use in later tutorials
+# Uncomment to save:
+# using CSV
+# CSV.write("outputs/vpop_hbv.csv", vpop)
+# println("Saved HBV vpop to outputs/vpop_hbv.csv")
+```
+
+## Summary
+
+### Key Points
+
+1. **HBV has 9 estimated parameters** with IIV on log10 scale
+
+2. **Additive random effects** on log10 scale achieve log-normal behavior
+
+3. **Correlation structure** from NLME fitting captures parameter dependencies
+
+4. **Validation checks:**
+   - Mean matches typical value (TV)
+   - Standard deviation matches omega (ω)
+   - Correlations preserved
+
+### Functions Defined
+
+| Function | Purpose |
+|:---------|:--------|
+| `generate_hbv_vpop(n)` | Generate n HBV virtual patients |
+| `compute_hbv_randeffs(row)` | Convert params to random effects |
+
+### What's Next?
+
+In [Tutorial 3: Global Sensitivity Analysis](hbv_03_gsa_tutorial.qmd), we'll analyze which parameters most influence HBV treatment outcomes.
+
+### References
+
+::: {#refs}
+:::

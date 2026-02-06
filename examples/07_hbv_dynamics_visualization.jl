@@ -18,7 +18,7 @@ Reference:
     With Nonlinear Mixed Effects Models" - CPT: Pharmacometrics & Systems
     Pharmacology (2025)
 =#
-
+include("../src/ISCTWorkflow.jl")
 using .ISCTWorkflow
 using DataFrames
 using DataFramesMeta

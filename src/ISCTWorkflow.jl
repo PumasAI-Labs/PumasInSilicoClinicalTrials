@@ -28,6 +28,7 @@ using Reexport
 
 # Core dependencies
 using Pumas
+using SciMLBase: EnsembleThreads
 using DataFrames
 using DataFramesMeta
 using Random
@@ -40,6 +41,7 @@ include("01-models/hbv_model.jl")
 
 # Step 3: Sensitivity & Identifiability Analysis
 include("02-sensitivity/gsa_analysis.jl")
+include("02-sensitivity/identifiability_analysis.jl")
 
 # Step 4: Parameter Sampling (Vpop Generation)
 include("03-sampling/copula_sampling.jl")
@@ -109,6 +111,19 @@ export run_tumor_burden_gsa, run_hbv_gsa
 export create_param_ranges, create_constant_coef
 export summarize_gsa, get_influential_params, print_gsa_summary
 
+# Re-export Structural Identifiability Analysis components
+export MeasurementScenario, IdentifiabilityResult, LocalIdentifiabilityResult
+export IdentifiableFunctionsResult, ReparametrizationResult, ComprehensiveIdentifiabilityReport
+export HBV_ESTIMATED_PARAM_NAMES
+export create_tumor_burden_scenarios, create_hbv_scenarios
+export extract_ode_system, get_ode_parameters, get_ode_states
+export assess_scenario_identifiability, assess_local_scenario_identifiability
+export find_scenario_identifiable_functions, compute_scenario_reparametrization
+export analyze_tumor_burden_identifiability, analyze_hbv_identifiability
+export compare_scenarios, compare_local_scenarios, summarize_identifiability
+export generate_recommendations
+export print_identifiability_result, print_identifiability_report
+
 # Re-export Visualization components
 export ISCT_THEME, TREATMENT_COLORS, set_isct_theme!
 export HBV_OUTCOME_COLORS, HBV_BIOMARKER_LABELS, HBV_LOQ_THRESHOLDS
@@ -121,6 +136,11 @@ export plot_hbv_biomarker_panel, add_treatment_phase_markers!
 export plot_calibration_result, plot_pareto_front
 export plot_gsa_indices, plot_gsa_heatmap, plot_gsa_comparison
 export create_isct_summary_figure, save_figure, quick_hist, quick_scatter
+# Identifiability visualization
+export IDENTIFIABILITY_COLORS
+export plot_identifiability_comparison, plot_identifiability_summary
+export plot_identifiability_functions
+export plot_identifiability_comparison_aog, plot_identifiability_summary_aog
 
 #=============================================================================
 # Virtual Clinical Trial Utilities
@@ -173,13 +193,14 @@ end
         observation_times;
         treatment::Int = 1,
         seed::Union{Int,Nothing} = nothing,
-        pop_params::NamedTuple = TUMOR_BURDEN_POP_PARAMS
+        pop_params::NamedTuple = TUMOR_BURDEN_POP_PARAMS,
+        parallel::Bool = true
     ) -> DataFrame
 
 Simulate the virtual clinical trial for all patients in vpop.
 
-Uses the main `tumor_burden_model` with individual parameters converted to random effects.
-This follows Pumas best practices of using simobs(model, subj, params, randeffs).
+Uses the main `tumor_burden_model` with population-level simobs() and automatic
+parallelization via `EnsembleThreads()` for improved performance.
 
 # Arguments
 - `vpop`: Virtual population DataFrame with parameters (f, g, k)
@@ -187,52 +208,73 @@ This follows Pumas best practices of using simobs(model, subj, params, randeffs)
 - `treatment`: Treatment arm (0 = control, 1 = treatment)
 - `seed`: Random seed for reproducibility
 - `pop_params`: Population parameters (default: TUMOR_BURDEN_POP_PARAMS)
+- `parallel`: Whether to use parallel simulation (default: true)
 
 # Returns
 DataFrame with simulation results: id, time, Nt (tumor size)
+
+# Performance
+With `parallel=true`, uses `EnsembleThreads()` for automatic multi-threaded simulation.
+Start Julia with `julia --threads=auto` for best performance.
 """
 function simulate_vpop(
     vpop::DataFrame,
     observation_times;
     treatment::Int = 1,
     seed::Union{Int,Nothing} = nothing,
-    pop_params::NamedTuple = TUMOR_BURDEN_POP_PARAMS
+    pop_params::NamedTuple = TUMOR_BURDEN_POP_PARAMS,
+    parallel::Bool = true
 )
     if !isnothing(seed)
         Random.seed!(seed)
     end
 
-    results = DataFrame()
-
-    for row in eachrow(vpop)
-        # Create subject for this virtual patient
-        subj = Subject(
+    # Build population of subjects
+    population = [
+        Subject(
             id = row.id,
             covariates = (treatment = treatment,),
             observations = (tumor_size = nothing,),
             time = observation_times
         )
+        for row in eachrow(vpop)
+    ]
 
-        # Compute random effects from individual parameters
-        randeffs = compute_tumor_burden_randeffs(
+    # Compute all random effects from individual parameters
+    vrandeffs = [
+        compute_tumor_burden_randeffs(
             row.f, row.g, row.k;
             tvf = pop_params.tvf,
             tvg = pop_params.tvg,
             tvk = pop_params.tvk
         )
+        for row in eachrow(vpop)
+    ]
 
-        # Simulate with population parameters and individual random effects
-        sim = simobs(tumor_burden_model, subj, pop_params, randeffs)
-
-        # Extract results
-        for (i, t) in enumerate(observation_times)
-            push!(results, (
-                id = row.id,
-                time = t,
-                Nt = sim.observations.Nt[i]
-            ))
-        end
+    # Single simobs call with automatic parallelization
+    if parallel
+        sims = simobs(
+            tumor_burden_model, population, pop_params, vrandeffs;
+            ensemblealg = EnsembleThreads(),
+            simulate_error = false
+        )
+    else
+        sims = simobs(
+            tumor_burden_model, population, pop_params, vrandeffs;
+            simulate_error = false
+        )
     end
+
+    # Convert to DataFrame
+    results = DataFrame(sims)
+
+    # Ensure expected columns
+    if !hasproperty(results, :Nt) && hasproperty(results, :tumor_size)
+        rename!(results, :tumor_size => :Nt)
+    end
+
+    # Select relevant columns
+    results = select(results, :id, :time, :Nt)
 
     return results
 end

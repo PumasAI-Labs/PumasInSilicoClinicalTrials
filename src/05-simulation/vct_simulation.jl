@@ -16,6 +16,8 @@ Reference:
 """
 
 using Pumas
+using SciMLBase: EnsembleThreads
+using LogExpFunctions: logit
 using DataFrames
 using DataFramesMeta
 using Statistics
@@ -175,7 +177,7 @@ const TUMOR_BURDEN_POP_PARAMS = (
 Compute random effects (η) from individual parameter values.
 
 The tumor burden model uses:
-- f = tvf * exp(η[1]) / (1 + tvf * (exp(η[1]) - 1))  (logit-normal)
+- f = logistic(logit(tvf) + η[1])  (logit-normal)
 - g = tvg * exp(η[2])  (log-normal)
 - k = tvk * exp(η[3])  (log-normal)
 
@@ -186,12 +188,10 @@ function compute_tumor_burden_randeffs(f, g, k; tvf=0.27, tvg=0.0013, tvk=0.0091
     η2 = log(g / tvg)
     η3 = log(k / tvk)
 
-    # For logit-normal: f = tvf * x / (1 + tvf * (x - 1)) where x = exp(η[1])
-    # Solving: x = f * (1 - tvf) / (tvf * (1 - f))
+    # For logit-normal: f = logistic(logit(tvf) + η) → η = logit(f) - logit(tvf)
     # Handle edge cases for f near 0 or 1
     f_clamped = clamp(f, 1e-10, 1.0 - 1e-10)
-    x = f_clamped * (1.0 - tvf) / (tvf * (1.0 - f_clamped))
-    η1 = log(max(x, 1e-10))
+    η1 = logit(f_clamped) - logit(tvf)
 
     return (η = [η1, η2, η3],)
 end
@@ -239,24 +239,31 @@ end
         treatment::Int = 1,
         seed::Union{Int,Nothing} = nothing,
         show_progress::Bool = true,
-        pop_params::NamedTuple = TUMOR_BURDEN_POP_PARAMS
+        pop_params::NamedTuple = TUMOR_BURDEN_POP_PARAMS,
+        parallel::Bool = true
     ) -> DataFrame
 
 Run tumor burden VCT for an entire virtual population.
 
 Uses the main `tumor_burden_model` with individual parameters converted to random effects.
-This follows Pumas best practices of using a single model with simobs(model, subj, params, randeffs).
+This follows Pumas best practices of using population-level simobs() with automatic
+parallelization via `EnsembleThreads()`.
 
 # Arguments
 - `vpop`: Virtual population with columns :id, :f, :g, :k
 - `observation_times`: Time points for observation
 - `treatment`: Treatment arm (0=control, 1=treatment)
 - `seed`: Random seed
-- `show_progress`: Whether to show progress bar
+- `show_progress`: Whether to show progress bar (currently unused with population sim)
 - `pop_params`: Population parameters (default: TUMOR_BURDEN_POP_PARAMS)
+- `parallel`: Whether to use parallel simulation (default: true)
 
 # Returns
 DataFrame with columns: id, time, Nt, treatment
+
+# Performance
+With `parallel=true`, uses `EnsembleThreads()` for automatic multi-threaded simulation.
+Start Julia with `julia --threads=auto` for best performance.
 """
 function run_tumor_burden_vct(
     vpop::DataFrame,
@@ -264,40 +271,64 @@ function run_tumor_burden_vct(
     treatment::Int = 1,
     seed::Union{Int,Nothing} = nothing,
     show_progress::Bool = true,
-    pop_params::NamedTuple = TUMOR_BURDEN_POP_PARAMS
+    pop_params::NamedTuple = TUMOR_BURDEN_POP_PARAMS,
+    parallel::Bool = true
 )
     if !isnothing(seed)
         Random.seed!(seed)
     end
 
-    n_patients = nrow(vpop)
-    results = DataFrame()
-
-    # Use the main model (not _fixed variant)
-    # Individual parameters are converted to random effects
     model = tumor_burden_model
+    n_patients = nrow(vpop)
 
-    # iter = show_progress ? ProgressBar(1:n_patients) : 1:n_patients
-    iter = 1:n_patients
-    for i in iter
-        row = vpop[i, :]
+    # Build population of subjects (one Subject per virtual patient)
+    population = [
+        Subject(
+            id = row.id,
+            covariates = (treatment = treatment,),
+            observations = (tumor_size = nothing,),
+            time = observation_times
+        )
+        for row in eachrow(vpop)
+    ]
 
-        # Compute random effects from individual parameters
-        randeffs = compute_tumor_burden_randeffs(
+    # Compute all random effects from individual parameters
+    vrandeffs = [
+        compute_tumor_burden_randeffs(
             row.f, row.g, row.k;
             tvf = pop_params.tvf,
             tvg = pop_params.tvg,
             tvk = pop_params.tvk
         )
+        for row in eachrow(vpop)
+    ]
 
-        patient_results = simulate_tumor_burden_patient(
-            model, pop_params, randeffs, observation_times; treatment = treatment
+    # Single simobs call with automatic parallelization
+    if parallel
+        sims = simobs(
+            model, population, pop_params, vrandeffs;
+            ensemblealg = EnsembleThreads(),
+            simulate_error = false
         )
-        patient_results.id .= row.id
-        patient_results.treatment .= treatment
-
-        append!(results, patient_results)
+    else
+        sims = simobs(
+            model, population, pop_params, vrandeffs;
+            simulate_error = false
+        )
     end
+
+    # Convert to DataFrame (built-in Pumas function)
+    results = DataFrame(sims)
+
+    # Ensure expected columns and add treatment indicator
+    if !hasproperty(results, :Nt) && hasproperty(results, :tumor_size)
+        # Rename if needed (simobs may use observation name)
+        rename!(results, :tumor_size => :Nt)
+    end
+
+    # Select relevant columns and add treatment
+    results = select(results, :id, :time, :Nt)
+    results.treatment .= treatment
 
     return results
 end
@@ -586,13 +617,14 @@ end
         model = nothing,
         params::NamedTuple = HBV_FIXED_PARAMS,
         observation_interval::Int = 7,
-        seed::Union{Int,Nothing} = nothing
+        seed::Union{Int,Nothing} = nothing,
+        parallel::Bool = true
     ) -> DataFrame
 
 Simulate full HBV ODE dynamics for a virtual population.
 
-Uses Pumas `simobs()` to run batch simulation and collects time series data
-for all biomarkers (HBsAg, Viral Load, ALT, Effector T cells).
+Uses Pumas `simobs()` with population-level simulation and automatic parallelization
+via `EnsembleThreads()` for improved performance.
 
 # Arguments
 - `vpop`: Virtual population DataFrame with estimated parameters
@@ -601,9 +633,14 @@ for all biomarkers (HBsAg, Viral Load, ALT, Effector T cells).
 - `params`: Population parameters (defaults to HBV_FIXED_PARAMS)
 - `observation_interval`: Days between observations
 - `seed`: Random seed for reproducibility
+- `parallel`: Whether to use parallel simulation (default: true)
 
 # Returns
 DataFrame with columns: id, time, log_HBsAg, log_V, log_ALT, log_E, phase
+
+# Performance
+With `parallel=true`, uses `EnsembleThreads()` for automatic multi-threaded simulation.
+Start Julia with `julia --threads=auto` for best performance.
 """
 function simulate_hbv_dynamics(
     vpop::DataFrame,
@@ -611,7 +648,8 @@ function simulate_hbv_dynamics(
     model = nothing,
     params::NamedTuple = HBV_FIXED_PARAMS,
     observation_interval::Int = 7,
-    seed::Union{Int,Nothing} = nothing
+    seed::Union{Int,Nothing} = nothing,
+    parallel::Bool = true
 )
     if !isnothing(seed)
         Random.seed!(seed)
@@ -625,12 +663,132 @@ function simulate_hbv_dynamics(
     cov_df = create_hbv_time_varying_covariates(config, observation_times)
 
     n_patients = nrow(vpop)
+
+    # If no model provided, return placeholder results
+    if isnothing(model)
+        all_results = DataFrame()
+        for row in eachrow(vpop)
+            patient_df = DataFrame(
+                id = fill(row.id, length(observation_times)),
+                time = observation_times,
+                log_HBsAg = fill(3.0, length(observation_times)),
+                log_V = fill(5.0, length(observation_times)),
+                log_ALT = fill(1.5, length(observation_times)),
+                log_E = fill(0.0, length(observation_times))
+            )
+            # Add phase labels
+            patient_df.phase = map(patient_df.time) do t
+                if t <= phases.untreated.stop
+                    :untreated
+                elseif t <= phases.nuc_background.stop
+                    :nuc_background
+                elseif t <= phases.treatment.stop
+                    :treatment
+                else
+                    :off_treatment
+                end
+            end
+            append!(all_results, patient_df)
+        end
+        return all_results
+    end
+
+    # Build population of subjects with time-varying covariates
+    population = [
+        Subject(
+            id = row.id,
+            covariates = (
+                dNUC = cov_df.dNUC,
+                dIFN = cov_df.dIFN,
+                treatment = Int(config.treatment)
+            ),
+            observations = (HBsAg_obs = nothing, V_obs = nothing),
+            time = Float64.(observation_times)
+        )
+        for row in eachrow(vpop)
+    ]
+
+    # Compute all random effects from individual parameters
+    # Parameters are on log10 scale, so η represents deviation in log10 space
+    vrandeffs = [
+        (η = [
+            row.beta - params.tvbeta,
+            row.p_S - params.tvp_S,
+            row.m - params.tvm,
+            row.k_Z - params.tvk_Z,
+            row.convE - params.tvconvE,
+            row.epsNUC - params.tvepsNUC,
+            row.epsIFN - params.tvepsIFN,
+            row.r_E_IFN - params.tvr_E_IFN,
+            row.k_D - params.tvk_D
+        ],)
+        for row in eachrow(vpop)
+    ]
+
+    # Parallel population simulation with error handling
+    local sims
+    try
+        if parallel
+            sims = simobs(
+                model, population, params, vrandeffs;
+                ensemblealg = EnsembleThreads(),
+                simulate_error = false
+            )
+        else
+            sims = simobs(
+                model, population, params, vrandeffs;
+                simulate_error = false
+            )
+        end
+    catch e
+        @warn "Population simulation failed, falling back to sequential with error handling: $e"
+        # Fall back to sequential simulation with per-patient error handling
+        return _simulate_hbv_dynamics_sequential(
+            vpop, config, model, params, observation_times, phases
+        )
+    end
+
+    # Convert to DataFrame
+    all_results = DataFrame(sims)
+
+    # Select and rename columns as needed
+    all_results = select(all_results, :id, :time, :log_HBsAg, :log_V, :log_ALT, :log_E)
+
+    # Add phase labels
+    all_results.phase = map(all_results.time) do t
+        if t <= phases.untreated.stop
+            :untreated
+        elseif t <= phases.nuc_background.stop
+            :nuc_background
+        elseif t <= phases.treatment.stop
+            :treatment
+        else
+            :off_treatment
+        end
+    end
+
+    return all_results
+end
+
+"""
+    _simulate_hbv_dynamics_sequential(vpop, config, model, params, observation_times, phases)
+
+Internal fallback function for sequential simulation with per-patient error handling.
+Called when population-level simulation fails.
+"""
+function _simulate_hbv_dynamics_sequential(
+    vpop::DataFrame,
+    config::VCTConfig,
+    model,
+    params::NamedTuple,
+    observation_times::Vector,
+    phases::NamedTuple
+)
+    cov_df = create_hbv_time_varying_covariates(config, observation_times)
     all_results = DataFrame()
+    n_errors = 0
 
-    for i in 1:n_patients
-        row = vpop[i, :]
-
-        # Create subject with time-varying covariates
+    for row in eachrow(vpop)
         subj = Subject(
             id = row.id,
             covariates = (
@@ -642,8 +800,6 @@ function simulate_hbv_dynamics(
             time = Float64.(observation_times)
         )
 
-        # Build individual parameters as random effects deviation from population
-        # Parameters are on log10 scale, so η represents deviation in log10 space
         η = [
             row.beta - params.tvbeta,
             row.p_S - params.tvp_S,
@@ -658,32 +814,18 @@ function simulate_hbv_dynamics(
         randeffs = (η = η,)
 
         try
-            # Simulate using the model
-            if isnothing(model)
-                # Use placeholder results if model not provided
-                patient_df = DataFrame(
-                    id = fill(row.id, length(observation_times)),
-                    time = observation_times,
-                    log_HBsAg = fill(3.0, length(observation_times)),
-                    log_V = fill(5.0, length(observation_times)),
-                    log_ALT = fill(1.5, length(observation_times)),
-                    log_E = fill(0.0, length(observation_times))
-                )
-            else
-                sim = simobs(model, subj, params, randeffs; simulate_error=false)
-                sim_df = DataFrame(sim)
+            sim = simobs(model, subj, params, randeffs; simulate_error=false)
+            sim_df = DataFrame(sim)
 
-                patient_df = DataFrame(
-                    id = fill(row.id, nrow(sim_df)),
-                    time = sim_df.time,
-                    log_HBsAg = sim_df.log_HBsAg,
-                    log_V = sim_df.log_V,
-                    log_ALT = sim_df.log_ALT,
-                    log_E = sim_df.log_E
-                )
-            end
+            patient_df = DataFrame(
+                id = fill(row.id, nrow(sim_df)),
+                time = sim_df.time,
+                log_HBsAg = sim_df.log_HBsAg,
+                log_V = sim_df.log_V,
+                log_ALT = sim_df.log_ALT,
+                log_E = sim_df.log_E
+            )
 
-            # Add phase labels
             patient_df.phase = map(patient_df.time) do t
                 if t <= phases.untreated.stop
                     :untreated
@@ -697,11 +839,14 @@ function simulate_hbv_dynamics(
             end
 
             append!(all_results, patient_df)
-
         catch e
-            @warn "Integration error for patient $(row.id): $e"
+            n_errors += 1
             # Skip this patient
         end
+    end
+
+    if n_errors > 0
+        @warn "$n_errors patients had integration errors and were skipped"
     end
 
     return all_results
@@ -827,32 +972,28 @@ function summarize_hbv_dynamics_by_time(
 )
     if isnothing(group_col) || !hasproperty(dynamics_df, group_col)
         # No grouping
-        summary = @chain dynamics_df begin
-            @groupby(:time)
-            @combine(
-                :median = median(cols(value_col)),
-                :q05 = quantile(cols(value_col), 0.05),
-                :q25 = quantile(cols(value_col), 0.25),
-                :q75 = quantile(cols(value_col), 0.75),
-                :q95 = quantile(cols(value_col), 0.95),
-                :n = length(cols(value_col))
-            )
-            @orderby(:time)
-        end
+        summary = combine(
+            groupby(dynamics_df, :time),
+            value_col => median => :median,
+            value_col => (x -> quantile(x, 0.05)) => :q05,
+            value_col => (x -> quantile(x, 0.25)) => :q25,
+            value_col => (x -> quantile(x, 0.75)) => :q75,
+            value_col => (x -> quantile(x, 0.95)) => :q95,
+            value_col => length => :n
+        )
+        sort!(summary, :time)
     else
         # With grouping
-        summary = @chain dynamics_df begin
-            @groupby(:time, cols(group_col))
-            @combine(
-                :median = median(cols(value_col)),
-                :q05 = quantile(cols(value_col), 0.05),
-                :q25 = quantile(cols(value_col), 0.25),
-                :q75 = quantile(cols(value_col), 0.75),
-                :q95 = quantile(cols(value_col), 0.95),
-                :n = length(cols(value_col))
-            )
-            @orderby(:time)
-        end
+        summary = combine(
+            groupby(dynamics_df, [:time, group_col]),
+            value_col => median => :median,
+            value_col => (x -> quantile(x, 0.05)) => :q05,
+            value_col => (x -> quantile(x, 0.25)) => :q25,
+            value_col => (x -> quantile(x, 0.75)) => :q75,
+            value_col => (x -> quantile(x, 0.95)) => :q95,
+            value_col => length => :n
+        )
+        sort!(summary, :time)
     end
 
     return summary

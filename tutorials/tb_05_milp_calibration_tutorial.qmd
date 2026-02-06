@@ -1,0 +1,1050 @@
+---
+title: "Tumor Burden Series: MILP-Based Virtual Population Calibration"
+subtitle: "Matching Response Rate Distributions with Optimization"
+author:
+  - Vijay Ivaturi
+execute:
+  cache: true
+  error: false
+julia: 
+  exeflags: ["+Pumas@2.7.1"]
+format:
+  html:
+    include-in-header:
+      text: |
+        <style>
+          .header-container {
+            width: 100%;
+          }
+          .logo {
+            display: block;
+            width: 150px;
+            margin-left: -2.5%;
+          }
+        </style>
+        <link rel = "shortcut icon" href = "https://pumas.ai/favicon.ico" />
+    include-before-body:
+      text: |
+        <div class="header-container">
+          <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
+        </div>
+    self-contained-math: true
+    anchor-sections: true
+    theme: default
+    toc: true
+    toc-depth: 4
+    toc-expand: 2
+    toc-location: left
+    toc-title: Contents
+    number-sections: true
+    code-summary: Show/Hide Code
+embed-resources: true
+fig-format: svg
+fig-width: 8
+fig-height: 6
+bibliography: references.bib
+csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
+---
+
+:::{.callout-note}
+## Tumor Burden Tutorial Series
+
+This is **Tutorial 5 of 6** in the Tumor Burden series.
+
+| # | Tutorial | Status |
+|---|----------|--------|
+| 1 | [Model Introduction](tb_01_model_introduction_tutorial.qmd) | ✓ Complete |
+| 2 | [Copula Vpop Generation](tb_02_copula_vpop_tutorial.qmd) | ✓ Complete |
+| 3 | [Global Sensitivity Analysis](tb_03_gsa_tutorial.qmd) | ✓ Complete |
+| 4 | [Structural Identifiability](tb_04_structural_identifiability_tutorial.qmd) | ✓ Complete |
+| 5 | **MILP Calibration (current)** | ← You are here |
+| 6 | [VCT Simulation](tb_06_vct_simulation_tutorial.qmd) | |
+:::
+
+## Learning Outcomes
+
+Virtual populations generated using copula sampling (see [Tutorial 2](tb_02_copula_vpop_tutorial.qmd)) may not match real clinical data distributions. Calibration ensures the virtual population is representative of the actual patient population being studied [@cortes2025].
+
+In this tutorial, you will learn:
+
+- Why virtual population calibration is essential for realistic ISCTs
+- The mathematical formulation of Mixed-Integer Linear Programming (MILP)
+- How to build a JuMP optimization model step-by-step
+- How to calibrate to response rate distributions (not just baseline characteristics)
+- Pareto analysis for finding optimal calibration parameters
+- Validating calibration results with visualizations
+
+:::{.callout-tip}
+## Prerequisites
+
+This tutorial builds on concepts from earlier tutorials:
+
+- **[Tutorial 1](tb_01_model_introduction_tutorial.qmd)**: Tumor burden model definition
+- **[Tutorial 2](tb_02_copula_vpop_tutorial.qmd)**: Virtual population generation with copulas
+
+We'll generate a new vpop using the copula approach and then calibrate it to match clinical response rates.
+:::
+
+## Background
+
+### The Problem: Why Calibration Matters
+
+After generating a virtual population (Vpop) using copula sampling, we have patients with realistic parameter correlations. However, the **marginal distributions** and **outcome distributions** may not match what we observe in real clinical trials.
+
+Consider this scenario for tumor burden:
+
+- Your Vpop has 10,000 virtual patients with parameters (f, g, k)
+- When you simulate treatment, you get certain response rates
+- The real clinical trial showed: 30% complete response, 45% partial response, 25% no response
+- Your Vpop shows different rates due to parameter distribution differences
+
+:::{.callout-warning}
+## The Distribution Mismatch Problem
+
+If your Vpop outcome distribution doesn't match the clinical trial:
+
+- Treatment effect estimates will be biased
+- Subgroup analyses won't reflect real clinical heterogeneity
+- Regulatory questions about population representativeness
+
+**Calibration selects a subset of your Vpop that, when simulated, matches the target response distribution.**
+:::
+
+### What is MILP-Based Calibration?
+
+**MILP** stands for **Mixed-Integer Linear Programming**. It's an optimization technique where:
+
+- Some variables are **continuous** (can be any real number)
+- Some variables are **integer** or **binary** (0 or 1)
+
+For Vpop calibration, we use binary variables to **select or reject** each virtual patient:
+
+$$x_j = \begin{cases} 1 & \text{if patient } j \text{ is selected} \\ 0 & \text{if patient } j \text{ is rejected} \end{cases}$$
+
+### Why MILP? Alternatives and Trade-offs
+
+| Approach | Pros | Cons |
+|:---------|:-----|:-----|
+| **Random Rejection Sampling** | Simple, fast | Inefficient, may reject too many |
+| **Importance Weighting** | No rejection needed | Weights can be extreme, high variance |
+| **MILP** | Optimal selection, precise matching | Computationally more expensive |
+
+MILP is the preferred approach when you need precise control over the distribution matching.
+
+## Libraries
+
+```{julia}
+#| output: false
+using Pumas
+using JuMP                    # Mathematical optimization modeling
+using HiGHS                   # Fast open-source MILP solver
+using DataFramesMeta
+using Statistics
+using StatsBase               # Histogram fitting
+using Copulas                 # For generating Vpop
+using LogExpFunctions
+using Pumas.Distributions
+using AlgebraOfGraphics
+using CairoMakie
+using SummaryTables
+using Random
+```
+
+**What each package does:**
+
+- `JuMP`: Algebraic modeling language for optimization problems
+- `HiGHS`: High-performance MILP solver (open source, fast)
+- `Copulas`: For generating correlated parameter samples
+- `AlgebraOfGraphics` + `CairoMakie`: Publication-quality visualizations
+
+## Part 1: Understanding the Calibration Problem
+
+### The Tumor Burden Model Recap
+
+From [Tutorial 1](tb_01_model_introduction_tutorial.qmd), our tumor burden model has:
+
+- **f**: Fraction of treatment-sensitive cells (0-1)
+- **g**: Growth rate of resistant cells (1/day)
+- **k**: Death rate of sensitive cells under treatment (1/day)
+
+The tumor dynamics follow: $N(t) = N_0 \cdot f \cdot e^{-kt} + N_0 \cdot (1-f) \cdot e^{gt}$
+
+### Defining Response Categories
+
+For tumor burden, we define response based on tumor size at a fixed time point (e.g., 18 weeks):
+
+```{julia}
+# Response category definitions based on tumor size ratio (final/initial)
+const RESPONSE_THRESHOLDS = (
+    complete_response = 0.14,    # < 14% of initial = CR
+    partial_response = 0.70,     # 14-70% = PR
+    stable_disease = 1.0,        # 70-100% = SD (not growing)
+    progressive_disease = Inf    # > 100% = PD (growing)
+)
+
+"""
+Classify response based on final tumor size ratio.
+"""
+function classify_response(tumor_ratio::Float64)
+    if tumor_ratio < RESPONSE_THRESHOLDS.complete_response
+        return :CR  # Complete Response
+    elseif tumor_ratio < RESPONSE_THRESHOLDS.partial_response
+        return :PR  # Partial Response
+    elseif tumor_ratio <= RESPONSE_THRESHOLDS.stable_disease
+        return :SD  # Stable Disease
+    else
+        return :PD  # Progressive Disease
+    end
+end
+
+println("Response categories:")
+println("  CR (Complete Response): tumor < $(100*RESPONSE_THRESHOLDS.complete_response)% of initial")
+println("  PR (Partial Response): tumor 14-70% of initial")
+println("  SD (Stable Disease): tumor 70-100% of initial")
+println("  PD (Progressive Disease): tumor > 100% of initial")
+```
+
+### Generating the Virtual Population
+
+Let's generate a vpop using the copula approach from Tutorial 2.
+
+```{julia}
+Random.seed!(42)
+
+# Helper functions for bounded logit-normal transform
+function logit_mean(P, a, b)
+    return logit((P - a) / (b - a))
+end
+
+function bounded_logistic(y, a, b)
+    return a + (b - a) * logistic(y)
+end
+
+# Parameter specifications (from the fitted NLME model)
+# Each parameter has bounds and omega on the logit scale
+param_specs = [
+    (name = :f, median = 0.27, omega = 2.16, lower = 0.0, upper = 1.0),
+    (name = :g, median = 0.0013, omega = 1.57, lower = 0.0, upper = 0.13),
+    (name = :k, median = 0.0091, omega = 1.24, lower = 0.0, upper = 1.6)
+]
+
+# Correlation matrix (f and g are negatively correlated)
+Rho = [
+    1.0   -0.64  0.0
+   -0.64   1.0   0.0
+    0.0    0.0   1.0
+]
+
+# Number of virtual patients
+n_vps = 2000
+
+# Create Gaussian copula and sample
+copula = GaussianCopula(Rho)
+U = rand(copula, n_vps)'
+
+# Transform uniform samples to bounded logit-normal distributions
+n_params = length(param_specs)
+μ_logit = [logit_mean(s.median, s.lower, s.upper) for s in param_specs]
+
+Y = similar(U)
+for j in 1:n_params
+    marginal = Normal(μ_logit[j], param_specs[j].omega)
+    Y[:, j] = quantile.(marginal, U[:, j])
+end
+
+P = similar(Y)
+for (j, spec) in enumerate(param_specs)
+    P[:, j] = bounded_logistic.(Y[:, j], spec.lower, spec.upper)
+end
+
+# Create vpop DataFrame
+vpop = DataFrame(
+    id = 1:n_vps,
+    f = P[:, 1],
+    g = P[:, 2],
+    k = P[:, 3]
+)
+
+println("Generated virtual population: $(nrow(vpop)) patients")
+println("\nParameter summary:")
+println("  f: median=$(round(median(vpop.f), digits=3)), range=[$(round(minimum(vpop.f), digits=3)), $(round(maximum(vpop.f), digits=3))]")
+println("  g: median=$(round(median(vpop.g), digits=5)), range=[$(round(minimum(vpop.g), digits=5)), $(round(maximum(vpop.g), digits=5))]")
+println("  k: median=$(round(median(vpop.k), digits=5)), range=[$(round(minimum(vpop.k), digits=5)), $(round(maximum(vpop.k), digits=5))]")
+```
+
+### Simulating Tumor Response
+
+Now let's simulate the tumor dynamics for each VP and classify their response.
+
+```{julia}
+"""
+Simulate tumor burden at time t using the analytical solution.
+"""
+function simulate_tumor(f, g, k, t; N0=1.0)
+    N_sens = N0 * f * exp(-k * t)
+    N_res = N0 * (1 - f) * exp(g * t)
+    return N_sens + N_res
+end
+
+# Simulation time (18 weeks = 126 days)
+t_final = 126.0  # days
+
+# Simulate tumor response for each VP
+vpop[!, :tumor_final] = [simulate_tumor(row.f, row.g, row.k, t_final) for row in eachrow(vpop)]
+vpop[!, :tumor_ratio] = vpop.tumor_final  # Since N0 = 1
+vpop[!, :response] = classify_response.(vpop.tumor_ratio)
+
+# Count responses
+response_counts = combine(groupby(vpop, :response), nrow => :count)
+response_counts[!, :pct] = 100 .* response_counts.count ./ n_vps
+
+println("\nCurrent Vpop response distribution:")
+for row in eachrow(sort(response_counts, :response))
+    println("  $(row.response): $(row.count) ($(round(row.pct, digits=1))%)")
+end
+```
+
+### Defining the Target Distribution
+
+Let's define a target response distribution that we want to match (based on a hypothetical clinical trial).
+
+```{julia}
+# Target response distribution (from "clinical trial")
+# In practice, you would use actual clinical trial response rates
+target_distribution = DataFrame(
+    response = [:CR, :PR, :SD, :PD],
+    target_pct = [25.0, 40.0, 20.0, 15.0]  # Clinical trial response rates
+)
+
+println("Target response distribution (from clinical trial):")
+for row in eachrow(target_distribution)
+    println("  $(row.response): $(row.target_pct)%")
+end
+
+# Compare with current vpop
+comparison = leftjoin(target_distribution, response_counts, on = :response)
+comparison[!, :vpop_pct] = coalesce.(comparison.pct, 0.0)
+comparison[!, :difference] = comparison.vpop_pct .- comparison.target_pct
+
+println("\nComparison:")
+for row in eachrow(comparison)
+    diff_str = row.difference >= 0 ? "+$(round(row.difference, digits=1))" : "$(round(row.difference, digits=1))"
+    println("  $(row.response): target=$(row.target_pct)%, vpop=$(round(row.vpop_pct, digits=1))%, diff=$diff_str%")
+end
+```
+
+## Part 2: The Mathematical Formulation
+
+Before writing code, let's understand the MILP optimization problem mathematically.
+
+### Decision Variables
+
+We have two types of decision variables:
+
+1. **Binary selection variables** for each virtual patient:
+$$x_j \in \{0, 1\} \quad \text{for } j = 1, \ldots, N$$
+
+2. **Total count of selected patients** (integer):
+$$N_{total} \in \mathbb{Z}^+$$
+
+### Objective Function
+
+We want to **maximize** the number of selected patients (larger calibrated populations give better statistical power):
+
+$$\max N_{total}$$
+
+### Constraints
+
+**Constraint 1: Total count definition**
+$$N_{total} = \sum_{j=1}^{N} x_j$$
+
+**Constraint 2: Distribution matching** (for each response category $c$ with target fraction $p_c$)
+
+The number of selected VPs in category $c$ must be within ε of the target:
+
+$$\text{count}_c = \sum_{j \in \text{category}_c} x_j$$
+
+$$(1 - \epsilon) \cdot p_c \cdot N_{total} \leq \text{count}_c \leq (1 + \epsilon) \cdot p_c \cdot N_{total}$$
+
+### Why Binary Variables Make This Hard (But Solvable)
+
+The fundamental insight is that VP selection is an **all-or-nothing decision**. Each virtual patient is either:
+
+- **Selected** ($x_j = 1$): included in the calibrated population
+- **Rejected** ($x_j = 0$): excluded from the calibrated population
+
+This **discrete choice** makes the problem a **Mixed-Integer** Linear Program (MILP) rather than a standard Linear Program (LP).
+
+:::{.callout-note}
+## Computational Complexity
+
+Binary optimization is **NP-hard**—there's no known algorithm that solves all instances quickly. With $N$ virtual patients, there are $2^N$ possible selections:
+
+| VPs | Possible Selections |
+|:----|:--------------------|
+| 10 | 1,024 |
+| 20 | ~1 million |
+| 100 | $2^{100}$ (astronomical) |
+
+Fortunately, modern solvers like HiGHS use sophisticated algorithms (branch-and-bound, cutting planes) that solve well-structured problems like ours in seconds [@dunning2017; @huangfu2018].
+:::
+
+## Part 3: Building the JuMP Model Step-by-Step
+
+### Step 3a: Create Membership Matrix
+
+For efficient constraint formulation, we create a matrix where `membership[c, j] = 1` if VP j belongs to category c.
+
+```{julia}
+# Response categories
+categories = [:CR, :PR, :SD, :PD]
+n_categories = length(categories)
+
+# Create membership matrix (categories × VPs)
+membership = zeros(Float64, n_categories, n_vps)
+
+for (j, resp) in enumerate(vpop.response)
+    c_idx = findfirst(==(resp), categories)
+    if !isnothing(c_idx)
+        membership[c_idx, j] = 1.0
+    end
+end
+
+# Verify: count VPs per category
+for (c_idx, cat) in enumerate(categories)
+    count = Int(sum(membership[c_idx, :]))
+    println("Category $cat: $count VPs")
+end
+```
+
+### Step 3b: Build the Optimization Model
+
+```{julia}
+# Calibration tolerance
+epsilon = 0.10  # 10% tolerance
+
+# Target fractions
+target_fractions = target_distribution.target_pct ./ 100.0
+
+# Create optimization model
+model = Model(HiGHS.Optimizer)
+set_silent(model)
+set_time_limit_sec(model, 60.0)
+
+# Decision variables
+@variable(model, n_total >= 1, Int)  # Total selected (integer)
+@variable(model, x[1:n_vps], Bin)     # Binary selection for each VP
+
+# Objective: maximize number of selected VPs
+@objective(model, Max, n_total)
+
+# Constraint: n_total equals sum of selections
+@constraint(model, n_total == sum(x))
+
+# Constraints: distribution matching for each category
+for (c_idx, cat) in enumerate(categories)
+    p_c = target_fractions[c_idx]
+
+    if p_c > 0  # Only add constraints for non-empty target categories
+        # Count of selected VPs in this category
+        category_count = sum(membership[c_idx, j] * x[j] for j in 1:n_vps)
+
+        # Upper bound: count <= (1 + ε) × p_c × n_total
+        @constraint(model, category_count <= (1 + epsilon) * p_c * n_total)
+
+        # Lower bound: count >= (1 - ε) × p_c × n_total
+        @constraint(model, category_count >= (1 - epsilon) * p_c * n_total)
+    end
+end
+
+# Bounds on total
+@constraint(model, n_total >= n_categories)  # At least one per category
+@constraint(model, n_total <= n_vps)          # At most all VPs
+
+println("Model created with:")
+println("  Variables: $(num_variables(model))")
+println("  Constraints: $(num_constraints(model; count_variable_in_set_constraints=false))")
+```
+
+### Step 3c: Solve the Model
+
+```{julia}
+# Solve the optimization problem
+optimize!(model)
+
+# Check the solution status
+status = termination_status(model)
+println("Solver status: ", status)
+
+if status == MOI.OPTIMAL
+    println("✓ Found optimal solution")
+elseif status == MOI.TIME_LIMIT && has_values(model)
+    println("⏱ Time limit reached, but valid solution found")
+elseif status == MOI.INFEASIBLE
+    println("✗ No feasible solution exists - try relaxing constraints")
+end
+```
+
+### Step 3d: Extract and Analyze Results
+
+```{julia}
+if status in [MOI.OPTIMAL, MOI.FEASIBLE_POINT] || (status == MOI.TIME_LIMIT && has_values(model))
+    # Get solution values
+    x_solution = value.(x)
+    n_selected = round(Int, value(n_total))
+
+    # Find selected VP indices
+    selected_indices = findall(x_solution .> 0.5)
+
+    println("=" ^ 50)
+    println("CALIBRATION RESULTS")
+    println("=" ^ 50)
+    println("Selected: $n_selected of $n_vps VPs ($(round(100*n_selected/n_vps, digits=1))%)")
+
+    # Calculate actual distribution
+    calibrated_vpop = vpop[selected_indices, :]
+    actual_counts = combine(groupby(calibrated_vpop, :response), nrow => :count)
+    actual_counts[!, :actual_pct] = 100 .* actual_counts.count ./ n_selected
+
+    # Compare with target
+    results_df = leftjoin(target_distribution, actual_counts, on = :response)
+    results_df[!, :actual_pct] = coalesce.(results_df.actual_pct, 0.0)
+    results_df[!, :error] = abs.(results_df.actual_pct .- results_df.target_pct)
+    results_df[!, :status] = [err <= epsilon * target ? "✓" : "✗"
+                              for (err, target) in zip(results_df.error, results_df.target_pct)]
+
+    println("\nDistribution comparison:")
+    for row in eachrow(results_df)
+        println("  $(row.response): target=$(row.target_pct)%, actual=$(round(row.actual_pct, digits=1))%, error=$(round(row.error, digits=2))% $(row.status)")
+    end
+
+    mean_error = mean(results_df.error)
+    println("\nMean absolute error: $(round(mean_error, digits=2))%")
+end
+```
+
+## Part 4: Complete Calibration Workflow
+
+Now let's wrap everything into a reusable function.
+
+```{julia}
+"""
+    calibrate_to_response_distribution(
+        vpop::DataFrame,
+        response_col::Symbol,
+        target_distribution::DataFrame;
+        epsilon::Float64 = 0.1,
+        time_limit::Float64 = 60.0
+    )
+
+Calibrate a virtual population to match a target response distribution using MILP.
+
+Returns a NamedTuple with:
+- selected_indices: Indices of selected VPs
+- n_selected: Number of selected VPs
+- actual_percentages: Achieved distribution
+- mean_error: Mean absolute error
+- status: Solver status
+"""
+function calibrate_to_response_distribution(
+    vpop::DataFrame,
+    response_col::Symbol,
+    target_distribution::DataFrame;
+    epsilon::Float64 = 0.1,
+    time_limit::Float64 = 60.0
+)
+    n_vps = nrow(vpop)
+    categories = target_distribution.response
+    n_categories = length(categories)
+    target_fractions = target_distribution.target_pct ./ 100.0
+
+    # Create membership matrix
+    membership = zeros(Float64, n_categories, n_vps)
+    for (j, resp) in enumerate(vpop[!, response_col])
+        c_idx = findfirst(==(resp), categories)
+        if !isnothing(c_idx)
+            membership[c_idx, j] = 1.0
+        end
+    end
+
+    # Build optimization model
+    model = Model(HiGHS.Optimizer)
+    set_silent(model)
+    set_time_limit_sec(model, time_limit)
+
+    @variable(model, n_total >= 1, Int)
+    @variable(model, x[1:n_vps], Bin)
+
+    @objective(model, Max, n_total)
+    @constraint(model, n_total == sum(x))
+
+    for (c_idx, _) in enumerate(categories)
+        p_c = target_fractions[c_idx]
+        if p_c > 0
+            category_count = sum(membership[c_idx, j] * x[j] for j in 1:n_vps)
+            @constraint(model, category_count <= (1 + epsilon) * p_c * n_total)
+            @constraint(model, category_count >= (1 - epsilon) * p_c * n_total)
+        end
+    end
+
+    @constraint(model, n_total >= n_categories)
+    @constraint(model, n_total <= n_vps)
+
+    # Solve
+    optimize!(model)
+    status = termination_status(model)
+
+    # Extract results
+    if status in [MOI.OPTIMAL, MOI.FEASIBLE_POINT] ||
+       (status == MOI.TIME_LIMIT && has_values(model))
+        x_vals = value.(x)
+        selected = findall(x_vals .> 0.5)
+        n_sel = length(selected)
+
+        # Calculate actual percentages
+        actual_pcts = zeros(n_categories)
+        for (c_idx, cat) in enumerate(categories)
+            cat_count = Base.count(i -> vpop[i, response_col] == cat, selected)
+            actual_pcts[c_idx] = 100.0 * cat_count / n_sel
+        end
+
+        errors = abs.(actual_pcts .- target_distribution.target_pct)
+
+        return (
+            selected_indices = selected,
+            n_selected = n_sel,
+            actual_percentages = actual_pcts,
+            categories = categories,
+            target_percentages = target_distribution.target_pct,
+            errors = errors,
+            mean_error = mean(errors),
+            status = status
+        )
+    else
+        return (
+            selected_indices = Int[],
+            n_selected = 0,
+            actual_percentages = zeros(n_categories),
+            categories = categories,
+            target_percentages = target_distribution.target_pct,
+            errors = fill(Inf, n_categories),
+            mean_error = Inf,
+            status = status
+        )
+    end
+end
+```
+
+### Running the Calibration
+
+```{julia}
+# Run calibration with 10% tolerance
+calib_result = calibrate_to_response_distribution(
+    vpop,
+    :response,
+    target_distribution;
+    epsilon = 0.10
+)
+
+println("Calibration complete!")
+println("Status: $(calib_result.status)")
+println("Selected: $(calib_result.n_selected) VPs ($(round(100*calib_result.n_selected/n_vps, digits=1))%)")
+println("Mean error: $(round(calib_result.mean_error, digits=2))%")
+```
+
+### Visualizing the Calibration Result
+
+```{julia}
+#| fig-cap: "Before and after calibration: response distribution comparison. The calibrated population (right) closely matches the target distribution."
+
+# Check if calibration was successful
+if calib_result.n_selected > 0
+    # Create data for plotting
+    original_counts = combine(groupby(vpop, :response), nrow => :count)
+    original_counts[!, :pct] = 100 .* original_counts.count ./ n_vps
+    original_counts[!, :source] .= "Original"
+    original_counts[!, :panel] .= "Original (n=$n_vps)"
+
+    calibrated_vpop = vpop[calib_result.selected_indices, :]
+    calibrated_counts = combine(groupby(calibrated_vpop, :response), nrow => :count)
+    calibrated_counts[!, :pct] = 100 .* calibrated_counts.count ./ calib_result.n_selected
+    calibrated_counts[!, :source] .= "Calibrated"
+    calibrated_counts[!, :panel] .= "Calibrated (n=$(calib_result.n_selected))"
+
+    # Combine bar data
+    plot_data = vcat(original_counts, calibrated_counts)
+
+    # Create target points DataFrame for the calibrated panel
+    target_points = DataFrame(
+        response = target_distribution.response,
+        pct = target_distribution.target_pct,
+        source = fill("Target", 4),
+        panel = fill("Calibrated (n=$(calib_result.n_selected))", 4)
+    )
+
+    # Create the figure
+    fig = Figure(size = (1000, 450))
+
+    # Original panel using AoG
+    ax1 = Axis(fig[1, 1],
+        title = "Original (n=$n_vps)",
+        xlabel = "Response Category",
+        ylabel = "Percentage (%)",
+        limits = (nothing, (0, 55))
+    )
+
+    original_plt = data(original_counts) *
+        mapping(:response => sorter(:CR, :PR, :SD, :PD) => "Response", :pct => "Percentage (%)") *
+        visual(BarPlot, color = :steelblue)
+
+    draw!(ax1, original_plt)
+
+    # Calibrated panel using AoG
+    ax2 = Axis(fig[1, 2],
+        title = "Calibrated (n=$(calib_result.n_selected))",
+        xlabel = "Response Category",
+        ylabel = "Percentage (%)",
+        limits = (nothing, (0, 55))
+    )
+
+    calibrated_plt = data(calibrated_counts) *
+        mapping(:response => sorter(:CR, :PR, :SD, :PD) => "Response", :pct => "Percentage (%)") *
+        visual(BarPlot, color = :steelblue)
+
+    draw!(ax2, calibrated_plt)
+
+    # Add target markers using Makie (AoG doesn't support scatter overlay on bar plots easily)
+    target_sorted = sort(target_distribution, :response)
+    scatter!(ax2, 1:4, target_sorted.target_pct, color = :red, markersize = 15,
+             marker = :diamond, label = "Target")
+
+    # Create legend manually
+    legend_elements = [
+        PolyElement(color = :steelblue),
+        MarkerElement(color = :red, marker = :diamond, markersize = 15)
+    ]
+    legend_labels = ["Calibrated", "Target"]
+    Legend(fig[1, 3], legend_elements, legend_labels, "Legend")
+
+    fig
+else
+    println("Calibration failed - no VPs were selected.")
+    println("Check solver status: $(calib_result.status)")
+    println("Try increasing epsilon or checking if the target distribution is achievable.")
+end
+```
+
+## Part 5: Pareto Front Analysis
+
+### What is Pareto Analysis?
+
+In optimization, we often face situations where improving one objective makes another worse. **Pareto analysis** systematically explores these trade-offs.
+
+For Vpop calibration, our two competing objectives are:
+
+1. **Maximize** the number of selected VPs (larger population = better statistical power)
+2. **Minimize** the distribution matching error (better match = more realistic population)
+
+A **Pareto-optimal** solution is one where you can't improve one objective without making the other worse.
+
+### Grid Search for Pareto Front
+
+Let's explore different epsilon values:
+
+```{julia}
+# Grid search over epsilon values
+epsilon_values = [0.05, 0.08, 0.10, 0.12, 0.15, 0.20, 0.25]
+
+pareto_results = DataFrame(
+    epsilon = Float64[],
+    n_selected = Int[],
+    mean_error = Float64[],
+    selection_rate = Float64[]
+)
+
+println("Running Pareto analysis...")
+for eps in epsilon_values
+    result = calibrate_to_response_distribution(
+        vpop, :response, target_distribution;
+        epsilon = eps, time_limit = 30.0
+    )
+
+    if result.n_selected > 0 && isfinite(result.mean_error)
+        push!(pareto_results, (
+            epsilon = eps,
+            n_selected = result.n_selected,
+            mean_error = result.mean_error,
+            selection_rate = 100 * result.n_selected / n_vps
+        ))
+        println("  ε=$(eps): $(result.n_selected) VPs, error=$(round(result.mean_error, digits=2))%")
+    else
+        println("  ε=$(eps): INFEASIBLE")
+    end
+end
+```
+
+### Finding the Pareto Front
+
+```{julia}
+"""
+Filter to Pareto-optimal points (non-dominated solutions).
+"""
+function find_pareto_optimal(df::DataFrame)
+    n = nrow(df)
+    is_pareto = trues(n)
+
+    for i in 1:n
+        for j in 1:n
+            if i != j
+                # j dominates i if j has more VPs AND lower error
+                if df[j, :n_selected] > df[i, :n_selected] &&
+                   df[j, :mean_error] < df[i, :mean_error]
+                    is_pareto[i] = false
+                    break
+                end
+            end
+        end
+    end
+
+    return df[is_pareto, :]
+end
+
+pareto_front = find_pareto_optimal(pareto_results)
+sort!(pareto_front, :n_selected, rev=true)
+
+println("\nPareto-optimal solutions:")
+for row in eachrow(pareto_front)
+    println("  ε=$(row.epsilon): $(row.n_selected) VPs ($(round(row.selection_rate, digits=1))%), error=$(round(row.mean_error, digits=2))%")
+end
+```
+
+### Selecting the Knee Point
+
+The "knee point" provides a balanced trade-off:
+
+```{julia}
+"""
+Select the knee point (closest to utopia in normalized space).
+"""
+function select_knee_point(pareto_df::DataFrame)
+    if nrow(pareto_df) == 0
+        error("Cannot select knee point from empty Pareto front")
+    end
+    if nrow(pareto_df) == 1
+        return pareto_df[1, :]
+    end
+
+    vps = pareto_df.n_selected
+    errors = pareto_df.mean_error
+
+    # Handle edge case where all values are the same
+    vps_range = maximum(vps) - minimum(vps)
+    err_range = maximum(errors) - minimum(errors)
+
+    # Normalize to [0, 1]
+    vps_norm = vps_range > 0 ? (vps .- minimum(vps)) ./ vps_range : ones(length(vps))
+    err_norm = err_range > 0 ? (errors .- minimum(errors)) ./ err_range : zeros(length(errors))
+
+    # Distance to utopia (1, 0) - max VPs, min error
+    distances = sqrt.((1 .- vps_norm).^2 .+ err_norm.^2)
+
+    knee_idx = argmin(distances)
+    return pareto_df[knee_idx, :]
+end
+
+knee = nothing  # Initialize variable
+if nrow(pareto_front) > 0
+    knee = select_knee_point(pareto_front)
+    println("\nRecommended settings (knee point):")
+    println("  epsilon = $(knee.epsilon)")
+    println("  Expected VPs: $(knee.n_selected) ($(round(knee.selection_rate, digits=1))%)")
+    println("  Expected error: $(round(knee.mean_error, digits=2))%")
+else
+    println("\nNo Pareto-optimal solutions found. Using default epsilon = 0.15")
+end
+```
+
+### Visualizing the Pareto Front
+
+```{julia}
+#| fig-cap: "Pareto front showing the trade-off between number of selected VPs and distribution matching error. The red star indicates the recommended knee point."
+
+if nrow(pareto_results) > 0 && nrow(pareto_front) > 0
+    # Prepare data for AoG plotting
+    # Mark which points are Pareto optimal
+    pareto_results[!, :is_pareto] = [row.epsilon in pareto_front.epsilon for row in eachrow(pareto_results)]
+
+    # Create point type column for legend
+    pareto_results[!, :point_type] = ifelse.(pareto_results.is_pareto, "Pareto Optimal", "All Solutions")
+
+    # Get the knee point (use already computed knee if available)
+    if isnothing(knee)
+        knee = select_knee_point(pareto_front)
+    end
+    knee_df = DataFrame(
+        mean_error = [knee.mean_error],
+        n_selected = [knee.n_selected],
+        point_type = ["Knee Point"]
+    )
+
+    # Combine all data for unified legend
+    all_points = vcat(
+        select(pareto_results, :mean_error, :n_selected, :point_type),
+        knee_df
+    )
+
+    # Create figure
+    fig = Figure(size = (800, 500))
+
+    ax = Axis(fig[1, 1],
+        xlabel = "Mean Distribution Error (%)",
+        ylabel = "Number of Selected VPs",
+        title = "Pareto Front: Selection Size vs. Matching Error"
+    )
+
+    # Create AoG plot with different visual layers
+    plt = data(all_points) *
+        mapping(:mean_error => "Mean Distribution Error (%)",
+                :n_selected => "Number of Selected VPs",
+                color = :point_type => "Solution Type",
+                marker = :point_type => "Solution Type") *
+        visual(Scatter, markersize = 15)
+
+    # Define custom palettes
+    color_palette = ["All Solutions" => (:gray, 0.5), "Pareto Optimal" => :steelblue, "Knee Point" => :red]
+    marker_palette = ["All Solutions" => :circle, "Pareto Optimal" => :circle, "Knee Point" => :star5]
+
+    ag = draw!(ax, plt, scales(Color = (; palette = color_palette), Marker = (; palette = marker_palette)))
+
+    # Add Pareto front line using Makie (AoG doesn't support lines connecting points easily)
+    pareto_sorted = sort(pareto_front, :mean_error)
+    lines!(ax, pareto_sorted.mean_error, pareto_sorted.n_selected,
+           color = :steelblue, linewidth = 2)
+
+    # Add legend outside plot
+    legend!(fig[1, 2], ag, framevisible = false)
+
+    fig
+else
+    println("No Pareto results to display. Check calibration function for errors.")
+end
+```
+
+## Part 6: Saving the Calibrated Population
+
+After calibration, save the results for use in VCT simulation.
+
+```{julia}
+# Extract calibrated vpop using the knee point settings
+# Use knee point epsilon if available, otherwise use default
+final_epsilon = isnothing(knee) ? 0.15 : knee.epsilon
+
+final_result = calibrate_to_response_distribution(
+    vpop, :response, target_distribution;
+    epsilon = final_epsilon
+)
+
+if final_result.n_selected > 0
+    # Create calibrated vpop
+    vpop_calibrated = vpop[final_result.selected_indices, :]
+
+    println("Final calibrated population:")
+    println("  Size: $(nrow(vpop_calibrated)) VPs")
+    println("  Selection rate: $(round(100*nrow(vpop_calibrated)/n_vps, digits=1))%")
+
+    # Verify response distribution
+    final_counts = combine(groupby(vpop_calibrated, :response), nrow => :count)
+    final_counts[!, :pct] = 100 .* final_counts.count ./ nrow(vpop_calibrated)
+
+    println("\nFinal response distribution:")
+    for row in eachrow(sort(final_counts, :response))
+        target_row = filter(r -> r.response == row.response, target_distribution)
+        target_pct = isempty(target_row) ? 0.0 : target_row[1, :target_pct]
+        println("  $(row.response): $(round(row.pct, digits=1))% (target: $target_pct%)")
+    end
+else
+    println("Calibration failed to find a feasible solution.")
+    println("Try increasing epsilon or generating more VPs.")
+    # Create empty calibrated vpop for downstream compatibility
+    vpop_calibrated = vpop[Int[], :]
+end
+```
+
+```{julia}
+# Optional: Save to CSV for use in next tutorial
+# Uncomment to save:
+# using CSV
+# CSV.write("outputs/vpop_tb_calibrated.csv", vpop_calibrated)
+# println("Saved calibrated vpop to outputs/vpop_tb_calibrated.csv")
+```
+
+## Part 7: Practical Recommendations
+
+:::{.callout-tip}
+## Choosing Epsilon (Tolerance)
+
+Start with ε = 0.10 (10% tolerance):
+
+| Epsilon | Effect |
+|:--------|:-------|
+| 0.05 (5%) | Very strict, fewer VPs selected |
+| 0.10 (10%) | Good balance (recommended) |
+| 0.15-0.20 | More VPs, acceptable for preliminary work |
+| > 0.25 | Too loose, poor distribution matching |
+:::
+
+:::{.callout-tip}
+## Handling Infeasible Problems
+
+If the solver returns `INFEASIBLE`:
+
+1. **Increase epsilon** from 0.10 to 0.15 or 0.20
+2. **Check target achievability** - do you have VPs in all response categories?
+3. **Merge sparse categories** - combine SD and PD if both are rare
+4. **Increase Vpop size** - generate more VPs to have more options
+:::
+
+:::{.callout-warning}
+## When Categories Are Imbalanced
+
+If your Vpop has very few VPs in a target category (e.g., only 2% CR but target is 25% CR):
+
+- Calibration may fail or reject most VPs
+- Consider: Is the Vpop generation realistic?
+- Solution: Adjust population parameters or use importance sampling
+:::
+
+## Summary
+
+### Key Concepts
+
+1. **Calibration ensures realistic virtual populations** that match clinical response distributions
+
+2. **MILP optimization** provides precise control over distribution matching through binary selection variables
+
+3. **The calibration formulation:**
+   - Maximize: Number of selected VPs
+   - Subject to: Each response category within ε of target
+
+4. **Pareto analysis** helps find the optimal epsilon value
+
+5. **The knee point** provides the best balance between population size and matching precision
+
+### Quick Reference: Steps
+
+1. Generate virtual population (Tutorial 2)
+2. Simulate responses for each VP
+3. Define target response distribution
+4. Choose epsilon (or use Pareto analysis)
+5. Run MILP calibration
+6. Validate: compare calibrated vs target distributions
+7. Save calibrated vpop for VCT (Tutorial 6)
+
+### What's Next?
+
+In [Tutorial 6: VCT Simulation](tb_06_vct_simulation_tutorial.qmd), we'll use the calibrated virtual population to run a complete Virtual Clinical Trial, comparing treatment effects and analyzing endpoints.
+
+### References
+
+::: {#refs}
+:::

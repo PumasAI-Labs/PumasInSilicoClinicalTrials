@@ -15,7 +15,7 @@ Reference:
     Benefit From Treatment Beyond Progression With Pembrolizumab in Non-Small Cell
     Lung Cancer. CPT Pharmacometrics Syst Pharmacol. 2023;12:236-249.
 =#
-
+include("../src/ISCTWorkflow.jl")
 using .ISCTWorkflow
 using DataFrames
 using DataFramesMeta
@@ -238,7 +238,7 @@ errorbars!(
 )
 
 ylims!(ax2, 3, 21)
-
+fig2
 save(joinpath(@__DIR__, "..", "outputs", "response_rates.png"), fig2)
 println("Saved: outputs/response_rates.png")
 

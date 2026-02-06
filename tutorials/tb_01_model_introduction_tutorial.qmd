@@ -1,0 +1,839 @@
+---
+title: "Tumor Burden Model: Introduction & Biology"
+author:
+  - Vijay Ivaturi
+execute:
+  cache: true
+  error: false
+julia: 
+  exeflags: ["+Pumas@2.7.1"]
+format:
+  html:
+    include-in-header:
+      text: |
+        <style>
+          .header-container {
+            width: 100%;
+          }
+          .logo {
+            display: block;
+            width: 150px;
+            margin-left: -2.5%;
+          }
+        </style>
+        <link rel = "shortcut icon" href = "https://pumas.ai/favicon.ico" />
+    include-before-body:
+      text: |
+        <div class="header-container">
+          <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
+        </div>
+    self-contained-math: true
+    anchor-sections: true
+    theme: default
+    toc: true
+    toc-depth: 4
+    toc-expand: 2
+    toc-location: left
+    toc-title: Contents
+    number-sections: true
+    code-summary: Show/Hide Code
+embed-resources: true
+fig-format: svg
+fig-width: 8
+fig-height: 6
+bibliography: references.bib
+csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
+---
+
+:::{.callout-note}
+## Tumor Burden Tutorial Series
+
+This is **Tutorial 1 of 6** in the Tumor Burden series.
+
+| # | Tutorial | Status |
+|---|----------|--------|
+| 1 | **Model Introduction (current)** | You are here |
+| 2 | [Copula Vpop Generation](tb_02_copula_vpop_tutorial.qmd) | |
+| 3 | [Global Sensitivity Analysis](tb_03_gsa_tutorial.qmd) | |
+| 4 | [Structural Identifiability](tb_04_structural_identifiability_tutorial.qmd) | |
+| 5 | [MILP Calibration](tb_05_milp_calibration_tutorial.qmd) | |
+| 6 | [VCT Simulation](tb_06_vct_simulation_tutorial.qmd) | |
+:::
+
+## Learning Outcomes
+
+This tutorial introduces the Tumor Burden Model, a foundational example for understanding In Silico Clinical Trials (ISCTs). The model describes tumor dynamics during cancer chemotherapy and will be used throughout this tutorial series [@cortes2025; @qi2023].
+
+In this tutorial, you will learn:
+
+- The clinical context: non-small cell lung cancer (NSCLC) chemotherapy
+- The biological basis of tumor response: treatment-sensitive vs resistant cells
+- The mathematical model equation and what each parameter represents
+- How to build a Pumas model using the `@model` macro
+- How to simulate typical patient dynamics
+- How to visualize treatment vs control scenarios
+
+## Background
+
+### Clinical Context: NSCLC Chemotherapy
+
+Non-small cell lung cancer (NSCLC) is the most common type of lung cancer, accounting for approximately 85% of all lung cancer cases. Chemotherapy remains a cornerstone of treatment, but patient responses vary dramatically:
+
+- Some patients achieve **complete response** (tumor disappears)
+- Some achieve **partial response** (tumor shrinks significantly)
+- Others experience **progressive disease** (tumor grows despite treatment)
+
+**The central question:** What determines which patients respond to treatment?
+
+:::{.callout-tip}
+## From Observation to Model
+
+Researchers observed that tumors often show a characteristic **biphasic response** to chemotherapy:
+
+1. **Initial shrinkage:** Chemotherapy kills treatment-sensitive cells
+2. **Eventual regrowth:** Treatment-resistant cells proliferate
+
+This observation suggests a simple but powerful model: tumors contain two distinct cell populations with different drug sensitivities.
+:::
+
+### The Two-Population Hypothesis
+
+The tumor burden model posits that a tumor consists of two cell populations:
+
+```{mermaid}
+flowchart TB
+    subgraph tumor["Tumor at Diagnosis"]
+        direction LR
+        sens["Treatment-Sensitive Cells<br/>(fraction f)"]
+        res["Treatment-Resistant Cells<br/>(fraction 1-f)"]
+    end
+
+    sens -->|"Under treatment"| sens_fate["Die at rate k"]
+    res -->|"Always"| res_fate["Grow at rate g"]
+
+    sens_fate --> outcome1["Tumor shrinks initially"]
+    res_fate --> outcome2["Tumor regrows eventually"]
+
+    style sens fill:#ffcccc,stroke:#cc0000
+    style res fill:#ccffcc,stroke:#00cc00
+    style outcome1 fill:#e1f5fe,stroke:#01579b
+    style outcome2 fill:#fff3e0,stroke:#e65100
+```
+
+**Biological interpretation:**
+
+| Population | Symbol | Under Treatment | Biological Basis |
+|:-----------|:-------|:----------------|:-----------------|
+| **Sensitive cells** | f | Die at rate k | Express drug targets, susceptible to chemotherapy |
+| **Resistant cells** | 1-f | Grow at rate g | Pre-existing mutations, drug efflux pumps, stem-like properties |
+
+This simple model captures the essence of why some patients respond better than others: **patients with a higher fraction of sensitive cells (high f) will show better initial response**.
+
+## Libraries
+
+Load the necessary packages for this tutorial.
+
+```{julia}
+#| output: false
+using Pumas
+using DataFrames
+using LogExpFunctions         # logit, logistic transformations
+using AlgebraOfGraphics
+using CairoMakie
+using Statistics
+using Random
+```
+
+**What each package does:**
+
+- `Pumas`: Pharmacometric modeling and simulation
+- `LogExpFunctions`: Numerically stable logit and logistic transformations
+- `AlgebraOfGraphics` + `CairoMakie`: Publication-quality visualizations
+
+## Part 1: The Model Equation
+
+### Mathematical Formulation
+
+The tumor burden model describes the total tumor size $N(t)$ as the sum of two exponential terms [@qi2023]:
+
+$$N(t) = N_0 \cdot f \cdot e^{-k \cdot t} + N_0 \cdot (1-f) \cdot e^{g \cdot t}$$
+
+Where:
+
+| Symbol | Parameter | Units | Description |
+|:-------|:----------|:------|:------------|
+| $N_0$ | Initial tumor | normalized | Baseline tumor size (set to 1) |
+| $f$ | Sensitive fraction | unitless | Fraction of treatment-sensitive cells (0 to 1) |
+| $k$ | Death rate | d⁻¹ | Rate at which sensitive cells die under treatment |
+| $g$ | Growth rate | d⁻¹ | Rate at which resistant cells proliferate |
+| $t$ | Time | days | Time since treatment start |
+
+:::{.callout-note}
+## Understanding the Equation
+
+Let's break down the two terms:
+
+**First term:** $N_0 \cdot f \cdot e^{-k \cdot t}$ — Sensitive cell population
+
+- Starts at $N_0 \cdot f$ (fraction f of the initial tumor)
+- Decays exponentially with rate k when treated
+- Eventually approaches 0 as sensitive cells are eliminated
+
+**Second term:** $N_0 \cdot (1-f) \cdot e^{g \cdot t}$ — Resistant cell population
+
+- Starts at $N_0 \cdot (1-f)$ (the remaining fraction)
+- Grows exponentially with rate g
+- Eventually dominates the total tumor
+
+**Net effect:** Initial shrinkage (first term dominates) followed by regrowth (second term dominates).
+:::
+
+### Parameter Values from Literature
+
+The parameter values come from @qi2023, who fit this model to NSCLC clinical trial data:
+
+```{julia}
+# Population (typical) parameter values
+typical_f = 0.27    # 27% of tumor is treatment-sensitive
+typical_g = 0.0013  # Resistant cells grow ~0.13% per day
+typical_k = 0.0091  # Sensitive cells die ~0.91% per day
+
+# Inter-individual variability (omega values on transformed scale)
+omega_f = 2.16  # High variability in sensitive fraction
+omega_g = 1.57  # Moderate variability in growth rate
+omega_k = 1.24  # Moderate variability in death rate
+
+# Critical correlation from the data
+cor_f_g = -0.64  # Negative correlation: high f ↔ low g
+
+println("Tumor Burden Model Parameters")
+println("=" ^ 50)
+println("Typical values (population medians):")
+println("  f (sensitive fraction): $typical_f ($(round(typical_f*100, digits=1))%)")
+println("  g (growth rate): $typical_g d⁻¹")
+println("  k (death rate): $typical_k d⁻¹")
+println("\nInter-individual variability (ω on transformed scale):")
+println("  ωf = $omega_f")
+println("  ωg = $omega_g")
+println("  ωk = $omega_k")
+println("\nCorrelation: r(f, g) = $cor_f_g")
+```
+
+:::{.callout-tip}
+## Why the Negative Correlation?
+
+The correlation r(f, g) = -0.64 is biologically meaningful:
+
+**Patients with more sensitive cells (high f) tend to have slower-growing resistant cells (low g).**
+
+Possible explanations:
+
+1. **Tumor heterogeneity:** Aggressive tumors may have both fewer sensitive cells AND faster-growing resistant cells
+2. **Evolutionary pressure:** In highly proliferative tumors, resistance mechanisms may be more prevalent
+3. **Stem cell fraction:** Resistant cells may correlate with cancer stem cell populations
+
+This correlation is crucial for realistic virtual population generation (Tutorial 2).
+:::
+
+## Part 2: Building the Pumas Model
+
+### Model Structure Overview
+
+A Pumas model is defined using the `@model` macro with several blocks:
+
+```{mermaid}
+flowchart TB
+    param["@param<br/>Population parameters"]
+    random["@random<br/>Inter-individual variability"]
+    cov["@covariates<br/>External inputs (treatment)"]
+    pre["@pre<br/>Individual parameter calculations"]
+    init["@init<br/>Initial conditions"]
+    dynamics["@dynamics<br/>ODE system"]
+    derived["@derived<br/>Observable outputs"]
+
+    param --> pre
+    random --> pre
+    cov --> pre
+    pre --> init
+    pre --> dynamics
+    init --> dynamics
+    dynamics --> derived
+
+    style param fill:#e3f2fd,stroke:#1565c0
+    style random fill:#e3f2fd,stroke:#1565c0
+    style dynamics fill:#e8f5e9,stroke:#2e7d32
+    style derived fill:#fff3e0,stroke:#e65100
+```
+
+### Complete Model Definition
+
+```{julia}
+tumor_burden_model = @model begin
+    @metadata begin
+        desc = "Tumor Burden Model for NSCLC Chemotherapy"
+        timeu = u"d"  # Time unit is days
+    end
+
+    @param begin
+        # Typical values (population parameters)
+        tvf ∈ RealDomain(lower=0.0, upper=1.0, init=0.27)
+        tvg ∈ RealDomain(lower=0.0, init=0.0013)
+        tvk ∈ RealDomain(lower=0.0, init=0.0091)
+
+        # Inter-individual variability (diagonal covariance matrix)
+        # Values on the transformed scale (logit for f, log for g and k)
+        Ω ∈ PDiagDomain(init=[2.16, 1.57, 1.24])
+
+        # Residual error (standard deviation)
+        σ ∈ RealDomain(lower=0.0, init=0.05)
+    end
+
+    @random begin
+        # Random effects vector (one per parameter)
+        η ~ MvNormal(Ω)
+    end
+
+    @covariates treatment
+
+    @pre begin
+        # Transform random effects to individual parameters
+        # f: logit-normal transformation (bounded 0-1)
+        f = logistic(logit(tvf) + η[1])
+
+        # g, k: log-normal transformation (positive values)
+        g = tvg * exp(η[2])
+        k = tvk * exp(η[3])
+
+        # Treatment effect on death rate
+        # treatment = 0 → control arm (no killing)
+        # treatment = 1 → treatment arm (killing at rate k)
+        k_eff = treatment * k
+
+        # Initial conditions (normalized tumor = 1)
+        N_sens_0 = f           # Sensitive cells
+        N_res_0 = 1.0 - f      # Resistant cells
+    end
+
+    @init begin
+        N_sens = N_sens_0
+        N_res = N_res_0
+    end
+
+    @dynamics begin
+        # Sensitive cells: die at effective rate (0 if control, k if treatment)
+        N_sens' = -k_eff * N_sens
+
+        # Resistant cells: always grow at rate g
+        N_res' = g * N_res
+    end
+
+    @derived begin
+        # Total normalized tumor size
+        Nt = @. N_sens + N_res
+
+        # Observation with residual error
+        tumor_size ~ @. Normal(Nt, σ)
+    end
+end
+
+println("Model defined successfully!")
+```
+
+### Understanding Each Block
+
+Let's examine each model block in detail.
+
+#### The `@param` Block
+
+```{julia}
+#| echo: false
+println("@param Block: Population Parameters")
+println("=" ^ 50)
+println("""
+Parameters defined:
+  tvf ∈ RealDomain(lower=0.0, upper=1.0)  → Typical value of f (bounded)
+  tvg ∈ RealDomain(lower=0.0)             → Typical value of g (positive)
+  tvk ∈ RealDomain(lower=0.0)             → Typical value of k (positive)
+  Ω ∈ PDiagDomain(init=[...])             → Diagonal covariance matrix
+  σ ∈ RealDomain(lower=0.0)               → Residual error SD
+""")
+```
+
+:::{.callout-note}
+## Domain Types
+
+| Domain | Constraints | Use Case |
+|:-------|:------------|:---------|
+| `RealDomain()` | Any real number | Unbounded parameters |
+| `RealDomain(lower=0.0)` | Positive only | Rates, clearances |
+| `RealDomain(lower=0.0, upper=1.0)` | Between 0 and 1 | Fractions, bioavailability |
+| `PDiagDomain(n)` | Positive diagonal matrix | Variance-covariance |
+:::
+
+#### The `@random` Block
+
+```{julia}
+#| echo: false
+println("@random Block: Inter-Individual Variability")
+println("=" ^ 50)
+println("""
+η ~ MvNormal(Ω)
+
+This creates a vector of 3 random effects:
+  η[1] → affects f (sensitive fraction)
+  η[2] → affects g (growth rate)
+  η[3] → affects k (death rate)
+
+η values are sampled from N(0, Ω) for each virtual patient.
+""")
+```
+
+#### The `@pre` Block: Parameter Transformations
+
+The `@pre` block contains the **key transformations** that convert population parameters and random effects into individual parameters.
+
+```{julia}
+#| echo: false
+println("@pre Block: Individual Parameter Calculation")
+println("=" ^ 50)
+println("""
+For parameter f (bounded 0-1):
+  f = logistic(logit(tvf) + η[1])
+
+  Step 1: logit(tvf) transforms 0.27 to the unbounded scale
+          logit(0.27) = log(0.27/0.73) ≈ -0.995
+
+  Step 2: Add random effect η[1] (can be any real number)
+
+  Step 3: logistic(...) transforms back to (0, 1)
+
+For parameters g and k (positive values):
+  g = tvg * exp(η[2])
+
+  This is log-normal: when η[2] = 0, g = tvg (typical)
+                      when η[2] > 0, g > tvg
+                      when η[2] < 0, g < tvg
+""")
+```
+
+:::{.callout-important}
+## Why These Transformations?
+
+The transformations ensure:
+
+1. **Parameters stay in valid ranges:**
+   - f always between 0 and 1 (logit-normal)
+   - g and k always positive (log-normal)
+
+2. **Symmetric variability on the transformed scale:**
+   - A patient with η = +1 is as "far from typical" as one with η = -1
+
+3. **Realistic distributions:**
+   - Log-normal for rates (right-skewed, common in PK/PD)
+   - Logit-normal for fractions (appropriate for bounded parameters)
+:::
+
+#### The `@dynamics` Block
+
+```{julia}
+#| echo: false
+println("@dynamics Block: ODE System")
+println("=" ^ 50)
+println("""
+N_sens' = -k_eff * N_sens
+  → Sensitive cells decrease exponentially when treated
+  → k_eff = 0 (control) means no change
+  → k_eff = k (treatment) means exponential decay
+
+N_res' = g * N_res
+  → Resistant cells always grow exponentially
+  → Independent of treatment
+
+These two ODEs implement the mathematical model:
+  N(t) = N_0 * f * e^(-k*t) + N_0 * (1-f) * e^(g*t)
+""")
+```
+
+## Part 3: Simulating a Typical Patient
+
+### Setting Up the Simulation
+
+Let's simulate a "typical" patient (η = 0) receiving treatment.
+
+```{julia}
+# Population parameters
+pop_params = (
+    tvf = 0.27,
+    tvg = 0.0013,
+    tvk = 0.0091,
+    Ω = [2.16 0.0 0.0; 0.0 1.57 0.0; 0.0 0.0 1.24],
+    σ = 0.05
+)
+
+# Observation times (weekly for 18 weeks)
+obs_times = collect(0.0:7.0:126.0)
+
+# Create a subject for the treatment arm
+subject_treatment = Subject(
+    id = 1,
+    covariates = (treatment = 1,),  # Treatment arm
+    observations = (tumor_size = nothing,),
+    time = obs_times
+)
+
+# Create a subject for the control arm
+subject_control = Subject(
+    id = 2,
+    covariates = (treatment = 0,),  # Control arm
+    observations = (tumor_size = nothing,),
+    time = obs_times
+)
+
+println("Subjects created:")
+println("  Treatment subject: $(subject_treatment.id), treatment = 1")
+println("  Control subject: $(subject_control.id), treatment = 0")
+println("  Observation times: $(length(obs_times)) weekly measurements")
+```
+
+### Simulating the Typical Patient
+
+```{julia}
+# For a typical patient, η = [0, 0, 0]
+# This gives individual parameters equal to population typical values
+typical_randeffs = (η = [0.0, 0.0, 0.0],)
+
+# Simulate treatment arm
+sim_treatment = simobs(
+    tumor_burden_model,
+    subject_treatment,
+    pop_params,
+    typical_randeffs
+)
+
+# Simulate control arm
+sim_control = simobs(
+    tumor_burden_model,
+    subject_control,
+    pop_params,
+    typical_randeffs
+)
+
+# Convert to DataFrames
+df_treatment = DataFrame(sim_treatment)
+df_control = DataFrame(sim_control)
+
+# Add arm labels
+df_treatment.arm .= "Treatment"
+df_control.arm .= "Control"
+
+println("Simulation completed!")
+println("\nTypical patient parameters (η = 0):")
+println("  f = $(pop_params.tvf)")
+println("  g = $(pop_params.tvg) d⁻¹")
+println("  k = $(pop_params.tvk) d⁻¹")
+```
+
+### Visualizing Treatment vs Control
+
+```{julia}
+#| fig-cap: "Tumor dynamics for a typical patient: treatment (blue) vs control (red). Treatment causes initial tumor shrinkage as sensitive cells die, followed by regrowth as resistant cells proliferate. Control arm shows only growth."
+
+# Combine data for plotting
+combined_df = vcat(df_treatment, df_control)
+
+# Add reference lines as data
+ref_lines = DataFrame(
+    threshold = ["Baseline", "Complete Response"],
+    value = [1.0, 0.14]
+)
+
+# Create plot using AlgebraOfGraphics
+plt = data(combined_df) *
+    mapping(:time => "Time (days)", :Nt => "Normalized Tumor Size", color = :arm) *
+    visual(Lines, linewidth = 3)
+
+# Draw the plot
+fig = Figure(size = (800, 500))
+ax = Axis(fig[1, 1], title = "Typical Patient: Treatment vs Control")
+
+# Draw main lines with custom colors
+ag = draw!(ax, plt, scales(Color = (; palette = [:steelblue, :red])))
+
+# Add reference lines
+hlines!(ax, [1.0], color = :gray, linestyle = :dash, linewidth = 1)
+hlines!(ax, [0.14], color = :green, linestyle = :dot, linewidth = 2)
+
+# Add annotations near actual curve positions
+text!(ax, 45, 0.88, text = "Initial response\n(sensitive cells dying)",
+    fontsize = 11, align = (:center, :top))
+text!(ax, 115, 0.98, text = "Regrowth\n(resistant cells)",
+    fontsize = 11, align = (:center, :bottom))
+
+# Legend outside the plot
+legend!(fig[1, 2], ag, framevisible = false, tellheight = false)
+
+fig
+```
+
+:::{.callout-note}
+## Interpreting the Curves
+
+**Treatment arm (blue):**
+
+1. **Days 0-60:** Tumor shrinks as treatment kills sensitive cells (27% of initial tumor)
+2. **Days 60-126:** Tumor regrows as resistant cells (73% of initial tumor) continue proliferating
+3. **Nadir (minimum):** Occurs when the declining sensitive population equals the growing resistant population
+
+**Control arm (red):**
+
+1. No killing of any cells
+2. Both populations grow at their respective rates (but f doesn't affect control since k_eff = 0)
+3. Exponential growth dominated by the larger resistant population
+:::
+
+## Part 4: Understanding the Dynamics
+
+### Analytical Solution
+
+For deeper understanding, let's examine the analytical solution:
+
+```{julia}
+# Analytical solution function
+function tumor_analytical(t, f, g, k; treatment=true)
+    k_eff = treatment ? k : 0.0
+    # N(t) = f * exp(-k_eff * t) + (1-f) * exp(g * t)
+    return f * exp(-k_eff * t) + (1 - f) * exp(g * t)
+end
+
+# Calculate key metrics for typical patient
+f, g, k = 0.27, 0.0013, 0.0091
+
+# Time to nadir (minimum tumor size)
+# Occurs when dN/dt = 0: -k*f*exp(-k*t) + g*(1-f)*exp(g*t) = 0
+# Solving: t_nadir = ln(k*f / (g*(1-f))) / (k + g)
+t_nadir = log(k * f / (g * (1 - f))) / (k + g)
+
+# Tumor size at nadir
+N_nadir = tumor_analytical(t_nadir, f, g, k)
+
+# Final tumor size (week 18)
+N_final = tumor_analytical(126.0, f, g, k)
+
+println("Tumor Dynamics Analysis")
+println("=" ^ 50)
+println("\nTypical patient (f=$f, g=$g, k=$k):")
+println("  Time to nadir: $(round(t_nadir, digits=1)) days ($(round(t_nadir/7, digits=1)) weeks)")
+println("  Tumor size at nadir: $(round(N_nadir, digits=3)) ($(round((1-N_nadir)*100, digits=1))% reduction)")
+println("  Tumor size at week 18: $(round(N_final, digits=3))")
+
+# Would this patient achieve "complete response"?
+cr_threshold = 0.14
+achieved_cr = N_nadir < cr_threshold
+println("\n  Complete response (< $cr_threshold)? ", achieved_cr ? "Yes" : "No")
+```
+
+### Sensitivity to Parameters
+
+How do the model outputs change with different parameter values?
+
+```{julia}
+#| fig-cap: "Effect of sensitive fraction (f) on tumor dynamics. Higher f leads to deeper initial response and longer time to regrowth."
+
+# Create DataFrame for all f values
+t_vec = collect(0:1:126)
+f_values = [0.10, 0.27, 0.50, 0.80]
+
+# Build DataFrame with all trajectories
+sensitivity_df = DataFrame()
+for f_val in f_values
+    N = [tumor_analytical(ti, f_val, g, k) for ti in t_vec]
+    temp_df = DataFrame(
+        time = t_vec,
+        tumor_size = N,
+        f_label = "f = $f_val ($(round(Int, f_val*100))% sensitive)"
+    )
+    append!(sensitivity_df, temp_df)
+end
+
+# Create plot using AlgebraOfGraphics
+plt = data(sensitivity_df) *
+    mapping(:time => "Time (days)",
+            :tumor_size => "Normalized Tumor Size",
+            color = :f_label => "Sensitive Fraction") *
+    visual(Lines, linewidth = 2.5)
+
+# Draw the plot
+fig = Figure(size = (900, 500))
+ax = Axis(fig[1, 1], title = "Effect of Sensitive Fraction (f) on Tumor Dynamics")
+
+ag = draw!(ax, plt, scales(Color = (; palette = [:red, :orange, :steelblue, :green])))
+
+# Add reference lines
+hlines!(ax, [1.0], color = :gray, linestyle = :dash, linewidth = 1)
+hlines!(ax, [0.14], color = :black, linestyle = :dot, linewidth = 2)
+
+# Legend outside the plot on the right
+legend!(fig[1, 2], ag, framevisible = false, tellheight = false)
+
+fig
+```
+
+:::{.callout-tip}
+## Clinical Insight
+
+The parameter **f** (sensitive fraction) is the primary driver of treatment response:
+
+| f value | Clinical interpretation |
+|:--------|:------------------------|
+| **f < 0.15** | Poor responder — most cells are resistant from the start |
+| **f ≈ 0.25-0.35** | Typical responder — moderate initial response, eventual progression |
+| **f > 0.50** | Good responder — deep initial response, delayed progression |
+| **f > 0.85** | Excellent responder — may achieve durable complete response |
+
+This explains why f dominates the global sensitivity analysis (Tutorial 3).
+:::
+
+## Part 5: Population Variability Preview
+
+### Simulating Multiple Patients
+
+Let's preview how population variability creates diverse patient responses:
+
+```{julia}
+Random.seed!(42)
+
+# Generate a small sample of virtual patients
+n_preview = 20
+
+# Simple sampling (not using copulas yet - that's Tutorial 2)
+# Just to show variability concept
+preview_patients = DataFrame(
+    id = 1:n_preview,
+    f = clamp.(typical_f .+ randn(n_preview) .* 0.15, 0.05, 0.95),
+    g = typical_g .* exp.(randn(n_preview) .* 0.5),
+    k = typical_k .* exp.(randn(n_preview) .* 0.4)
+)
+
+println("Preview: $(n_preview) virtual patients")
+println("\nParameter ranges:")
+println("  f: $(round(minimum(preview_patients.f), digits=2)) - $(round(maximum(preview_patients.f), digits=2))")
+println("  g: $(round(minimum(preview_patients.g), digits=5)) - $(round(maximum(preview_patients.g), digits=5))")
+println("  k: $(round(minimum(preview_patients.k), digits=4)) - $(round(maximum(preview_patients.k), digits=4))")
+```
+
+```{julia}
+#| fig-cap: "Population variability: 20 virtual patients showing diverse tumor dynamics. Green trajectories achieve complete response; gray trajectories do not. This variability motivates the need for systematic virtual population generation (Tutorial 2)."
+
+# Build DataFrame with all patient trajectories
+t_vec = collect(0:1:126)
+variability_df = DataFrame()
+n_responders = 0
+
+for row in eachrow(preview_patients)
+    N = [tumor_analytical(ti, row.f, row.g, row.k) for ti in t_vec]
+    N_nadir = minimum(N)
+    response = N_nadir < 0.14 ? "Complete Response" : "Non-Responder"
+    if N_nadir < 0.14
+        n_responders += 1
+    end
+
+    temp_df = DataFrame(
+        time = t_vec,
+        tumor_size = N,
+        patient_id = string(row.id),
+        response = response
+    )
+    append!(variability_df, temp_df)
+end
+
+# Calculate response rate for annotation
+response_rate = round(100 * n_responders / n_preview, digits=1)
+
+# Create plot using AlgebraOfGraphics
+plt = data(variability_df) *
+    mapping(:time => "Time (days)",
+            :tumor_size => "Normalized Tumor Size",
+            color = :response,
+            group = :patient_id) *
+    visual(Lines, linewidth = 1.5, alpha = 0.6)
+
+# Draw the plot
+fig = Figure(size = (900, 500))
+ax = Axis(fig[1, 1], title = "Population Variability in Treatment Response")
+
+ag = draw!(ax, plt, scales(Color = (; palette = [:green, :gray])))
+
+# Add reference lines
+hlines!(ax, [1.0], color = :gray, linestyle = :dash, linewidth = 1)
+hlines!(ax, [0.14], color = :green, linestyle = :dot, linewidth = 2)
+
+# Add response rate annotation in upper right of plot area
+text!(ax, 90, 1.4, text = "CR rate: $(response_rate)%\n($(n_responders)/$(n_preview))",
+    fontsize = 12, align = (:left, :top))
+
+# Legend outside
+legend!(fig[1, 2], ag, framevisible = false)
+
+fig
+```
+
+:::{.callout-important}
+## Looking Ahead
+
+This preview shows why we need:
+
+1. **Copula sampling (Tutorial 2):** The random sampling above ignores parameter correlations. In reality, patients with high f tend to have low g (r = -0.64).
+
+2. **Calibration (Tutorial 5):** The response rate from random sampling may not match real clinical trial data.
+
+3. **Systematic analysis:** We need to understand which parameters matter most (Tutorial 3: GSA) and whether they can be estimated (Tutorial 4: Identifiability).
+:::
+
+## Summary
+
+### Key Concepts
+
+1. **The Tumor Burden Model** describes cancer response to chemotherapy using two cell populations:
+   - Treatment-sensitive cells (fraction f) that die at rate k
+   - Treatment-resistant cells (fraction 1-f) that grow at rate g
+
+2. **The mathematical model:**
+   $$N(t) = N_0 \cdot f \cdot e^{-k \cdot t} + N_0 \cdot (1-f) \cdot e^{g \cdot t}$$
+
+3. **Parameters from clinical data:**
+   - f = 0.27 (27% sensitive), g = 0.0013 d⁻¹, k = 0.0091 d⁻¹
+   - Correlation r(f, g) = -0.64
+
+4. **Pumas model structure:**
+   - `@param`: Population parameters
+   - `@random`: Inter-individual variability
+   - `@pre`: Parameter transformations (logit-normal for f, log-normal for g, k)
+   - `@dynamics`: ODE system
+   - `@derived`: Observable outputs
+
+5. **Clinical insight:**
+   - The sensitive fraction (f) is the primary driver of response
+   - Population variability creates diverse outcomes
+
+### What's Next
+
+In **Tutorial 2: Copula Vpop Generation**, we will:
+
+- Learn why correlated parameter sampling matters
+- Understand Gaussian copulas and Sklar's theorem
+- Generate realistic virtual populations preserving the r(f,g) = -0.64 correlation
+- Validate that generated populations match expected distributions
+
+### Quick Reference: Key Functions
+
+| Function | Purpose |
+|:---------|:--------|
+| `@model begin ... end` | Define a Pumas model |
+| `Subject(id, covariates, time)` | Create a simulation subject |
+| `simobs(model, subject, params, randeffs)` | Simulate observations |
+| `logit(x)` / `logistic(x)` | Bounded parameter transformations |
+
+### References
+
+::: {#refs}
+:::

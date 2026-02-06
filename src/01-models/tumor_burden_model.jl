@@ -24,6 +24,7 @@ Reference:
 """
 
 using Pumas
+using LogExpFunctions: logistic, logit
 
 """
     tumor_burden_model
@@ -69,15 +70,15 @@ const tumor_burden_model = @model begin
         # Using logit-normal transformation as in paper
 
         # Individual f (treatment-sensitive fraction)
-        # Bounded [0, 1]
-        f = tvf * exp(η[1]) / (1 + tvf * (exp(η[1]) - 1))
+        # Bounded [0, 1] via logit-normal: logit(f) = logit(tvf) + η
+        f = logistic(logit(tvf) + η[1])
 
         # Individual g (growth rate)
-        # Log-normal approximation for positive values
+        # Log-normal: log(g) = log(tvg) + η
         g = tvg * exp(η[2])
 
         # Individual k (death rate)
-        # Log-normal approximation for positive values
+        # Log-normal: log(k) = log(tvk) + η
         k = tvk * exp(η[3])
 
         # Effective death rate depends on treatment
@@ -146,7 +147,7 @@ const tumor_burden_model_analytical = @model begin
     @covariates treatment
 
     @pre begin
-        f = tvf * exp(η[1]) / (1 + tvf * (exp(η[1]) - 1))
+        f = logistic(logit(tvf) + η[1])
         g = tvg * exp(η[2])
         k = tvk * exp(η[3])
         k_eff = treatment * k

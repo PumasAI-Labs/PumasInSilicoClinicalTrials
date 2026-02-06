@@ -1,8 +1,11 @@
 """
-    HBV QSP Model
+    HBV QSP Model (Fixed)
 
 Implements the 11-ODE HBV mechanistic model as described in Section 3.2
 of the ISCT workflow paper.
+
+This version fixes the E' and Q' equations to properly handle the I < 0.0001
+threshold by adding infection_active multipliers to match MATLAB behavior.
 
 Model captures:
 - Hepatocyte populations (T: target, R: resistant, I: infected)
@@ -29,7 +32,9 @@ Parameters:
 """
 
 using Pumas
-
+using Random
+rng = Random.seed!(1234)
+using PumasUtilities
 #=============================================================================
 # Fixed Parameter Values (from NLME fitting)
 =============================================================================#
@@ -38,7 +43,7 @@ using Pumas
 Default fixed parameter values for the HBV model.
 These are constants that don't vary between virtual patients.
 """
-const HBV_FIXED_PARAMS = (
+const HBV_FIXED_PARAMS_V2 = (
     iniV = -0.481486,      # Initial viral load (log10)
     p_V = 2.0,             # Viral production rate (log10)
     r_T = 1.0,             # Hepatocyte proliferation rate
@@ -65,13 +70,14 @@ const HBV_FIXED_PARAMS = (
 )
 
 #=============================================================================
-# HBV Model Definition
+# HBV Model Definition (Fixed Version)
 =============================================================================#
 
-    """
-    hbv_model
+"""
+    hbv_model_v2
 
 Pumas model for HBV viral dynamics with immune response and treatment effects.
+This version properly handles the I < 0.0001 threshold for E' and Q' equations.
 
 State variables (11 ODEs):
 - T: Target (uninfected) hepatocytes
@@ -91,7 +97,7 @@ Covariates:
 - `dNUC`: NUC dosing indicator (0 or 1)
 - `dIFN`: IFN dosing indicator (0 or 1)
 """
-hbv_model = @model begin
+hbv_model_v2 = @model begin
     @param begin
         # Fixed parameters (population values)
         iniV ∈ RealDomain(init=-0.481486)
@@ -167,8 +173,8 @@ hbv_model = @model begin
         # Initial conditions
         V_0 = 10^iniV
         I_0 = d_V * V_0 / (10^p_V)
-        T_0 = T_max - I_0
         S_0 = 10^p_S * I_0 / d_V
+        T_0 = T_max - I_0
         Z_0 = 10^iniZ
 
         # Lambda for Z dynamics
@@ -199,6 +205,7 @@ hbv_model = @model begin
 
     @dynamics begin
         # Infected hepatocytes
+        # Note: This equation is the same in both MATLAB branches
         I' = (10^beta) * T * V + r_T * I * (1 - (T + I + R) / T_max) -
              (10^m) * rr_E_IFN * E * I - (10^rho) * X * I - d_TI * I
 
@@ -227,10 +234,14 @@ hbv_model = @model begin
         D' = (10^k_D) * I / (10^phiE + I) * infection_active - (10^d_D) * D
 
         # Effector T cells
-        E' = (10^d_E + r_E * E) * D - dEtoX * E * Q^4 / (phiQ^4 + Q^4) - 10^d_E * E
+        # FIXED: Added infection_active to D-driven expansion term
+        # When I < 0.0001, MATLAB removes (10^d_E + r_E*E)*D term entirely
+        E' = (10^d_E + r_E * E) * D * infection_active - dEtoX * E * Q^4 / (phiQ^4 + Q^4) - 10^d_E * E
 
         # Delayed effector signal
-        Q' = 10^d_Q * D - 10^d_Q * Q
+        # FIXED: Added infection_active to D input term
+        # When I < 0.0001, MATLAB removes 10^d_Q*D term entirely
+        Q' = 10^d_Q * D * infection_active - 10^d_Q * Q
 
         # Cytotoxic effect
         X' = r_X * (1 - X) * (I / (10^phiE + I)) * infection_active *
@@ -256,153 +267,15 @@ hbv_model = @model begin
         HBsAg_obs ~ @. Normal(log_HBsAg, σ_HBsAg)
         V_obs ~ @. Normal(log_V, σ_V)
     end
-
-    # @observed begin
-    #     # GSA endpoints using NCA
-    #     nca_hbsag := @nca log_HBsAg
-    #     nca_viral := @nca log_V
-    #     final_hbsag = NCA.clast(nca_hbsag)
-    #     final_viral = NCA.clast(nca_viral)
-    #     hbsag_nadir = NCA.cmin(nca_hbsag)
-    # end
 end
-
-# Note: hbv_model_fixed has been removed.
-# Use zero_randeffs(hbv_model, population, params) for deterministic simulations.
-# Or pass individual parameters as random effects directly to simobs().
-
-#=============================================================================
-# Clinical Endpoints
-=============================================================================#
-
-"""
-    LOQ_HBsAg
-
-Limit of quantification for HBsAg: 0.05 IU/mL
-Functional cure threshold.
-"""
-const LOQ_HBsAg = 0.05
-
-"""
-    LOQ_V
-
-Limit of quantification for viral load: 25 copies/mL (log10 = 1.4)
-"""
-const LOQ_V = 25.0
-const LOG_LOQ_V = log10(LOQ_V)
-
-"""
-    is_functional_cure(log_hbsag, log_v)
-
-Determine if a patient has achieved functional cure.
-
-Functional cure is defined as:
-- HBsAg < 0.05 IU/mL (log10 < log10(0.05) ≈ -1.3)
-- HBV DNA < 25 copies/mL (log10 < 1.4)
-
-Both conditions must be met for ≥24 weeks post-treatment.
-"""
-function is_functional_cure(log_hbsag::Real, log_v::Real)
-    return log_hbsag < log10(LOQ_HBsAg) && log_v < LOG_LOQ_V
-end
-
-"""
-    is_hbsag_loss(log_hbsag)
-
-Determine if a patient has achieved HBsAg loss.
-
-HBsAg loss is defined as HBsAg < 0.05 IU/mL.
-"""
-function is_hbsag_loss(log_hbsag::Real)
-    return log_hbsag < log10(LOQ_HBsAg)
-end
-
-export hbv_model, HBV_FIXED_PARAMS
-export LOQ_HBsAg, LOQ_V, LOG_LOQ_V
-export is_functional_cure, is_hbsag_loss
-
-
-# s_no_treatment = 
-#   Subject(
-#     id="No Treatment",
-#     events=nothing,
-#     # observations=(log10V=nothing, log10ALT=nothing, log10HBsAg=nothing),
-#     observations=(log10V=nothing, log10HBs=nothing),
-#     covariates=(; dNUC=fill(0, 26), dIFN=vcat(0, fill(0, 25)), dBepi=vcat(0, fill(0, 25)), wt = fill(73, 26) ),
-#     covariates_time=vcat(0, 118:7:286)
-# )
-
-s_no_treatment = 
-  Subject(
-    id="No Treatment",
-    events=nothing,
-    # observations=(log10V=nothing, log10ALT=nothing, log10HBsAg=nothing),
-    observations=(log10V=nothing, log10HBs=nothing),
-    covariates=(; dNUC=0, dIFN=0, dBepi=0, wt = 73)
-)
-
-#----------------------------------------------------------------------
-s_treatment = Subject(
-    id="Treatment",
-    events=nothing,
-    # observations=(log10V=nothing, log10ALT=nothing, log10HBsAg=nothing),
-    observations=(log10V=nothing, log10HBs=nothing),
-    covariates=(; dNUC=vcat(0, fill(1, 25)), dIFN=vcat(0, fill(0, 25)), dBepi=vcat(0, fill(0, 25)), wt = fill(73, 26) ),
-    covariates_time=vcat(0, 118:7:286)
-  )
-#zfx = zero_randeffs(hbv_model, pop_no_treatment, init_params(hbv_model))
-#sim_pop4 = simobs(pk_27, pop4_sub, param, zfx, obstimes = 0.1:1:500)
-using Random
-rng = Random.seed!(1234)
-using PumasUtilities
-sims_no_treatment = simobs(
-    hbv_model,
-    s_no_treatment,
-    init_params(hbv_model),
-    #PARAMS,
-    zero_randeffs(hbv_model, s_no_treatment, init_params(hbv_model)),
-    rng = rng,
-    obstimes = 0:0.5:365,
-    simulate_error = false
-)
-sim_plot(sims_no_treatment, 
-    observations = [:log_V],
-    figure = (; fontsize = 18,),
-    axis = (; 
-    xlabel = "Time (days)", 
-    ylabel = "Simulated V (No treatment)",
-    xticks = 0:50:365,
-    ),)
-
-
-
-sims_treatment = simobs(
-    hbv_model,
-    s_treatment,
-    init_params(hbv_model),
-    #PARAMS,
-    zero_randeffs(hbv_model, s_no_treatment, init_params(hbv_model)),
-    rng = rng,
-    obstimes = 0:0.5:365,
-    simulate_error = false
-)
-sim_plot(sims_treatment, 
-    observations = [:log_V],
-    figure = (; fontsize = 18,),
-    axis = (; 
-    xlabel = "Time (days)", 
-    ylabel = "Simulated V (No treatment)",
-    xticks = 0:50:365,
-    ),)
-
 
 ##
- sims_steadystate = simobs(                                                                                                                        
-      hbv_model, s_no_treatment, init_params(hbv_model),                                                                                            
-      zero_randeffs(hbv_model, s_no_treatment, init_params(hbv_model)),                                                                             
+sims_steadystate_v2 = simobs(                                                                                                                        
+      hbv_model_v2, s_no_treatment, init_params(hbv_model_v2),                                                                                            
+      zero_randeffs(hbv_model_v2, s_no_treatment, init_params(hbv_model_v2)),                                                                             
       obstimes = 0:1:1825  # 5 years                                                                                                                
   )    
-sim_plot(sims_steadystate, 
+sim_plot(sims_steadystate_v2, 
     observations = [:log_V],
     figure = (; fontsize = 18,),
     axis = (; 
@@ -410,142 +283,22 @@ sim_plot(sims_steadystate,
     ylabel = "Simulated V (No treatment)",
     xticks = 0:180:1825,
     ),)
-using AlgebraOfGraphics
-using CairoMakie
-using DataFramesMeta
-
-
-"""
-    plot_dynamic_symbol(df::DataFrame, sym::Symbol; kwargs...)
-
-Plot a single dynamic symbol vs time from a simulation DataFrame.
-
-# Arguments
-- `df`: DataFrame from simobs containing time and the symbol column
-- `sym`: Symbol name to plot (e.g., :Ab1, :Ag)
-- `group_col`: Column to group/color by (default: :id)
-- `time_col`: Time column name (default: :time)
-- `kwargs...`: Additional arguments passed to draw()
-
-# Returns
-- AlgebraOfGraphics Figure object
-"""
-function plot_dynamic_symbol(
-    df::DataFrame, 
-    sym::Symbol;
-    group_col::Symbol = :id,
-    time_col::Symbol = :time,
-    kwargs...
+#
+sims_no_treatment_v2 = simobs(
+    hbv_model_v2,
+    s_no_treatment,
+    init_params(hbv_model_v2),
+    #PARAMS,
+    zero_randeffs(hbv_model_v2, s_no_treatment, init_params(hbv_model_v2)),
+    rng = rng,
+    obstimes = 0:0.5:365,
+    simulate_error = false
 )
-    sym_str = String(sym)
-    if sym_str ∉ names(df)
-        error("Symbol $sym not found in DataFrame. Available columns: $(names(df))")
-    end
-    
-    plt = data(df) * 
-        mapping(time_col, sym => sym_str; color = group_col => nonnumeric) * 
-        visual(Lines; alpha = 0.7)
-    
-    fig = draw(plt; axis = (xlabel = "Time", ylabel = sym_str, title = sym_str), kwargs...)
-    return fig
-end
-
-"""
-    plot_all_dynamic_symbols(df::DataFrame, model; kwargs...)
-
-Plot all available dynamic symbols from a model vs time.
-
-# Arguments
-- `df`: DataFrame from simobs
-- `model`: Pumas model object with .syms.dynamic field
-- `save_dir`: Optional directory to save plots (default: nothing, no saving)
-- `kwargs...`: Additional arguments passed to plot_dynamic_symbol
-
-# Returns
-- Dictionary of Symbol => Figure pairs
-"""
-function plot_all_dynamic_symbols(
-    df::DataFrame, 
-    model;
-    save_dir::Union{String, Nothing} = nothing,
-    kwargs...
-)
-    dynamic_syms = collect(model.syms.dynamic)
-    available_syms = [s for s in dynamic_syms if String(s) in names(df)]
-    
-    if isempty(available_syms)
-        @warn "No dynamic symbols found in DataFrame"
-        return Dict{Symbol, Any}()
-    end
-    
-    println("Plotting $(length(available_syms)) dynamic symbols: $(available_syms)")
-    
-    figures = Dict{Symbol, Any}()
-    for sym in available_syms
-        try
-            fig = plot_dynamic_symbol(df, sym; kwargs...)
-            figures[sym] = fig
-            
-            if !isnothing(save_dir)
-                mkpath(save_dir)
-                save(joinpath(save_dir, "$(sym)_vs_time.png"), fig)
-            end
-        catch e
-            @warn "Failed to plot $sym: $e"
-        end
-    end
-    
-    return figures
-end
-
-"""
-    plot_dynamic_symbols_grid(df::DataFrame, model; ncols = 4, kwargs...)
-
-Plot all dynamic symbols in a single figure grid layout.
-
-# Arguments
-- `df`: DataFrame from simobs
-- `model`: Pumas model object
-- `ncols`: Number of columns in the grid (default: 4)
-- `figsize`: Figure size as (width, height) tuple (default: (1600, 1200))
-- `kwargs...`: Additional arguments
-
-# Returns
-- Single Figure with all dynamic symbol plots
-"""
-function plot_dynamic_symbols_grid(
-    df::DataFrame, 
-    model;
-    ncols::Int = 4,
-    figsize::Tuple{Int, Int} = (1600, 1200),
-    group_col::Symbol = :id,
-    time_col::Symbol = :time
-)
-    dynamic_syms = collect(model.syms.dynamic)
-    available_syms = [s for s in dynamic_syms if String(s) in names(df)]
-    
-    n = length(available_syms)
-    nrows = ceil(Int, n / ncols)
-    
-    fig = Figure(size = figsize)
-    
-    for (i, sym) in enumerate(available_syms)
-        row = div(i - 1, ncols) + 1
-        col = mod(i - 1, ncols) + 1
-        
-        ax = Axis(fig[row, col], 
-            xlabel = "Time", 
-            ylabel = String(sym),
-            title = String(sym))
-        
-        # Group by id and plot each separately
-        for gdf in groupby(df, group_col)
-            lines!(ax, gdf[:, time_col], gdf[:, sym]; alpha = 0.7)
-        end
-    end
-    
-    return fig
-end 
-# Plot all in a grid layout
-simdf = DataFrame(sims_no_treatment)
-grid_fig = plot_dynamic_symbols_grid(simdf, hbv_model; ncols = 3, figsize = (2000, 1600))
+sim_plot(sims_no_treatment_v2, 
+    observations = [:log_V],
+    figure = (; fontsize = 18,),
+    axis = (; 
+    xlabel = "Time (days)", 
+    ylabel = "Simulated V (No treatment)",
+    xticks = 0:50:365,
+    ),)

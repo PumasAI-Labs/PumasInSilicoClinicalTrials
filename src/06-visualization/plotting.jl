@@ -2116,6 +2116,369 @@ function quick_scatter_aog(x::AbstractVector, y::AbstractVector;
 end
 
 #=============================================================================
+# Identifiability Visualization Plots
+=============================================================================#
+
+"""
+    IDENTIFIABILITY_COLORS
+
+Color palette for identifiability status.
+"""
+const IDENTIFIABILITY_COLORS = Dict(
+    :globally => colorant"#2ca02c",      # Green
+    :locally => colorant"#ff7f0e",       # Orange
+    :nonidentifiable => colorant"#d62728" # Red
+)
+
+"""
+    plot_identifiability_comparison(
+        results::Dict{Symbol, Any};
+        title::String = "Identifiability Comparison Across Scenarios"
+    ) -> Figure
+
+Create a heatmap comparing parameter identifiability across measurement scenarios.
+
+# Arguments
+- `results`: Dict mapping scenario names to IdentifiabilityResult objects
+- `title`: Plot title
+
+# Returns
+Makie Figure with identifiability heatmap
+
+# Example
+```julia
+report = analyze_tumor_burden_identifiability()
+fig = plot_identifiability_comparison(report.global_results)
+```
+"""
+function plot_identifiability_comparison(
+    results::Dict;
+    title::String = "Identifiability Comparison Across Scenarios"
+)
+    # Get all unique parameters and scenarios
+    all_params = Set{Symbol}()
+    for result in values(results)
+        for param in keys(result.identifiability)
+            push!(all_params, Symbol(string(param)))
+        end
+    end
+    params = sort(collect(all_params))
+    scenarios = sort(collect(keys(results)))
+
+    n_params = length(params)
+    n_scenarios = length(scenarios)
+
+    # Build matrix (1 = global, 0.5 = local, 0 = non-id)
+    matrix = zeros(n_scenarios, n_params)
+    for (i, scenario) in enumerate(scenarios)
+        result = results[scenario]
+        for (j, param) in enumerate(params)
+            # Find matching parameter
+            for (p, status) in result.identifiability
+                if Symbol(string(p)) == param
+                    matrix[i, j] = status == :globally ? 1.0 :
+                                   status == :locally ? 0.5 : 0.0
+                    break
+                end
+            end
+        end
+    end
+
+    fig = Figure(size = (max(400, 80 * n_params), max(300, 60 * n_scenarios)))
+
+    ax = Axis(fig[1, 1],
+        xlabel = "Parameter",
+        ylabel = "Measurement Scenario",
+        title = title,
+        xticks = (1:n_params, string.(params)),
+        yticks = (1:n_scenarios, string.(scenarios)),
+        xticklabelrotation = π/6
+    )
+
+    # Custom colormap: red (0) -> orange (0.5) -> green (1)
+    colormap = [
+        IDENTIFIABILITY_COLORS[:nonidentifiable],
+        IDENTIFIABILITY_COLORS[:locally],
+        IDENTIFIABILITY_COLORS[:globally]
+    ]
+
+    hm = heatmap!(ax, 1:n_params, 1:n_scenarios, matrix',
+                  colormap = colormap, colorrange = (0, 1))
+
+    # Add text annotations
+    for i in 1:n_scenarios
+        for j in 1:n_params
+            val = matrix[i, j]
+            status = val == 1.0 ? "G" : val == 0.5 ? "L" : "N"
+            text!(ax, j, i, text = status,
+                  align = (:center, :center),
+                  color = :white, fontsize = 12, font = :bold)
+        end
+    end
+
+    # Legend
+    Legend(fig[1, 2],
+        [MarkerElement(marker = :rect, color = c) for c in [
+            IDENTIFIABILITY_COLORS[:globally],
+            IDENTIFIABILITY_COLORS[:locally],
+            IDENTIFIABILITY_COLORS[:nonidentifiable]
+        ]],
+        ["Globally (G)", "Locally (L)", "Non-identifiable (N)"],
+        "Status",
+        framevisible = false
+    )
+
+    return fig
+end
+
+"""
+    plot_identifiability_comparison_aog(
+        results::Dict;
+        title::String = "Identifiability Comparison Across Scenarios"
+    ) -> Figure
+
+AlgebraOfGraphics version: Create a heatmap comparing parameter identifiability.
+"""
+function plot_identifiability_comparison_aog(
+    results::Dict;
+    title::String = "Identifiability Comparison Across Scenarios"
+)
+    # Build long-format DataFrame
+    rows = NamedTuple[]
+
+    for (scenario, result) in results
+        for (param, status) in result.identifiability
+            push!(rows, (
+                scenario = string(scenario),
+                parameter = string(param),
+                status = string(status),
+                value = status == :globally ? 1.0 : status == :locally ? 0.5 : 0.0
+            ))
+        end
+    end
+
+    df = DataFrame(rows)
+
+    # Create heatmap using AOG
+    plt = data(df) *
+          mapping(:parameter => "Parameter", :scenario => "Scenario",
+                  :value => "Identifiability") *
+          visual(Heatmap, colormap = [:red, :orange, :green])
+
+    fig = draw(plt; axis = (title = title, xticklabelrotation = π/6))
+
+    return fig
+end
+
+"""
+    plot_identifiability_summary(
+        report;
+        title::String = "Identifiability Analysis Summary"
+    ) -> Figure
+
+Create a summary bar chart showing identifiability status counts.
+
+# Arguments
+- `report`: ComprehensiveIdentifiabilityReport from analyze_*_identifiability()
+- `title`: Plot title
+
+# Returns
+Makie Figure with summary bar chart
+
+# Example
+```julia
+report = analyze_tumor_burden_identifiability()
+fig = plot_identifiability_summary(report)
+```
+"""
+function plot_identifiability_summary(
+    report;
+    title::String = "Identifiability Analysis Summary"
+)
+    # Check if we have global or local results
+    has_global = !isempty(report.global_results)
+    results = has_global ? report.global_results : report.local_results
+
+    scenarios = sort(collect(keys(results)))
+    n_scenarios = length(scenarios)
+
+    fig = Figure(size = (max(500, 150 * n_scenarios), 450))
+
+    ax = Axis(fig[1, 1],
+        xlabel = "Measurement Scenario",
+        ylabel = "Number of Parameters",
+        title = title,
+        xticks = (1:n_scenarios, string.(scenarios)),
+        xticklabelrotation = π/6
+    )
+
+    if has_global
+        # Extract counts for each scenario
+        global_counts = [length(results[s].globally_identifiable) for s in scenarios]
+        local_counts = [length(results[s].locally_identifiable) for s in scenarios]
+        nonid_counts = [length(results[s].nonidentifiable) for s in scenarios]
+
+        # Stacked bar chart
+        barwidth = 0.7
+        barplot!(ax, 1:n_scenarios, global_counts,
+                 width = barwidth, stack = :y,
+                 color = IDENTIFIABILITY_COLORS[:globally],
+                 label = "Globally Identifiable")
+        barplot!(ax, 1:n_scenarios, local_counts,
+                 width = barwidth, stack = :y,
+                 color = IDENTIFIABILITY_COLORS[:locally],
+                 label = "Locally Identifiable",
+                 offset = global_counts)
+        barplot!(ax, 1:n_scenarios, nonid_counts,
+                 width = barwidth, stack = :y,
+                 color = IDENTIFIABILITY_COLORS[:nonidentifiable],
+                 label = "Non-identifiable",
+                 offset = global_counts .+ local_counts)
+    else
+        # Local results only
+        id_counts = [length(results[s].identifiable) for s in scenarios]
+        nonid_counts = [length(results[s].nonidentifiable) for s in scenarios]
+
+        barwidth = 0.7
+        barplot!(ax, 1:n_scenarios, id_counts,
+                 width = barwidth, stack = :y,
+                 color = IDENTIFIABILITY_COLORS[:globally],
+                 label = "Locally Identifiable")
+        barplot!(ax, 1:n_scenarios, nonid_counts,
+                 width = barwidth, stack = :y,
+                 color = IDENTIFIABILITY_COLORS[:nonidentifiable],
+                 label = "Non-identifiable",
+                 offset = id_counts)
+    end
+
+    axislegend(ax, position = :rt)
+
+    # Add recommendations panel if available
+    if has_global
+        recommendations = String[]
+        for (name, result) in results
+            if result.all_globally_identifiable
+                push!(recommendations, "$(name): All parameters identifiable")
+            else
+                push!(recommendations, "$(name): $(length(result.nonidentifiable)) non-identifiable")
+            end
+        end
+
+        if !isempty(recommendations)
+            Label(fig[2, 1],
+                  join(recommendations, "\n"),
+                  fontsize = 10, halign = :left)
+        end
+    end
+
+    return fig
+end
+
+"""
+    plot_identifiability_summary_aog(
+        report;
+        title::String = "Identifiability Analysis Summary"
+    ) -> Figure
+
+AlgebraOfGraphics version: Create summary bar chart for identifiability.
+"""
+function plot_identifiability_summary_aog(
+    report;
+    title::String = "Identifiability Analysis Summary"
+)
+    # Check if we have global or local results
+    has_global = !isempty(report.global_results)
+    results = has_global ? report.global_results : report.local_results
+
+    # Build long-format DataFrame
+    rows = NamedTuple[]
+
+    for (scenario, result) in results
+        if has_global
+            push!(rows, (scenario = string(scenario), status = "Globally", count = length(result.globally_identifiable)))
+            push!(rows, (scenario = string(scenario), status = "Locally", count = length(result.locally_identifiable)))
+            push!(rows, (scenario = string(scenario), status = "Non-identifiable", count = length(result.nonidentifiable)))
+        else
+            push!(rows, (scenario = string(scenario), status = "Identifiable", count = length(result.identifiable)))
+            push!(rows, (scenario = string(scenario), status = "Non-identifiable", count = length(result.nonidentifiable)))
+        end
+    end
+
+    df = DataFrame(rows)
+
+    # Create stacked bar chart using AOG
+    plt = data(df) *
+          mapping(:scenario => "Scenario", :count => "Number of Parameters",
+                  stack = :status, color = :status => "Status") *
+          visual(BarPlot)
+
+    fig = draw(plt; axis = (title = title, xticklabelrotation = π/6))
+
+    return fig
+end
+
+"""
+    plot_identifiability_functions(
+        funcs_result;
+        max_display::Int = 10,
+        title::String = "Identifiable Parameter Functions"
+    ) -> Figure
+
+Plot identifiable parameter functions/combinations.
+
+# Arguments
+- `funcs_result`: IdentifiableFunctionsResult from find_scenario_identifiable_functions()
+- `max_display`: Maximum number of functions to display
+- `title`: Plot title
+
+# Returns
+Makie Figure showing identifiable functions
+"""
+function plot_identifiability_functions(
+    funcs_result;
+    max_display::Int = 10,
+    title::String = "Identifiable Parameter Functions"
+)
+    funcs = funcs_result.identifiable_functions
+    n_display = min(length(funcs), max_display)
+
+    fig = Figure(size = (600, max(300, 30 * n_display)))
+
+    ax = Axis(fig[1, 1],
+        title = title * "\n(Scenario: $(funcs_result.scenario.name))",
+        xlabel = "",
+        ylabel = "Function Index"
+    )
+
+    hidedecorations!(ax, label = false, ticklabels = false, ticks = false)
+    hidespines!(ax)
+
+    # Display functions as text
+    for (i, func) in enumerate(funcs[1:n_display])
+        func_str = string(func)
+        # Truncate if too long
+        if length(func_str) > 60
+            func_str = func_str[1:57] * "..."
+        end
+
+        text!(ax, 0.05, n_display - i + 0.5,
+              text = "$i. $func_str",
+              align = (:left, :center),
+              fontsize = 10)
+    end
+
+    xlims!(ax, 0, 1)
+    ylims!(ax, 0, n_display + 1)
+
+    if length(funcs) > max_display
+        Label(fig[2, 1], "... and $(length(funcs) - max_display) more functions",
+              fontsize = 10, color = :gray)
+    end
+
+    return fig
+end
+
+#=============================================================================
 # Exports
 =============================================================================#
 
@@ -2162,3 +2525,11 @@ export create_isct_summary_figure, save_figure, quick_hist, quick_scatter
 
 # Utility plots (AlgebraOfGraphics)
 export quick_hist_aog, quick_scatter_aog
+
+# Identifiability plots (CairoMakie)
+export IDENTIFIABILITY_COLORS
+export plot_identifiability_comparison, plot_identifiability_summary
+export plot_identifiability_functions
+
+# Identifiability plots (AlgebraOfGraphics)
+export plot_identifiability_comparison_aog, plot_identifiability_summary_aog

@@ -17,7 +17,7 @@ The GSA framework supports:
 Reference:
     Section 2, Step 7 of the ISCT workflow paper
 =#
-
+include("../src/ISCTWorkflow.jl")
 using .ISCTWorkflow
 using DataFrames
 using DataFramesMeta

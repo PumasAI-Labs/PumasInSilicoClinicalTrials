@@ -17,7 +17,7 @@ The VCT framework supports:
 Reference:
     Section 2, Step 6 of the ISCT workflow paper
 =#
-
+include("../src/ISCTWorkflow.jl")
 using .ISCTWorkflow
 using DataFrames
 using DataFramesMeta
@@ -86,6 +86,7 @@ println("=" ^ 70)
 println("\nGenerating HBV virtual population...")
 
 # Create a synthetic HBV population for demonstration
+using Random
 Random.seed!(42)
 n_hbv = 5000
 

@@ -219,7 +219,8 @@ function run_tumor_burden_gsa(;
     vary_names = [:tvf, :tvg, :tvk]
 
     # Fix Ω and σ to prevent them from being varied
-    const_coef = (Ω = Diagonal([1e-10, 1e-10, 1e-10]), σ = 1e-10)
+    # const_coef = (Ω = Diagonal([1e-10, 1e-10, 1e-10]), σ = 1e-10)
+    const_coef = (:Ω, :σ)
 
     # Run GSA using the main model
     gsa_method = method == :sobol ? GlobalSensitivity.Sobol() : GlobalSensitivity.eFAST()

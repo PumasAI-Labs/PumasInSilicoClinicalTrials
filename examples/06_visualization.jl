@@ -15,7 +15,7 @@ Visualizations include:
 Reference:
     Supporting visualization for the 7-step ISCT workflow
 =#
-
+include("../src/ISCTWorkflow.jl")
 using .ISCTWorkflow
 using DataFrames
 using DataFramesMeta

@@ -13,7 +13,7 @@ This example focuses on the parameter sampling and analysis workflow.
 Reference:
     Section 3.2 of the ISCT workflow paper - HBV QSP Model
 =#
-
+include("../src/ISCTWorkflow.jl")
 using .ISCTWorkflow
 using DataFrames
 using DataFramesMeta

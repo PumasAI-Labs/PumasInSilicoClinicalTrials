@@ -1,0 +1,871 @@
+---
+title: "Virtual Population Generation using Gaussian Copulas"
+author:
+  - Vijay Ivaturi
+execute:
+  cache: true
+  error: false
+julia: 
+  exeflags: ["+Pumas@2.7.1"]
+format:
+  html:
+    include-in-header:
+      text: |
+        <style>
+          .header-container {
+            width: 100%;
+          }
+          .logo {
+            display: block;
+            width: 150px;
+            margin-left: -2.5%;
+          }
+        </style>
+        <link rel = "shortcut icon" href = "https://pumas.ai/favicon.ico" />
+    include-before-body:
+      text: |
+        <div class="header-container">
+          <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
+        </div>
+    self-contained-math: true
+    anchor-sections: true
+    theme: default
+    toc: true
+    toc-depth: 4
+    toc-expand: 2
+    toc-location: left
+    toc-title: Contents
+    number-sections: true
+    code-summary: Show/Hide Code
+embed-resources: true
+fig-format: svg
+fig-width: 8
+fig-height: 6
+bibliography: references.bib
+csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
+---
+
+:::{.callout-note}
+## Tumor Burden Tutorial Series
+
+This is **Tutorial 2 of 6** in the Tumor Burden series.
+
+| # | Tutorial | Status |
+|---|----------|--------|
+| 1 | [Model Introduction](tb_01_model_introduction_tutorial.qmd) | Complete |
+| 2 | **Copula Vpop Generation (current)** | You are here |
+| 3 | [Global Sensitivity Analysis](tb_03_gsa_tutorial.qmd) | |
+| 4 | [Structural Identifiability](tb_04_structural_identifiability_tutorial.qmd) | |
+| 5 | [MILP Calibration](tb_05_milp_calibration_tutorial.qmd) | |
+| 6 | [VCT Simulation](tb_06_vct_simulation_tutorial.qmd) | |
+:::
+
+## Learning Outcomes
+
+Virtual populations are essential for conducting In Silico Clinical Trials (ISCTs). When parameters are estimated using Nonlinear Mixed Effects (NLME) models, they exhibit correlations that must be preserved when generating new virtual patients [@cortes2025].
+
+In this tutorial, you will learn:
+
+- Why correlated parameter sampling matters in NLME modeling
+- The theory behind Gaussian copulas and how they preserve correlations
+- How to apply logit-normal transformations for bounded parameters
+- A step-by-step implementation of the copula-based sampling algorithm
+- How to validate that generated populations preserve target correlations
+- Visualization techniques for virtual population characteristics
+
+## Prerequisites
+
+This tutorial builds on the Tumor Burden Model introduced in [Tutorial 1](tb_01_model_introduction_tutorial.qmd). We use the same parameter specifications:
+
+- **f** (sensitive fraction): median 0.27, bounds [0, 1]
+- **g** (growth rate): median 0.0013, bounds [0, 0.13] d⁻¹
+- **k** (death rate): median 0.0091, bounds [0, 1.6] d⁻¹
+- **Correlation:** r(f, g) = -0.64
+
+## Background
+
+### The Problem: Why Not Just Sample Independently?
+
+Imagine you have fitted an NLME model and obtained estimates for three parameters: treatment-sensitive fraction (f), tumor growth rate (g), and death rate (k). Each parameter has a mean, variance, and importantly—**correlations with other parameters**.
+
+A naive approach would be to sample each parameter independently from its marginal distribution. But this approach **destroys the correlation structure** that exists in the real patient population.
+
+:::{.callout-warning}
+## The Correlation Problem
+
+Consider the tumor burden model from @qi2023. The parameters f and g have a correlation of r = -0.64, meaning:
+
+- Patients with high f (more treatment-sensitive cells) tend to have lower g (slower tumor growth)
+- This biological relationship must be preserved in the virtual population
+
+**If we sample f and g independently:**
+
+- The correlation will be approximately 0 instead of -0.64
+- The virtual population won't match real clinical heterogeneity
+- ISCT predictions will be biased
+:::
+
+### What is a Copula?
+
+A **copula** is a mathematical function that joins univariate marginal distributions to form a multivariate distribution. The key theorem is Sklar's theorem [@sklar1959]:
+
+> Any multivariate joint distribution can be written as a function of its marginal distributions and a copula that describes the dependence structure.
+
+This means we can:
+
+1. **Separate** the marginal distributions (how each parameter is distributed individually)
+2. **Capture** the dependence structure in a copula
+3. **Combine** them to generate correlated samples
+
+### Why Gaussian Copulas?
+
+The **Gaussian copula** uses the multivariate normal distribution to capture correlations [@nelsen2006]. It has several advantages:
+
+| Feature | Benefit |
+|:--------|:--------|
+| Easy to specify | Just need correlation matrix |
+| Spearman correlation preserved | Rank correlations survive monotonic transformations |
+| Works with any marginals | Can use normal, lognormal, logit-normal, etc. |
+| Well-understood | Extensive statistical literature |
+
+:::{.callout-tip}
+## Key Insight: Spearman Correlations
+
+The Gaussian copula preserves **Spearman (rank) correlations** through any monotonic transformation. This is crucial because:
+
+1. We sample from the copula to get uniform [0,1] values
+2. We transform these to our target distribution (e.g., logit-normal)
+3. The rank correlations are preserved!
+
+Pearson correlations are NOT preserved through nonlinear transforms, but Spearman correlations are.
+:::
+
+### The Logit-Normal Distribution
+
+Many pharmacometric parameters are bounded:
+
+- Bioavailability F: [0, 1]
+- Fraction sensitive f: [0, 1]
+- Rates with physiological upper limits
+
+The **logit-normal distribution** handles bounded parameters by working on the logit (log-odds) scale:
+
+$$\text{logit}(p) = \log\left(\frac{p}{1-p}\right)$$
+
+If $Y \sim \text{Normal}(\mu, \sigma)$, then $P = \text{logistic}(Y) = \frac{1}{1 + e^{-Y}}$ follows a logit-normal distribution bounded on [0, 1].
+
+For general bounds [a, b]:
+$$P = a + (b - a) \cdot \text{logistic}(Y)$$
+
+## Libraries
+
+Load the necessary packages for this tutorial.
+
+```{julia}
+#| output: false
+using Pumas
+using Copulas              # GaussianCopula, rand
+using Pumas.Distributions  # Normal, quantile
+using LogExpFunctions      # logit, logistic (numerically stable)
+using StatsBase            # corspearman
+using DataFrames
+using AlgebraOfGraphics
+using CairoMakie
+using PairPlots            # Corner plots / pair plots
+using SummaryTables        # Nice table rendering
+using Random
+using Statistics
+using LinearAlgebra
+```
+
+**What each package does:**
+
+- `Copulas`: Implements various copula families including Gaussian copulas
+- `Distributions`: Provides probability distributions and quantile functions
+- `LogExpFunctions`: Numerically stable logit and logistic transformations
+- `StatsBase`: Spearman correlation computation
+- `AlgebraOfGraphics` + `CairoMakie`: Publication-quality visualizations
+- `PairPlots`: Corner plots showing pairwise relationships and marginal distributions
+- `SummaryTables`: Clean rendering of DataFrames in documents
+
+## Part 1: Parameter Specifications
+
+We use the tumor burden model parameters from Tutorial 1 and @qi2023.
+
+### Model Recap
+
+From Tutorial 1, the tumor burden model describes:
+
+$$N(t) = N_0 \cdot f \cdot e^{-k \cdot t} + N_0 \cdot (1-f) \cdot e^{g \cdot t}$$
+
+For details on the model biology and parameters, see [Tutorial 1: Model Introduction](tb_01_model_introduction_tutorial.qmd).
+
+### Parameter Specifications
+
+```{julia}
+# Set seed for reproducibility
+Random.seed!(42)
+
+# Parameter specifications from Qi & Cao 2023
+f_median, f_omega, f_lower, f_upper = 0.27, 2.16, 0.0, 1.0
+g_median, g_omega, g_lower, g_upper = 0.0013, 1.57, 0.0, 0.13
+k_median, k_omega, k_lower, k_upper = 0.0091, 1.24, 0.0, 1.6
+
+# Expected correlation
+expected_r_fg = -0.64
+
+n_patients = 10_000
+
+# Collect all specifications in a structured format
+param_specs = [
+    (name = :f, median = 0.27, omega = 2.16, lower = 0.0, upper = 1.0),
+    (name = :g, median = 0.0013, omega = 1.57, lower = 0.0, upper = 0.13),
+    (name = :k, median = 0.0091, omega = 1.24, lower = 0.0, upper = 1.6)
+]
+
+println("Parameter specifications:")
+for spec in param_specs
+    println("  $(spec.name): median=$(spec.median), ω=$(spec.omega), bounds=[$(spec.lower), $(spec.upper)]")
+end
+println("\nTarget correlation: r(f, g) = $expected_r_fg")
+println("Sample size: n = $n_patients")
+```
+
+## Part 2: Why Independent Sampling Fails
+
+Let's demonstrate why independent sampling breaks the correlation structure.
+
+### Transformation Functions
+
+Before we can sample, we need to understand how to work with bounded parameters.
+
+**The Core Problem:**
+
+Our parameter `f` (treatment-sensitive fraction) must stay within bounds **[0, 1]**, and we know from NLME estimation that its median is 0.27 with ω = 2.16. But the Normal distribution spans **(-∞, +∞)**. We can't just sample `f ~ Normal(0.27, 2.16)` — we'd get negative values and values greater than 1!
+
+**The Solution: Work on a Transformed Scale**
+
+We use a two-step transformation:
+
+1. **Normalize to [0, 1]**: For general bounds [a, b], rescale using $(P - a) / (b - a)$
+2. **Apply logit**: Transform to the unbounded scale using $Y = \text{logit}(P_{\text{normalized}})$
+
+Now Y can be any real number, and we can safely use Normal distributions.
+
+:::{.callout-note}
+## Why Two Functions?
+
+| Function | Direction | Purpose |
+|:---------|:----------|:--------|
+| `logit_mean(P, a, b)` | Original → Logit | Given median P on bounded scale, find mean μ on logit scale |
+| `bounded_logistic(y, a, b)` | Logit → Original | Transform sampled y back to bounded scale [a, b] |
+
+**Why median = mean?** For a symmetric Normal distribution, the median equals the mean. When we transform $Y \sim \text{Normal}(\mu, \sigma)$ through the logistic function, the **median on the original scale corresponds to the mean on the logit scale**.
+:::
+
+**Concrete Example with f:**
+
+```
+# Forward: median to logit-scale mean
+P = 0.27, a = 0, b = 1
+μ = logit((0.27 - 0) / (1 - 0)) = logit(0.27) = log(0.27/0.73) ≈ -0.995
+
+# So we sample from Normal(-0.995, 2.16) on logit scale
+
+# Backward: sampled value to original scale
+# Suppose we sampled y = -0.5
+P = 0 + (1 - 0) * logistic(-0.5) = logistic(-0.5) ≈ 0.38
+
+# This virtual patient has f = 0.38 (38% sensitive cells)
+```
+
+Now let's define these transformation functions:
+
+```{julia}
+"""
+Transform median on original scale to mean on logit scale.
+For logit-normal: μ = logit((P - a) / (b - a))
+"""
+function logit_mean(P, a, b)
+    return logit((P - a) / (b - a))
+end
+
+"""
+Inverse logit to bounded scale: P = a + (b-a) * logistic(y)
+"""
+function bounded_logistic(y, a, b)
+    return a + (b - a) * logistic(y)
+end
+```
+
+### Independent Sampling (Wrong Approach)
+
+```{julia}
+# Calculate means on logit scale
+μ_f = logit_mean(f_median, f_lower, f_upper)
+μ_g = logit_mean(g_median, g_lower, g_upper)
+μ_k = logit_mean(k_median, k_lower, k_upper)
+
+# Sample INDEPENDENTLY from normal distributions on logit scale
+Y_f_indep = rand(Normal(μ_f, f_omega), n_patients)
+Y_g_indep = rand(Normal(μ_g, g_omega), n_patients)
+Y_k_indep = rand(Normal(μ_k, k_omega), n_patients)
+
+# Transform back to original scale
+f_indep = bounded_logistic.(Y_f_indep, f_lower, f_upper)
+g_indep = bounded_logistic.(Y_g_indep, g_lower, g_upper)
+k_indep = bounded_logistic.(Y_k_indep, k_lower, k_upper)
+
+# Check the correlation
+indep_corr_fg = cor(f_indep, g_indep)
+println("Independent sampling correlation r(f,g): ", round(indep_corr_fg, digits=3))
+println("Expected correlation: ", expected_r_fg)
+println("Difference: ", round(abs(indep_corr_fg - expected_r_fg), digits=3))
+```
+
+:::{.callout-warning}
+## Result: Correlation Lost!
+
+The independently sampled population has essentially **zero correlation** between f and g, when the true correlation should be -0.64. This would lead to a virtual population that doesn't represent real patient heterogeneity.
+:::
+
+## Part 3: The Gaussian Copula Algorithm
+
+The copula-based sampling algorithm consists of five steps (Figure 2 in @cortes2025):
+
+```{mermaid}
+flowchart TB
+    A["Step 1: Define Parameter Specs<br/>(median, ω, bounds)"] --> B["Step 2: Define Correlation Matrix<br/>(Spearman correlations)"]
+    B --> C["Step 3: Create Gaussian Copula<br/>with correlation matrix"]
+    C --> D["Step 4: Generate Uniform Samples<br/>U ~ Copula (correlated [0,1])"]
+    D --> E["Step 5: Transform to Marginals<br/>Y = quantile(Normal(μ,ω), U)"]
+    E --> F["Step 6: Transform to Original Scale<br/>P = bounded_logistic(Y, a, b)"]
+
+    style A fill:#e1f5fe,stroke:#01579b
+    style D fill:#fff3e0,stroke:#e65100
+    style F fill:#e8f5e9,stroke:#2e7d32
+```
+
+### Step 1: Define Parameter Specifications
+
+Already done above with `param_specs`.
+
+### Step 2: Define the Correlation Matrix
+
+```{julia}
+# Spearman correlation matrix from NLME estimation
+# r(f,g) = -0.64, r(f,k) = 0, r(g,k) = 0
+Rho = [
+    1.0   -0.64  0.0
+   -0.64   1.0   0.0
+    0.0    0.0   1.0
+]
+
+println("Correlation matrix:")
+display(Rho)
+```
+
+### Step 3: Create the Gaussian Copula
+
+```{julia}
+# Create Gaussian copula with the specified correlation structure
+copula = GaussianCopula(Rho)
+println("Created Gaussian copula with $(length(param_specs)) dimensions")
+println("Type: ", typeof(copula))
+```
+
+### Step 4: Generate Correlated Uniform Samples
+
+```{julia}
+Random.seed!(22)  # For reproducibility
+
+# Generate n_patients samples from the copula
+# Copulas.jl returns (n_params × n) matrix, so we transpose
+U = rand(copula, n_patients)'  # Now (n × n_params)
+
+println("Generated uniform samples:")
+println("  Shape: ", size(U))
+println("  Range check (should be [0,1]):")
+println("    Min: ", round.(minimum(U, dims=1), digits=3))
+println("    Max: ", round.(maximum(U, dims=1), digits=3))
+```
+
+:::{.callout-note}
+## Understanding Copula Samples
+
+The matrix `U` contains uniform [0,1] values, but they are **correlated** according to our Gaussian copula. If we check the Spearman correlation of U:
+
+```{julia}
+U_corr = corspearman(U)
+println("\nSpearman correlation of uniform samples:")
+display(round.(U_corr, digits=3))
+```
+
+The correlations in U already match our target correlations.
+:::
+
+### Step 5: Transform Uniforms to Target Marginals
+
+**The Key Insight: Inverse Transform Sampling**
+
+We now have correlated uniform values U in [0, 1]. But we need samples from Normal distributions on the logit scale. How do we convert uniform samples to normal samples while preserving correlations?
+
+The answer is the **inverse CDF** (also called the **quantile function**). This is a fundamental result in probability:
+
+> If $U \sim \text{Uniform}(0,1)$ and $F$ is any CDF, then $X = F^{-1}(U)$ follows the distribution with CDF $F$.
+
+In Julia, `quantile(distribution, u)` computes the inverse CDF.
+
+:::{.callout-note}
+## Why Does This Preserve Correlations?
+
+The quantile function is **monotonically increasing**: if $U_1 < U_2$, then $\text{quantile}(U_1) < \text{quantile}(U_2)$.
+
+Spearman correlation measures the correlation of **ranks**. Since the quantile transform preserves the ordering of values, it preserves the ranks, and therefore preserves the Spearman correlation.
+
+This is why we specified **Spearman correlations** in our correlation matrix—they survive monotonic transformations like the quantile function and the logistic function in Step 6.
+:::
+
+```{julia}
+# Calculate means on logit scale for each parameter
+μ_logit = [logit_mean(s.median, s.lower, s.upper) for s in param_specs]
+ω_values = [s.omega for s in param_specs]
+
+println("Parameters on logit scale:")
+for (i, s) in enumerate(param_specs)
+    println("  $(s.name): μ = $(round(μ_logit[i], digits=3)), ω = $(ω_values[i])")
+end
+
+# Transform uniforms to normal marginals using quantile function
+Y = similar(U)
+for j in 1:length(param_specs)
+    marginal = Normal(μ_logit[j], ω_values[j])
+    Y[:, j] = quantile.(marginal, U[:, j])
+end
+
+println("\nTransformed samples (logit scale):")
+println("  Shape: ", size(Y))
+println("  Means: ", round.(mean(Y, dims=1), digits=3))
+println("  SDs: ", round.(std(Y, dims=1), digits=2))
+```
+
+### Step 6: Transform to Original Parameter Scale
+
+```{julia}
+# Transform from logit scale to original bounded scale
+P = similar(Y)
+for (j, spec) in enumerate(param_specs)
+    P[:, j] = bounded_logistic.(Y[:, j], spec.lower, spec.upper)
+end
+
+# Create DataFrame with results
+vpop = DataFrame(
+    id = 1:n_patients,
+    f = P[:, 1],
+    g = P[:, 2],
+    k = P[:, 3]
+)
+
+println("Virtual population generated:")
+println("  N = ", nrow(vpop))
+simple_table(first(vpop, 5))
+```
+
+## Part 4: Validation
+
+### Check Spearman Correlations
+
+The most critical validation is checking that our target correlations are preserved:
+
+```{julia}
+# Compute observed Spearman correlations
+param_matrix = Matrix(vpop[:, [:f, :g, :k]])
+observed_corr = corspearman(param_matrix)
+
+println("Correlation Validation")
+println("=" ^ 50)
+println("\nExpected correlation matrix:")
+display(round.(Rho, digits=3))
+println("\nObserved correlation matrix:")
+display(round.(observed_corr, digits=3))
+
+# Calculate differences
+diff_matrix = abs.(observed_corr - Rho)
+max_diff = maximum(diff_matrix)
+println("\nMaximum absolute difference: ", round(max_diff, digits=4))
+println("Validation passed (< 5% tolerance): ", max_diff < 0.05)
+```
+
+:::{.callout-tip}
+## Validation Passed!
+
+The observed correlations closely match the expected correlations. The small differences are due to sampling variability and decrease with larger sample sizes.
+:::
+
+### Check Marginal Distributions
+
+Let's verify that each parameter follows its expected distribution:
+
+```{julia}
+# Summary statistics
+summary_df = DataFrame(
+    parameter = [:f, :g, :k],
+    expected_median = [s.median for s in param_specs],
+    observed_median = [median(vpop.f), median(vpop.g), median(vpop.k)],
+    expected_omega = [s.omega for s in param_specs],
+    observed_sd_logit = [
+        std(logit.((vpop.f .- 0.0) ./ (1.0 .- 0.0))),
+        std(logit.((vpop.g .- 0.0) ./ (0.13 .- 0.0))),
+        std(logit.((vpop.k .- 0.0) ./ (1.6 .- 0.0)))
+    ]
+)
+
+summary_df.median_error_pct = 100 .* abs.(summary_df.observed_median .- summary_df.expected_median) ./ summary_df.expected_median
+simple_table(summary_df)
+```
+
+## Part 5: Visualization
+
+### Parameter Distributions
+
+```{julia}
+#| fig-cap: "Marginal distributions of virtual population parameters. Dashed red lines indicate expected medians from NLME estimation."
+
+# Expected medians from NLME estimation
+expected_medians = (f = 0.27, g = 0.0013, k = 0.0091)
+
+# Create figure with GridLayout for manual axis placement
+fig = Figure(size = (1000, 400))
+
+# Define parameters for each panel
+param_configs = [
+    (col = :f, label = "f (sensitive fraction)", color = :steelblue, median = expected_medians.f),
+    (col = :g, label = "g (growth rate, d⁻¹)", color = :orange, median = expected_medians.g),
+    (col = :k, label = "k (death rate, d⁻¹)", color = :green, median = expected_medians.k)
+]
+
+# Create each panel using AoG with draw! for independent axes
+for (i, cfg) in enumerate(param_configs)
+    ax = Axis(fig[1, i], xlabel = cfg.label, ylabel = i == 1 ? "Density" : "")
+
+    # Create single-column DataFrame for this parameter
+    param_df = DataFrame(value = vpop[:, cfg.col])
+
+    # AoG histogram
+    plt = data(param_df) *
+        mapping(:value) *
+        visual(Hist, bins = 50, normalization = :pdf, color = (cfg.color, 0.7))
+
+    draw!(ax, plt)
+
+    # Add median reference line (Makie - AoG doesn't support vlines)
+    vlines!(ax, [cfg.median], color = :red, linestyle = :dash, linewidth = 2)
+end
+
+# Add legend outside the plot area
+Legend(fig[2, :],
+    [LineElement(color = :red, linestyle = :dash, linewidth = 2)],
+    ["Expected median"],
+    orientation = :horizontal,
+    framevisible = false)
+
+fig
+```
+
+### Correlation Structure: Independent vs Copula Sampling
+
+```{julia}
+#| fig-cap: "Comparison of correlation structure: independent sampling (left) destroys the f-g correlation, while copula sampling (right) preserves it."
+
+# Subsample for cleaner visualization
+n_plot = 2000
+
+# Combine both methods into one DataFrame
+comparison_df = vcat(
+    DataFrame(
+        f = f_indep[1:n_plot],
+        g = g_indep[1:n_plot],
+        method = "Independent (r ≈ 0)"
+    ),
+    DataFrame(
+        f = vpop.f[1:n_plot],
+        g = vpop.g[1:n_plot],
+        method = "Copula (r = -0.64)"
+    )
+)
+
+# Create scatter plot with faceting by method
+plt_scatter = data(comparison_df) *
+    mapping(
+        :f => "f (Treatment-sensitive fraction)",
+        :g => "g (Growth rate, d⁻¹)",
+        layout = :method
+    ) *
+    visual(Scatter, markersize = 3, alpha = 0.3)
+
+fig2 = draw(
+    plt_scatter;
+    figure = (size = (800, 400),)
+)
+
+fig2
+```
+
+:::{.callout-note}
+## Visual Comparison
+
+The difference is striking:
+
+- **Left (Independent):** Points form a circular cloud with no apparent relationship between f and g
+- **Right (Copula):** Points show a clear negative relationship—high f values tend to pair with low g values
+
+This negative correlation is biologically meaningful: tumors with more treatment-sensitive cells tend to grow more slowly.
+:::
+
+### Corner Plot: All Pairwise Relationships
+
+```{julia}
+#| fig-cap: "Corner plot showing all pairwise parameter relationships and marginal distributions. The negative correlation between f and g (r = -0.64) is clearly visible."
+
+# Prepare data for PairPlots (subsample for performance)
+n_plot = 2000
+vpop_plot = vpop[1:n_plot, [:f, :g, :k]]
+
+# Define Spearman correlation function for annotation
+spearman_corr(x, y) = round(corspearman(x, y), digits = 2)
+
+# Create corner plot with larger size for better readability
+fig3 = Figure(size = (800, 800))
+
+pairplot(
+    fig3[1, 1],
+    vpop_plot => (
+        PairPlots.Scatter(
+            markersize = 5,
+            alpha = 0.4,
+            color = :steelblue
+        ),
+        PairPlots.MarginDensity(
+            color = :steelblue,
+            linewidth = 2.5f0
+        ),
+        PairPlots.Calculation(
+            spearman_corr,
+            fontsize = 16,
+            color = :black
+        )
+    ),
+    fullgrid = false,
+    bodyaxis = (;
+        xgridvisible = true,
+        ygridvisible = true,
+        xticklabelrotation = π/4
+    ),
+    diagaxis = (;
+        xgridvisible = true,
+        ygridvisible = true,
+        xticklabelrotation = π/4
+    )
+)
+
+Label(fig3[0, :], "Virtual Population Parameter Relationships", fontsize = 18, font = :bold)
+fig3
+```
+
+## Part 6: Complete Implementation
+
+Here's the complete algorithm wrapped in a reusable function:
+
+```{julia}
+"""
+    generate_vpop(n, param_specs, correlation_matrix; seed=nothing)
+
+Generate a virtual population using Gaussian copula sampling.
+
+# Arguments
+- `n::Int`: Number of virtual patients
+- `param_specs`: Vector of NamedTuples with (name, median, omega, lower, upper)
+- `correlation_matrix`: Spearman correlation matrix
+- `seed`: Optional random seed for reproducibility
+
+# Returns
+DataFrame with id and parameter columns
+"""
+function generate_vpop(
+    n::Int,
+    param_specs::Vector,
+    correlation_matrix::Matrix{Float64};
+    seed::Union{Int,Nothing} = nothing
+)
+    # Set seed if provided
+    if !isnothing(seed)
+        Random.seed!(seed)
+    end
+
+    n_params = length(param_specs)
+
+    # Step 1: Calculate means on logit scale
+    μ_logit = [logit_mean(s.median, s.lower, s.upper) for s in param_specs]
+
+    # Step 2: Create Gaussian copula
+    copula = GaussianCopula(correlation_matrix)
+
+    # Step 3: Generate correlated uniform samples
+    U = rand(copula, n)'
+
+    # Step 4: Transform to target marginals (logit scale)
+    Y = similar(U)
+    for j in 1:n_params
+        marginal = Normal(μ_logit[j], param_specs[j].omega)
+        Y[:, j] = quantile.(marginal, U[:, j])
+    end
+
+    # Step 5: Transform to original scale
+    P = similar(Y)
+    for (j, spec) in enumerate(param_specs)
+        P[:, j] = bounded_logistic.(Y[:, j], spec.lower, spec.upper)
+    end
+
+    # Create DataFrame
+    df = DataFrame(P, [spec.name for spec in param_specs])
+    df.id = 1:n
+    select!(df, :id, Not(:id))
+
+    return df
+end
+```
+
+### Using the Function
+
+```{julia}
+# Generate a new virtual population
+new_vpop = generate_vpop(5000, param_specs, Rho; seed=123)
+
+# Validate correlations
+new_corr = corspearman(Matrix(new_vpop[:, [:f, :g, :k]]))
+println("New population correlation r(f,g): ", round(new_corr[1,2], digits=3))
+println("Expected: -0.64")
+```
+
+## Part 7: Optional - Save Results
+
+The generated virtual population will be used in subsequent tutorials. You can optionally save it to a CSV file.
+
+```{julia}
+#| output: false
+# Optional: Save results for use in separate session
+# Uncomment the following lines to save:
+
+# using CSV
+# CSV.write("outputs/vpop_tumor_burden.csv", vpop)
+
+# To load in next tutorial:
+# vpop = CSV.read("outputs/vpop_tumor_burden.csv", DataFrame)
+
+println("To save: CSV.write(\"outputs/vpop_tumor_burden.csv\", vpop)")
+```
+
+## Practical Recommendations
+
+:::{.callout-tip}
+## 1. Always Use Spearman Correlations
+
+When specifying the correlation matrix for a Gaussian copula:
+
+- Use **Spearman (rank) correlations** from your NLME output
+- Pearson correlations can be distorted by nonlinear transformations
+- Most NLME software reports correlation matrices on the eta (random effect) scale
+:::
+
+:::{.callout-tip}
+## 2. Choose Appropriate Transformations
+
+| Parameter Type | Bounds | Recommended Transform |
+|:---------------|:-------|:---------------------|
+| Fractions (F, bioavailability) | [0, 1] | Logit-normal |
+| Positive rates (CL, V) | [0, ∞) | Log-normal |
+| Bounded positive (with physiological max) | [0, max] | Logit-normal |
+| Unbounded | (-∞, ∞) | Normal |
+:::
+
+:::{.callout-tip}
+## 3. Sample Size Considerations
+
+- For ISCTs: 1,000-10,000 virtual patients typically sufficient
+- Larger samples give more stable correlation estimates
+- Correlation error scales as O(1/√n)
+
+```{julia}
+# Example: correlation precision vs sample size
+sample_sizes = [100, 500, 1000, 5000, 10000]
+correlation_errors = Float64[]
+
+for n in sample_sizes
+    test_vpop = generate_vpop(n, param_specs, Rho; seed=42)
+    test_corr = corspearman(Matrix(test_vpop[:, [:f, :g, :k]]))
+    push!(correlation_errors, abs(test_corr[1,2] - (-0.64)))
+end
+
+corr_precision = DataFrame(
+    n = sample_sizes,
+    abs_error = round.(correlation_errors, digits=4)
+)
+simple_table(corr_precision)
+```
+:::
+
+:::{.callout-warning}
+## 4. Validate Before Using
+
+Always validate your virtual population before running ISCTs:
+
+1. **Check correlations** match expected values (< 5% difference)
+2. **Check marginal medians** match expected values
+3. **Check bounds** are respected (no values outside [lower, upper])
+4. **Visualize** parameter distributions and correlations
+:::
+
+## Summary
+
+### Key Takeaways
+
+1. **Independent sampling destroys correlations** in the virtual population, leading to biased ISCT predictions
+
+2. **Gaussian copulas preserve rank (Spearman) correlations** through any monotonic transformation
+
+3. **The 6-step algorithm:**
+   - Define parameter specifications (median, ω, bounds)
+   - Define Spearman correlation matrix
+   - Create Gaussian copula and sample uniform values
+   - Transform to target marginal distributions (quantile function)
+   - Transform back to original scale (bounded logistic)
+   - Validate results
+
+4. **Logit-normal distributions** handle bounded parameters naturally
+
+5. **Always validate** correlations and marginals before using the virtual population
+
+### Quick Reference: Key Functions
+
+| Function | Package | Purpose |
+|:---------|:--------|:--------|
+| `GaussianCopula(Rho)` | Copulas.jl | Create copula with correlation matrix |
+| `rand(copula, n)` | Copulas.jl | Sample from copula |
+| `quantile(dist, u)` | Distributions.jl | Inverse CDF transform |
+| `logit(x)` | LogExpFunctions.jl | Log-odds transformation |
+| `logistic(y)` | LogExpFunctions.jl | Inverse logit |
+| `corspearman(X)` | StatsBase.jl | Compute Spearman correlations |
+
+### What's Next
+
+In **Tutorial 3: Global Sensitivity Analysis**, we will:
+
+- Analyze which parameters most influence treatment outcomes
+- Learn about Sobol and eFAST sensitivity methods
+- Discover that f dominates but k's importance varies with timepoint
+- Use the vpop generated here for GSA parameter ranges
+
+### References
+
+::: {#refs}
+:::
