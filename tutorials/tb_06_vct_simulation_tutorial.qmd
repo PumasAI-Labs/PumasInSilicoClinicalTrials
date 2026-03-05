@@ -6,8 +6,7 @@ author:
 execute:
   cache: true
   error: false
-julia: 
-  exeflags: ["+Pumas@2.7.1"]
+engine: julia
 format:
   html:
     include-in-header:
@@ -118,13 +117,10 @@ Virtual trials don't replace real clinical trials—they help design better tria
 ```{julia}
 #| output: false
 using Pumas
-using DataFrames
 using DataFramesMeta
 using Statistics
 using StatsBase
 using Copulas
-using LogExpFunctions
-using Pumas.Distributions
 using LinearAlgebra
 using AlgebraOfGraphics
 using CairoMakie

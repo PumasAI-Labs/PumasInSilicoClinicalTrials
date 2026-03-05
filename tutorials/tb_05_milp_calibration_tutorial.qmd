@@ -6,8 +6,7 @@ author:
 execute:
   cache: true
   error: false
-julia: 
-  exeflags: ["+Pumas@2.7.1"]
+engine: julia
 format:
   html:
     include-in-header:
@@ -142,8 +141,6 @@ using DataFramesMeta
 using Statistics
 using StatsBase               # Histogram fitting
 using Copulas                 # For generating Vpop
-using LogExpFunctions
-using Pumas.Distributions
 using AlgebraOfGraphics
 using CairoMakie
 using SummaryTables

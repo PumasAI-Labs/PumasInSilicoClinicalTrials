@@ -6,8 +6,7 @@ author:
 execute:
   cache: true
   error: false
-julia: 
-  exeflags: ["+Pumas@2.7.1"]
+engine: julia
 format:
   html:
     include-in-header:
@@ -132,7 +131,6 @@ Current treatments (NUC therapy) can suppress virus indefinitely, but patients m
 ```{julia}
 #| output: false
 using Pumas
-using DataFrames
 using DataFramesMeta
 using CategoricalArrays
 using AlgebraOfGraphics
@@ -147,7 +145,7 @@ using Random
 The HBV QSP model tracks 11 state variables organized into three compartments:
 
 ```{mermaid}
-flowchart TB
+flowchart LR
     subgraph Hepatocytes ["Hepatocyte Populations"]
         T["T<br/>Target cells"]
         I["I<br/>Infected cells"]
@@ -233,40 +231,7 @@ This is equivalent to multiplicative IIV on the natural scale.
 
 ## Part 2: The Pumas Model Definition
 
-Let's build the HBV model step by step.
-
-### Fixed Parameters
-
-```{julia}
-# Fixed parameter values (not varied between patients)
-const HBV_FIXED_PARAMS = (
-    iniV = -0.481486,      # Initial viral load (log10)
-    p_V = 2.0,             # Viral production rate (log10)
-    r_T = 1.0,             # Hepatocyte proliferation rate
-    r_E = 0.1,             # Effector cell expansion rate
-    T_max = 13600000.0,    # Maximum hepatocytes
-    n = 2.0,               # Difference in killing rate
-    phiE = 2.0,            # Half-saturation for immune activation (log10)
-    dEtoX = 0.3,           # E to X conversion rate
-    phiQ = 0.8,            # Q saturation constant
-    d_V = 0.67,            # Virus clearance rate
-    d_TI = 0.0039,         # Hepatocyte death rate
-    d_E = -2.0,            # Effector cell death rate (log10)
-    d_Z = -0.328,          # Z clearance rate (log10)
-    d_Q = -2.414,          # Q clearance rate (log10)
-    rho = -3.0,            # Cell resistance conversion (log10)
-    r_X = 1.0,             # X growth rate
-    d_X = 0.2,             # X death rate
-    d_Y = 0.22,            # Y clearance rate
-    Smax = 1.0,            # Maximum HBsAg suppression
-    phiS = 0.147,          # HBsAg suppression saturation
-    nS = 0.486,            # HBsAg suppression Hill coefficient
-    d_D = -0.62157,        # D clearance rate (log10)
-    iniZ = 1.25            # Initial Z value (log10)
-)
-
-println("Fixed parameters defined: $(length(HBV_FIXED_PARAMS)) parameters")
-```
+Let's build the HBV model.
 
 ### The Full Model
 
@@ -274,47 +239,47 @@ println("Fixed parameters defined: $(length(HBV_FIXED_PARAMS)) parameters")
 hbv_model = @model begin
     @param begin
         # Fixed parameters
-        iniV ∈ RealDomain(init=-0.481486)
-        p_V ∈ RealDomain(init=2.0)
-        r_T ∈ RealDomain(lower=0.0, init=1.0)
-        r_E ∈ RealDomain(lower=0.0, init=0.1)
-        T_max ∈ RealDomain(lower=0.0, init=13600000.0)
-        n ∈ RealDomain(lower=0.0, init=2.0)
-        phiE ∈ RealDomain(init=2.0)
-        dEtoX ∈ RealDomain(lower=0.0, init=0.3)
-        phiQ ∈ RealDomain(lower=0.0, init=0.8)
-        d_V ∈ RealDomain(lower=0.0, init=0.67)
-        d_TI ∈ RealDomain(lower=0.0, init=0.0039)
-        d_E ∈ RealDomain(init=-2.0)
-        d_Z ∈ RealDomain(init=-0.328)
-        d_Q ∈ RealDomain(init=-2.414)
-        rho ∈ RealDomain(init=-3.0)
-        r_X ∈ RealDomain(lower=0.0, init=1.0)
-        d_X ∈ RealDomain(lower=0.0, init=0.2)
-        d_Y ∈ RealDomain(lower=0.0, init=0.22)
-        Smax ∈ RealDomain(lower=0.0, upper=1.0, init=0.5)
-        phiS ∈ RealDomain(lower=0.0, init=0.147)
-        nS ∈ RealDomain(lower=0.0, init=0.486)
-        d_D ∈ RealDomain(init=-0.62157)
-        iniZ ∈ RealDomain(init=1.25)
+        iniV ∈ RealDomain()
+        p_V ∈ RealDomain()
+        r_T ∈ RealDomain(lower=0.0)
+        r_E ∈ RealDomain(lower=0.0)
+        T_max ∈ RealDomain(lower=0.0)
+        n ∈ RealDomain(lower=0.0)
+        phiE ∈ RealDomain()
+        dEtoX ∈ RealDomain(lower=0.0)
+        phiQ ∈ RealDomain(lower=0.0)
+        d_V ∈ RealDomain(lower=0.0)
+        d_TI ∈ RealDomain(lower=0.0)
+        d_E ∈ RealDomain()
+        d_Z ∈ RealDomain()
+        d_Q ∈ RealDomain()
+        rho ∈ RealDomain()
+        r_X ∈ RealDomain()
+        d_X ∈ RealDomain()
+        d_Y ∈ RealDomain()
+        Smax ∈ RealDomain()
+        phiS ∈ RealDomain()
+        nS ∈ RealDomain()
+        d_D ∈ RealDomain()
+        iniZ ∈ RealDomain()
 
         # Estimated parameters (with IIV) - log10 scale
-        tvbeta ∈ RealDomain(init=-5.0)
-        tvp_S ∈ RealDomain(init=8.0)
-        tvm ∈ RealDomain(init=2.5)
-        tvk_Z ∈ RealDomain(init=-5.0)
-        tvconvE ∈ RealDomain(init=2.5)
-        tvepsNUC ∈ RealDomain(init=-2.0)
-        tvepsIFN ∈ RealDomain(init=-1.5)
-        tvr_E_IFN ∈ RealDomain(init=0.3)
-        tvk_D ∈ RealDomain(init=-4.0)
+        tvbeta ∈ RealDomain()
+        tvp_S ∈ RealDomain()
+        tvm ∈ RealDomain()
+        tvk_Z ∈ RealDomain()
+        tvconvE ∈ RealDomain()
+        tvepsNUC ∈ RealDomain()
+        tvepsIFN ∈ RealDomain()
+        tvr_E_IFN ∈ RealDomain()
+        tvk_D ∈ RealDomain()
 
         # Inter-individual variability (9 parameters)
         Ω ∈ PDiagDomain(9)
 
         # Residual error
-        σ_HBsAg ∈ RealDomain(lower=0.0, init=0.1)
-        σ_V ∈ RealDomain(lower=0.0, init=0.1)
+        σ_HBsAg ∈ RealDomain(lower=0.0)
+        σ_V ∈ RealDomain(lower=0.0)
     end
 
     @random begin
@@ -352,21 +317,22 @@ hbv_model = @model begin
 
     @init begin
         T = T_0
-        R = 0.0
         V = V_0
         S = S_0
-        Y = 0.0
         Z = Z_0
         I = I_0
-        D = 0.0
-        E = 0.0
-        Q = 0.0
-        X = 0.0
     end
 
     @vars begin
         infection_active = I / (I + 0.0001)
         SAg_ug_per_ml = (V + S) * (96 * 24000 * 1e6) / (6.023e23)
+
+        # HBsAg in IU/mL (log10 scale)
+        HBsAg_IU = SAg_ug_per_ml / 0.98
+        log_HBsAg = log10(max(HBsAg_IU, 0.04))
+
+        # Viral load (log10 copies/mL)
+        log_V = log10(max(V, 1e-6))
     end
 
     @dynamics begin
@@ -410,26 +376,74 @@ hbv_model = @model begin
     end
 
     @derived begin
-        # HBsAg in IU/mL (log10 scale)
-        HBsAg_IU = @. (V + S) * (96 * 24000 * 1e9) / (6.023e23 * 0.98)
-        log_HBsAg = @. log10(max(HBsAg_IU, 0.04))
-
-        # Viral load (log10 copies/mL)
-        log_V = @. log10(max(V, 1e-6))
-
-        # ALT proxy (log10)
-        log_ALT = @. log10(max(Z, 1e-6))
-
         # Observations with residual error
         HBsAg_obs ~ @. Normal(log_HBsAg, σ_HBsAg)
         V_obs ~ @. Normal(log_V, σ_V)
     end
-end
 
-println("HBV model defined successfully")
-println("  State variables: 11")
-println("  Fixed parameters: 22")
-println("  Estimated parameters: 9")
+    @observed begin
+        # ALT proxy (log10)
+        log_ALT = @. log10(max(Z, 1e-6))
+    end
+end
+```
+
+### Fixed Parameters
+
+```{julia}
+# Fixed parameter values (not varied between patients)
+hbv_fixed_params = (
+    iniV = -0.481486,      # Initial viral load (log10)
+    p_V = 2.0,             # Viral production rate (log10)
+    r_T = 1.0,             # Hepatocyte proliferation rate
+    r_E = 0.1,             # Effector cell expansion rate
+    T_max = 13600000.0,    # Maximum hepatocytes
+    n = 2.0,               # Difference in killing rate
+    phiE = 2.0,            # Half-saturation for immune activation (log10)
+    dEtoX = 0.3,           # E to X conversion rate
+    phiQ = 0.8,            # Q saturation constant
+    d_V = 0.67,            # Virus clearance rate
+    d_TI = 0.0039,         # Hepatocyte death rate
+    d_E = -2.0,            # Effector cell death rate (log10)
+    d_Z = -0.328,          # Z clearance rate (log10)
+    d_Q = -2.414,          # Q clearance rate (log10)
+    rho = -3.0,            # Cell resistance conversion (log10)
+    r_X = 1.0,             # X growth rate
+    d_X = 0.2,             # X death rate
+    d_Y = 0.22,            # Y clearance rate
+    Smax = 1.0,            # Maximum HBsAg suppression
+    phiS = 0.147,          # HBsAg suppression saturation
+    nS = 0.486,            # HBsAg suppression Hill coefficient
+    d_D = -0.62157,        # D clearance rate (log10)
+    iniZ = 1.25            # Initial Z value (log10)
+)
+
+println("Fixed parameters defined: ", length(hbv_fixed_params), " parameters")
+```
+
+### Estimated Parameters
+
+Initial values of the estimated parameters:
+
+```{julia}
+hbv_estimated_init_params = (
+    tvbeta = -5.0,
+    tvp_S = 8.0,
+    tvm = 2.5,
+    tvk_Z = -5.0,
+    tvconvE = 2.5,
+    tvepsNUC = -2.0,
+    tvepsIFN = -1.5,
+    tvr_E_IFN = 0.3,
+    tvk_D = -4.0,
+
+    Ω = Diagonal(ones(9)),
+
+    σ_HBsAg = 0.1,
+    σ_V = 0.1,
+)
+
+println("Initial values of estimated parameters defined: ", length(hbv_estimated_init_params), " parameters")
 ```
 
 ## Part 3: Understanding Treatment Mechanisms
@@ -475,25 +489,19 @@ Let's simulate a typical patient without treatment to see natural disease progre
 
 ```{julia}
 # Default population parameters
-pop_params = init_params(hbv_model)
+pop_params = merge(hbv_fixed_params, hbv_estimated_init_params)
 
 # Create a subject with no treatment
 subject_no_tx = Subject(
     id = "No Treatment",
     covariates = (dNUC = 0, dIFN = 0),
-    observations = (HBsAg_obs = nothing, V_obs = nothing),
     time = 0.0:7.0:365.0  # Weekly for 1 year
 )
-
-println("Created subject for simulation")
 ```
 
 ### Simulate Natural History
 
 ```{julia}
-# Simulate with zero random effects (typical patient)
-Random.seed!(42)
-
 sim_no_tx = simobs(
     hbv_model,
     subject_no_tx,
@@ -504,7 +512,6 @@ sim_no_tx = simobs(
 )
 
 sim_df = DataFrame(sim_no_tx)
-println("Simulation complete: $(nrow(sim_df)) time points")
 ```
 
 ### Visualize Natural History
@@ -529,18 +536,18 @@ sim_long.Biomarker = replace(
 plt = data(sim_long) *
     mapping(:time => "Time (days)", :Value => "log₁₀ Concentration") *
     mapping(row = :Biomarker, color = :Biomarker) *
-    visual(Lines, linewidth = 2)
+    #), color = :Biomarker) *
+    visual(Lines, linewidth = 2) + 
+    data((; Value = [log10(0.05)])) * mapping(:Value => "log₁₀ Concentration") * mapping(row = AlgebraOfGraphics.direct("HBsAg (IU/mL)")) * (visual(HLines; color = :green, linestyle = :dash, label = "FC Threshold") + visual(Annotations))
+#    mapping(:Value => AlgebraOfGraphics.direct(log10(0.05)), ) * visual(HLines)
 
-fig = Figure(size = (800, 600))
-ag = draw!(fig[1, 1], plt, scales(Color = (; palette = [:red, :blue])))
+draw(plt, scales(Color = (; palette = [:red, :blue])); legend = (; show = false))
 
 # Add functional cure threshold to the HBsAg panel (second row)
 # In AoG 0.7+, ag is a Matrix{AxisEntries} - get the axis from the second row
-ax_hbsag = ag[2, 1].axis  # Second row, first column
-hlines!(ax_hbsag, [log10(0.05)], color = :green, linestyle = :dash, linewidth = 2)
-text!(ax_hbsag, 300, log10(0.05) + 0.3, text = "FC Threshold", fontsize = 12, color = :green)
-
-fig
+#ax_hbsag = ag[2, 1].axis  # Second row, first column
+#hlines!(ax_hbsag, [log10(0.05)], color = :green, linestyle = :dash, linewidth = 2)
+#text!(ax_hbsag, 300, log10(0.05) + 0.3, text = "FC Threshold", fontsize = 12, color = :green)
 ```
 
 ### Compare Treatment Scenarios

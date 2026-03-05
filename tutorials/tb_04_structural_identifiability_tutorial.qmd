@@ -7,8 +7,7 @@ author:
 execute:
   cache: true
   error: false
-julia: 
-  exeflags: ["+Pumas@2.7.1"]
+engine: julia
 format:
   html:
     include-in-header:
@@ -154,11 +153,10 @@ Load the necessary packages for this tutorial.
 #| output: false
 using Pumas
 using StructuralIdentifiability
-using Pumas.ModelingToolkit: @variables, t_nounits
+using ModelingToolkit: @variables, t_nounits
 using AlgebraOfGraphics
 using CairoMakie
 using DataFrames
-using CategoricalArrays
 ```
 
 **What each package does:**
