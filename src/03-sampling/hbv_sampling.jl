@@ -45,7 +45,7 @@ Names of the 22 fixed parameters.
 const HBV_FIXED_PARAM_NAMES = [
     :iniV, :p_V, :r_T, :r_E, :T_max, :n, :phiE, :dEtoX, :phiQ,
     :d_V, :d_TI, :d_E, :d_Z, :d_Q, :rho, :r_X, :d_X, :d_Y,
-    :Smax, :phiS, :nS, :d_D
+    :Smax, :phiS, :nS, :d_D,
 ]
 
 """
@@ -176,17 +176,18 @@ Print formatted statistics for HBV parameters.
 """
 function print_hbv_stats(stats::HBVParameterStats)
     println("HBV Parameter Statistics")
-    println("=" ^ 50)
+    println("="^50)
     println("\nParameter Means and Standard Deviations:")
     for name in stats.param_names
-        println("  $(name): μ = $(round(stats.means[name], digits=4)), σ = $(round(stats.stds[name], digits=4))")
+        println("  $(name): μ = $(round(stats.means[name], digits = 4)), σ = $(round(stats.stds[name], digits = 4))")
     end
 
     println("\nCorrelation Matrix:")
     for (i, name) in enumerate(stats.param_names)
-        row = [round(stats.correlation[i, j], digits=2) for j in 1:length(stats.param_names)]
+        row = [round(stats.correlation[i, j], digits = 2) for j in 1:length(stats.param_names)]
         println("  $(name): $row")
     end
+    return
 end
 
 #=============================================================================
@@ -211,8 +212,10 @@ end
 Create parameter specifications from computed statistics.
 """
 function create_hbv_param_specs(stats::HBVParameterStats)
-    return [HBVParameterSpec(name, stats.means[name], stats.stds[name])
-            for name in stats.param_names]
+    return [
+        HBVParameterSpec(name, stats.means[name], stats.stds[name])
+            for name in stats.param_names
+    ]
 end
 
 """
@@ -237,12 +240,12 @@ Generate a virtual population for HBV using Gaussian copulas.
 DataFrame with columns for each parameter and `id` column
 """
 function generate_hbv_vpop(
-    n::Int,
-    param_specs::Vector{HBVParameterSpec},
-    correlation_matrix::Matrix{Float64};
-    seed::Union{Int,Nothing} = nothing,
-    include_fixed::Bool = true
-)
+        n::Int,
+        param_specs::Vector{HBVParameterSpec},
+        correlation_matrix::Matrix{Float64};
+        seed::Union{Int, Nothing} = nothing,
+        include_fixed::Bool = true
+    )
     if !isnothing(seed)
         Random.seed!(seed)
     end
@@ -301,11 +304,11 @@ vpop = generate_hbv_vpop_from_csv(10000, "Parameters_Naive.csv"; seed=42)
 ```
 """
 function generate_hbv_vpop_from_csv(
-    n::Int,
-    reference_csv::String;
-    seed::Union{Int,Nothing} = nothing,
-    include_fixed::Bool = true
-)
+        n::Int,
+        reference_csv::String;
+        seed::Union{Int, Nothing} = nothing,
+        include_fixed::Bool = true
+    )
     # Load reference population
     ref_vpop = load_hbv_vpop(reference_csv)
 
@@ -335,10 +338,10 @@ end
 Randomly subsample n virtual patients from an existing Vpop.
 """
 function subsample_hbv_vpop(
-    vpop::DataFrame,
-    n::Int;
-    seed::Union{Int,Nothing} = nothing
-)
+        vpop::DataFrame,
+        n::Int;
+        seed::Union{Int, Nothing} = nothing
+    )
     if !isnothing(seed)
         Random.seed!(seed)
     end
@@ -384,19 +387,21 @@ function summarize_hbv_vpop(vpop::DataFrame)
     for name in param_names
         if hasproperty(vpop, name)
             values = vpop[!, name]
-            push!(summaries, (
-                parameter = name,
-                n = length(values),
-                mean = mean(values),
-                median = median(values),
-                std = std(values),
-                min = minimum(values),
-                max = maximum(values),
-                q05 = quantile(values, 0.05),
-                q25 = quantile(values, 0.25),
-                q75 = quantile(values, 0.75),
-                q95 = quantile(values, 0.95)
-            ))
+            push!(
+                summaries, (
+                    parameter = name,
+                    n = length(values),
+                    mean = mean(values),
+                    median = median(values),
+                    std = std(values),
+                    min = minimum(values),
+                    max = maximum(values),
+                    q05 = quantile(values, 0.05),
+                    q25 = quantile(values, 0.25),
+                    q75 = quantile(values, 0.75),
+                    q95 = quantile(values, 0.95),
+                )
+            )
         end
     end
 

@@ -1,0 +1,7 @@
+[type.bib]
+extend-glob = ["*.bib"]
+[type.bib.extend-words]
+Fonctions = "Fonctions"
+
+[files]
+extend-exclude = ["src/", "Manifest.toml"]

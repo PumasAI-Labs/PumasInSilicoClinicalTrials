@@ -19,7 +19,7 @@ Simulate tumor burden response for each virtual patient.
 
 Returns DataFrame with added columns: final_tumor, response_category
 """
-function simulate_tb_response(vpop::DataFrame; treatment_duration::Float64=168.0, N0::Float64=1.0)
+function simulate_tb_response(vpop::DataFrame; treatment_duration::Float64 = 168.0, N0::Float64 = 1.0)
     results = copy(vpop)
 
     # Simulate final tumor size for each VP
@@ -49,8 +49,10 @@ Response categories:
 - SD (Stable Disease): 0.7 ≤ tumor < 1.2
 - PD (Progressive Disease): tumor ≥ 1.2
 """
-function classify_responses(final_tumors::Vector{Float64};
-                           thresholds::Tuple{Float64,Float64,Float64}=(0.14, 0.7, 1.2))
+function classify_responses(
+        final_tumors::Vector{Float64};
+        thresholds::Tuple{Float64, Float64, Float64} = (0.14, 0.7, 1.2)
+    )
     cr_th, pr_th, sd_th = thresholds
 
     categories = String[]
@@ -82,7 +84,7 @@ Calibrate tumor burden vpop to match target response rate distribution using MIL
 # Returns
 - Calibrated DataFrame with selected virtual patients
 """
-function calibrate_tb_vpop(vpop::DataFrame, target_pcts::Vector{Float64}; epsilon::Float64=0.1)
+function calibrate_tb_vpop(vpop::DataFrame, target_pcts::Vector{Float64}; epsilon::Float64 = 0.1)
     # Ensure response categories exist
     if !hasproperty(vpop, :response_category)
         error("vpop must have response_category column. Run simulate_tb_response first.")
@@ -132,7 +134,7 @@ function calibrate_tb_vpop(vpop::DataFrame, target_pcts::Vector{Float64}; epsilo
     status = termination_status(model)
 
     if status in [MOI.OPTIMAL, MOI.FEASIBLE_POINT] ||
-       (status == MOI.TIME_LIMIT && has_values(model))
+            (status == MOI.TIME_LIMIT && has_values(model))
         x_vals = value.(x)
         selected = findall(x_vals .> 0.5)
         calibrated = vpop[selected, :]
@@ -160,8 +162,8 @@ function validate_tb_calibration(calibrated_vpop::DataFrame, target_pcts::Vector
     return DataFrame(
         category = categories,
         target_pct = target_pcts,
-        actual_pct = round.(actual_pcts, digits=1),
-        error = round.(abs.(actual_pcts .- target_pcts), digits=2)
+        actual_pct = round.(actual_pcts, digits = 1),
+        error = round.(abs.(actual_pcts .- target_pcts), digits = 2)
     )
 end
 

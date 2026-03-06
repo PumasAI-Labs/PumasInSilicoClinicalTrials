@@ -3,47 +3,6 @@ title: "HBV Series: MILP Calibration to Baseline HBsAg"
 subtitle: "Matching Virtual Population to Clinical Trial Characteristics"
 author:
   - Vijay Ivaturi
-execute:
-  cache: true
-  error: false
-julia: 
-  exeflags: ["+Pumas@2.7.1"]
-format:
-  html:
-    include-in-header:
-      text: |
-        <style>
-          .header-container {
-            width: 100%;
-          }
-          .logo {
-            display: block;
-            width: 150px;
-            margin-left: -2.5%;
-          }
-        </style>
-        <link rel = "shortcut icon" href = "https://pumas.ai/favicon.ico" />
-    include-before-body:
-      text: |
-        <div class="header-container">
-          <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
-        </div>
-    self-contained-math: true
-    anchor-sections: true
-    theme: default
-    toc: true
-    toc-depth: 4
-    toc-expand: 2
-    toc-location: left
-    toc-title: Contents
-    number-sections: true
-    code-summary: Show/Hide Code
-embed-resources: true
-fig-format: svg
-fig-width: 8
-fig-height: 6
-bibliography: references.bib
-csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
 ---
 
 :::{.callout-note}
@@ -59,16 +18,20 @@ This is **Tutorial 5 of 6** in the HBV series.
 | 4 | [Structural Identifiability](hbv_04_structural_identifiability_tutorial.qmd) | ✓ Complete |
 | 5 | **MILP Calibration (current)** | ← You are here |
 | 6 | [VCT Simulation](hbv_06_vct_simulation_tutorial.qmd) | |
+
 :::
 
 ## Learning Outcomes
 
-Calibration ensures the virtual population matches clinical trial baseline characteristics. For HBV, baseline HBsAg is a critical stratification variable that strongly predicts treatment response [@cortes2025].
+Calibration ensures the virtual population matches clinical trial baseline characteristics.
+For HBV, baseline HBsAg is a critical stratification variable
+that strongly predicts treatment response [@cortes2025].
 
 In this tutorial, you will learn:
 
 - Why baseline HBsAg calibration is critical for HBV VCTs
-- How to apply MILP calibration (from [TB-05](tb_05_milp_calibration_tutorial.qmd)) to HBV
+- How to apply MILP calibration (from
+  [TB-05](tb_05_milp_calibration_tutorial.qmd)) to HBV
 - How to define target distributions from clinical trial data
 - How to validate calibration results
 
@@ -113,7 +76,8 @@ Baseline HBsAg level is the most important predictor of treatment response in HB
 
 ### Everest Trial Distribution
 
-The Everest trial is a key reference for HBV treatment. Here's their baseline HBsAg distribution:
+The Everest trial is a key reference for HBV treatment.
+Here's their baseline HBsAg distribution:
 
 ```{julia}
 # Everest trial baseline HBsAg distribution
@@ -136,15 +100,15 @@ First, let's generate a virtual population using the copula approach from HBV-02
 ```{julia}
 # HBV parameter specifications
 const HBV_PARAM_SPECS = [
-    (name = :beta,     tv = -5.0,  omega = 0.5),
-    (name = :p_S,      tv = 8.0,   omega = 0.4),
-    (name = :m,        tv = 2.5,   omega = 0.3),
-    (name = :k_Z,      tv = -5.0,  omega = 0.4),
-    (name = :convE,    tv = 2.5,   omega = 0.3),
-    (name = :epsNUC,   tv = -2.0,  omega = 0.5),
-    (name = :epsIFN,   tv = -1.5,  omega = 0.6),
-    (name = :r_E_IFN,  tv = 0.3,   omega = 0.4),
-    (name = :k_D,      tv = -4.0,  omega = 0.4)
+    (name = :beta, tv = -5.0, omega = 0.5),
+    (name = :p_S, tv = 8.0, omega = 0.4),
+    (name = :m, tv = 2.5, omega = 0.3),
+    (name = :k_Z, tv = -5.0, omega = 0.4),
+    (name = :convE, tv = 2.5, omega = 0.3),
+    (name = :epsNUC, tv = -2.0, omega = 0.5),
+    (name = :epsIFN, tv = -1.5, omega = 0.6),
+    (name = :r_E_IFN, tv = 0.3, omega = 0.4),
+    (name = :k_D, tv = -4.0, omega = 0.4),
 ]
 
 # Simplified correlation matrix
@@ -153,7 +117,7 @@ const HBV_CORRELATION = Matrix{Float64}(I, 9, 9)  # Identity for simplicity
 """
 Generate HBV virtual population.
 """
-function generate_hbv_vpop(n::Int; seed::Union{Int,Nothing}=nothing)
+function generate_hbv_vpop(n::Int; seed::Union{Int, Nothing} = nothing)
     if !isnothing(seed)
         Random.seed!(seed)
     end
@@ -188,7 +152,7 @@ end
 ```{julia}
 # Generate population
 n_vps = 5000
-vpop = generate_hbv_vpop(n_vps; seed=42)
+vpop = generate_hbv_vpop(n_vps; seed = 42)
 
 println("Generated $(nrow(vpop)) virtual patients")
 ```
@@ -216,8 +180,8 @@ vpop[!, :log_hbsag_bl] = calculate_baseline_hbsag.(vpop.p_S)
 vpop[!, :hbsag_bl] = 10 .^ vpop.log_hbsag_bl
 
 println("Baseline HBsAg distribution:")
-println("  Median: $(round(median(vpop.hbsag_bl), digits=1)) IU/mL")
-println("  Range: $(round(minimum(vpop.hbsag_bl), digits=2)) - $(round(maximum(vpop.hbsag_bl), digits=1)) IU/mL")
+println("  Median: $(round(median(vpop.hbsag_bl), digits = 1)) IU/mL")
+println("  Range: $(round(minimum(vpop.hbsag_bl), digits = 2)) - $(round(maximum(vpop.hbsag_bl), digits = 1)) IU/mL")
 ```
 
 ## Part 3: MILP Calibration
@@ -234,7 +198,7 @@ n_bins = length(target_pcts)
 current_counts = zeros(Int, n_bins)
 for val in vpop.log_hbsag_bl
     for b in 1:n_bins
-        if val >= target_edges[b] && val < target_edges[b+1]
+        if val >= target_edges[b] && val < target_edges[b + 1]
             current_counts[b] += 1
             break
         end
@@ -246,8 +210,8 @@ comparison = DataFrame(
     bin = 1:n_bins,
     range = everest_target.hbsag_range,
     target_pct = target_pcts,
-    current_pct = round.(current_pcts, digits=1),
-    difference = round.(current_pcts .- target_pcts, digits=1)
+    current_pct = round.(current_pcts, digits = 1),
+    difference = round.(current_pcts .- target_pcts, digits = 1)
 )
 
 println("Current vs Target Distribution:")
@@ -261,11 +225,11 @@ simple_table(comparison)
 Calibrate HBV vpop to match target HBsAg distribution using MILP.
 """
 function calibrate_hbsag_milp(
-    vpop::DataFrame,
-    target_edges::Vector{Float64},
-    target_pcts::Vector{Float64};
-    epsilon::Float64 = 0.1
-)
+        vpop::DataFrame,
+        target_edges::Vector{Float64},
+        target_pcts::Vector{Float64};
+        epsilon::Float64 = 0.1
+    )
     n_vps = nrow(vpop)
     n_bins = length(target_pcts)
     values = vpop.log_hbsag_bl
@@ -274,7 +238,7 @@ function calibrate_hbsag_milp(
     bin_assignments = zeros(Int, n_vps)
     for i in 1:n_vps
         for b in 1:n_bins
-            if values[i] >= target_edges[b] && values[i] < target_edges[b+1]
+            if values[i] >= target_edges[b] && values[i] < target_edges[b + 1]
                 bin_assignments[i] = b
                 break
             end
@@ -318,7 +282,7 @@ function calibrate_hbsag_milp(
     status = termination_status(model)
 
     if status in [MOI.OPTIMAL, MOI.FEASIBLE_POINT] ||
-       (status == MOI.TIME_LIMIT && has_values(model))
+            (status == MOI.TIME_LIMIT && has_values(model))
         x_vals = value.(x)
         selected = findall(x_vals .> 0.5)
         calibrated = vpop[selected, :]
@@ -333,10 +297,10 @@ end
 ```{julia}
 # Run calibration with epsilon=0.15 to allow 15% tolerance on bin percentages
 println("Running MILP calibration...")
-vpop_calibrated = calibrate_hbsag_milp(vpop, target_edges, target_pcts; epsilon=0.15)
+vpop_calibrated = calibrate_hbsag_milp(vpop, target_edges, target_pcts; epsilon = 0.15)
 
 println("Calibration complete!")
-println("Selected: $(nrow(vpop_calibrated)) of $n_vps VPs ($(round(100*nrow(vpop_calibrated)/n_vps, digits=1))%)")
+println("Selected: $(nrow(vpop_calibrated)) of $n_vps VPs ($(round(100 * nrow(vpop_calibrated) / n_vps, digits = 1))%)")
 ```
 
 ## Part 4: Validate Calibration
@@ -348,7 +312,7 @@ println("Selected: $(nrow(vpop_calibrated)) of $n_vps VPs ($(round(100*nrow(vpop
 calibrated_counts = zeros(Int, n_bins)
 for val in vpop_calibrated.log_hbsag_bl
     for b in 1:n_bins
-        if val >= target_edges[b] && val < target_edges[b+1]
+        if val >= target_edges[b] && val < target_edges[b + 1]
             calibrated_counts[b] += 1
             break
         end
@@ -360,15 +324,15 @@ validation = DataFrame(
     bin = 1:n_bins,
     range = everest_target.hbsag_range,
     target_pct = target_pcts,
-    calibrated_pct = round.(calibrated_pcts, digits=1),
-    error = round.(abs.(calibrated_pcts .- target_pcts), digits=2)
+    calibrated_pct = round.(calibrated_pcts, digits = 1),
+    error = round.(abs.(calibrated_pcts .- target_pcts), digits = 2)
 )
 
 println("Calibration Validation:")
 simple_table(validation)
 
 mean_error = mean(validation.error)
-println("\nMean absolute error: $(round(mean_error, digits=2))%")
+println("\nMean absolute error: $(round(mean_error, digits = 2))%")
 ```
 
 ### Visualization
@@ -384,7 +348,7 @@ df_combined = vcat(
 
 # Create target lines DataFrame for overlay
 df_target = DataFrame(
-    x_start = target_edges[1:end-1],
+    x_start = target_edges[1:(end - 1)],
     x_end = target_edges[2:end],
     y = target_pcts ./ 100,
     bin = 1:n_bins
@@ -393,35 +357,39 @@ df_target = DataFrame(
 fig = Figure(size = (1000, 400))
 
 # Before calibration
-ax1 = Axis(fig[1, 1],
+ax1 = Axis(
+    fig[1, 1],
     xlabel = "Baseline HBsAg (log₁₀ IU/mL)",
     ylabel = "Proportion",
-    title = "Before Calibration (n=$n_vps)")
+    title = "Before Calibration (n=$n_vps)"
+)
 
 plt_before = data(filter(r -> startswith(r.stage, "Before"), df_combined)) *
     mapping(:log_hbsag) *
-    visual(Hist, bins=target_edges, normalization=:probability, color=(:steelblue, 0.6))
+    visual(Hist, bins = target_edges, normalization = :probability, color = (:steelblue, 0.6))
 draw!(ax1, plt_before)
 
 # Target overlay (Makie - AoG doesn't support lines)
 for row in eachrow(df_target)
-    lines!(ax1, [row.x_start, row.x_end], [row.y, row.y], color=:red, linewidth=3)
+    lines!(ax1, [row.x_start, row.x_end], [row.y, row.y], color = :red, linewidth = 3)
 end
 
 # After calibration
-ax2 = Axis(fig[1, 2],
+ax2 = Axis(
+    fig[1, 2],
     xlabel = "Baseline HBsAg (log₁₀ IU/mL)",
     ylabel = "Proportion",
-    title = "After Calibration (n=$(nrow(vpop_calibrated)))")
+    title = "After Calibration (n=$(nrow(vpop_calibrated)))"
+)
 
 plt_after = data(filter(r -> startswith(r.stage, "After"), df_combined)) *
     mapping(:log_hbsag) *
-    visual(Hist, bins=target_edges, normalization=:probability, color=(:green, 0.6))
+    visual(Hist, bins = target_edges, normalization = :probability, color = (:green, 0.6))
 draw!(ax2, plt_after)
 
 # Target overlay (Makie - AoG doesn't support lines)
 for row in eachrow(df_target)
-    lines!(ax2, [row.x_start, row.x_end], [row.y, row.y], color=:red, linewidth=3)
+    lines!(ax2, [row.x_start, row.x_end], [row.y, row.y], color = :red, linewidth = 3)
 end
 
 # Match y-axis limits
@@ -429,10 +397,12 @@ ylims!(ax1, 0, 0.5)
 ylims!(ax2, 0, 0.5)
 
 # Add legend outside the plot
-Legend(fig[1, 3],
-    [PolyElement(color=(:steelblue, 0.6)), PolyElement(color=(:green, 0.6)), LineElement(color=:red, linewidth=3)],
+Legend(
+    fig[1, 3],
+    [PolyElement(color = (:steelblue, 0.6)), PolyElement(color = (:green, 0.6)), LineElement(color = :red, linewidth = 3)],
     ["Original Vpop", "Calibrated Vpop", "Everest Target"],
-    framevisible=false)
+    framevisible = false
+)
 
 fig
 ```
@@ -441,11 +411,11 @@ fig
 
 ```{julia}
 # Summary of calibrated population
-println("\n" * "=" ^ 50)
+println("\n" * "="^50)
 println("CALIBRATED POPULATION SUMMARY")
-println("=" ^ 50)
+println("="^50)
 println("Population size: $(nrow(vpop_calibrated))")
-println("Selection rate: $(round(100*nrow(vpop_calibrated)/n_vps, digits=1))%")
+println("Selection rate: $(round(100 * nrow(vpop_calibrated) / n_vps, digits = 1))%")
 println("\nParameter summary (calibrated):")
 
 param_summary = DataFrame(
@@ -476,13 +446,16 @@ simple_table(param_summary)
 
 ### Why This Matters
 
-1. **Response rates depend on baseline HBsAg** - calibration ensures realistic predictions
+1. **Response rates depend on baseline HBsAg** - calibration ensures realistic
+   predictions
 2. **Subgroup analyses** require representative distributions
 3. **Regulatory credibility** from matching clinical trial characteristics
 
 ### What's Next?
 
-In [Tutorial 6: VCT Simulation](hbv_06_vct_simulation_tutorial.qmd), we'll use the calibrated population to run a complete HBV virtual clinical trial with multiple treatment arms.
+In [Tutorial 6: VCT Simulation](hbv_06_vct_simulation_tutorial.qmd),
+we'll use the calibrated population to run a complete HBV virtual clinical trial with multiple
+treatment arms.
 
 ### References
 

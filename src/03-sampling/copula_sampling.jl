@@ -79,11 +79,11 @@ struct ParameterSpec
     upper::Float64
     transform::Symbol
 
-    function ParameterSpec(name, median, omega, lower, upper, transform=:logitnormal)
+    function ParameterSpec(name, median, omega, lower, upper, transform = :logitnormal)
         @assert lower < median < upper "Median must be within bounds"
         @assert omega > 0 "Omega must be positive"
         @assert transform in (:logitnormal, :lognormal, :normal) "Unknown transform"
-        new(name, median, omega, lower, upper, transform)
+        return new(name, median, omega, lower, upper, transform)
     end
 end
 
@@ -101,7 +101,7 @@ function TumorBurdenParams()
     return [
         ParameterSpec(:f, 0.27, 2.16, 0.0, 1.0, :logitnormal),
         ParameterSpec(:g, 0.0013, 1.57, 0.0, 0.13, :logitnormal),
-        ParameterSpec(:k, 0.0091, 1.24, 0.0, 1.6, :logitnormal)
+        ParameterSpec(:k, 0.0091, 1.24, 0.0, 1.6, :logitnormal),
     ]
 end
 
@@ -195,11 +195,11 @@ vpop = generate_virtual_population(10000, params, Rho; seed=22)
 ```
 """
 function generate_virtual_population(
-    n::Int,
-    param_specs::Vector{ParameterSpec},
-    correlation_matrix::Matrix{Float64};
-    seed::Union{Int,Nothing} = nothing
-)
+        n::Int,
+        param_specs::Vector{ParameterSpec},
+        correlation_matrix::Matrix{Float64};
+        seed::Union{Int, Nothing} = nothing
+    )
     # Set random seed if provided
     if !isnothing(seed)
         Random.seed!(seed)
@@ -253,7 +253,7 @@ vpop = generate_tumor_burden_vpop(10000)
 function generate_tumor_burden_vpop(n::Int; seed::Int = 22)
     params = TumorBurdenParams()
     Rho = TumorBurdenCorrelation()
-    return generate_virtual_population(n, params, Rho; seed=seed)
+    return generate_virtual_population(n, params, Rho; seed = seed)
 end
 
 #=============================================================================
@@ -270,11 +270,11 @@ Uses StatsBase.corspearman for efficient computation.
 Returns a NamedTuple with :observed and :expected correlation matrices.
 """
 function validate_correlations(
-    df::DataFrame,
-    param_names::Vector{Symbol},
-    expected_corr::Matrix{Float64};
-    method::Symbol = :spearman
-)
+        df::DataFrame,
+        param_names::Vector{Symbol},
+        expected_corr::Matrix{Float64};
+        method::Symbol = :spearman
+    )
     param_matrix = Matrix(df[:, param_names])
 
     observed_corr = if method == :spearman
@@ -289,7 +289,7 @@ function validate_correlations(
         observed = observed_corr,
         expected = expected_corr,
         max_difference = max_diff,
-        valid = max_diff < 0.05  # Allow 5% tolerance
+        valid = max_diff < 0.05,  # Allow 5% tolerance
     )
 end
 
@@ -303,19 +303,21 @@ function summarize_vpop(df::DataFrame, param_names::Vector{Symbol})
 
     for name in param_names
         values = df[!, name]
-        push!(summaries, (
-            parameter = name,
-            n = length(values),
-            mean = mean(values),
-            median = median(values),
-            std = std(values),
-            min = minimum(values),
-            max = maximum(values),
-            q05 = quantile(values, 0.05),
-            q25 = quantile(values, 0.25),
-            q75 = quantile(values, 0.75),
-            q95 = quantile(values, 0.95)
-        ))
+        push!(
+            summaries, (
+                parameter = name,
+                n = length(values),
+                mean = mean(values),
+                median = median(values),
+                std = std(values),
+                min = minimum(values),
+                max = maximum(values),
+                q05 = quantile(values, 0.05),
+                q25 = quantile(values, 0.25),
+                q75 = quantile(values, 0.75),
+                q95 = quantile(values, 0.95),
+            )
+        )
     end
 
     return summaries

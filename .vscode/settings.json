@@ -1,0 +1,4 @@
+{
+    "julia.executablePath": "julia +Pumas@2.8.0",
+    "julia.environmentPath": "${workspaceFolder}"
+}

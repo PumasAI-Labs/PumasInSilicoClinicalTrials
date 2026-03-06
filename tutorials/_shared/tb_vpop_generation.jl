@@ -12,13 +12,13 @@ using Random
 const TB_PARAM_SPECS = [
     (name = :f, median = 0.27, omega = 2.16, lower = 0.0, upper = 1.0),
     (name = :g, median = 0.0013, omega = 1.57, lower = 0.0, upper = 0.13),
-    (name = :k, median = 0.0091, omega = 1.24, lower = 0.0, upper = 1.6)
+    (name = :k, median = 0.0091, omega = 1.24, lower = 0.0, upper = 1.6),
 ]
 
 # Correlation matrix: r(f,g) = -0.64
 const TB_CORRELATION = [
     1.0   -0.64  0.0
-   -0.64   1.0   0.0
+    -0.64   1.0   0.0
     0.0    0.0   1.0
 ]
 
@@ -52,7 +52,7 @@ Generate n virtual patients for the tumor burden model using Gaussian copula sam
 # Returns
 - `DataFrame` with columns: id, f, g, k
 """
-function generate_tb_vpop(n::Int; seed::Union{Int,Nothing}=nothing)
+function generate_tb_vpop(n::Int; seed::Union{Int, Nothing} = nothing)
     if !isnothing(seed)
         Random.seed!(seed)
     end

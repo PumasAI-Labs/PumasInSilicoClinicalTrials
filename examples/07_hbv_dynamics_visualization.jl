@@ -38,9 +38,9 @@ mkpath(output_dir)
 # Part 1: Load or Generate Virtual Population
 =============================================================================#
 
-println("=" ^ 70)
+println("="^70)
 println("Part 1: Loading HBV Virtual Population")
-println("=" ^ 70)
+println("="^70)
 
 # Try to load from CSV, otherwise create synthetic demo population
 param_csv = joinpath(@__DIR__, "..", "..", "ISCT SoC and MBMA comparison", "Parameters_Naive.csv")
@@ -62,7 +62,7 @@ else
         HBVParameterSpec(:epsNUC, -2.0, 1.0),
         HBVParameterSpec(:epsIFN, -1.5, 1.0),
         HBVParameterSpec(:r_E_IFN, 0.3, 0.2),
-        HBVParameterSpec(:k_D, -4.0, 0.5)
+        HBVParameterSpec(:k_D, -4.0, 0.5),
     ]
 
     # Create correlation matrix with key correlations
@@ -71,23 +71,23 @@ else
     demo_corr[1, 2] = demo_corr[2, 1] = 0.3  # beta-p_S
     demo_corr[6, 7] = demo_corr[7, 6] = 0.5  # epsNUC-epsIFN
 
-    vpop_full = generate_hbv_vpop(5000, demo_specs, demo_corr; seed=42)
+    vpop_full = generate_hbv_vpop(5000, demo_specs, demo_corr; seed = 42)
     println("Generated $(nrow(vpop_full)) synthetic virtual patients")
 end
 
 # Subsample for computational efficiency in this demo
 # (Full simulations would use more patients)
 n_subsample = 200
-vpop = subsample_hbv_vpop(vpop_full, n_subsample; seed=42)
+vpop = subsample_hbv_vpop(vpop_full, n_subsample; seed = 42)
 println("Subsampled $(nrow(vpop)) patients for demonstration")
 
 #=============================================================================
 # Part 2: Simulate Natural History (Untreated, ~300 days)
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 2: Simulating Natural History (Untreated Phase)")
-println("=" ^ 70)
+println("="^70)
 
 println("\nSimulating untreated HBV infection dynamics...")
 println("This simulates ~300 days of natural infection to classify acute vs chronic")
@@ -109,9 +109,9 @@ println("Time range: $(minimum(natural_history_df.time)) to $(maximum(natural_hi
 # Part 3: Classify Acute vs Chronic Outcomes
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 3: Classifying Patient Outcomes")
-println("=" ^ 70)
+println("="^70)
 
 # Classify outcomes based on clearance during natural history
 # Acute: Both HBsAg and viral load drop below LOQ within 300 days
@@ -130,16 +130,16 @@ acute_count = sum(patient_outcomes.outcome .== :acute)
 chronic_count = sum(patient_outcomes.outcome .== :chronic)
 
 println("\nOutcome Classification:")
-println("  Acute (cleared): $acute_count patients ($(round(100*acute_count/nrow(patient_outcomes), digits=1))%)")
-println("  Chronic (persistent): $chronic_count patients ($(round(100*chronic_count/nrow(patient_outcomes), digits=1))%)")
+println("  Acute (cleared): $acute_count patients ($(round(100 * acute_count / nrow(patient_outcomes), digits = 1))%)")
+println("  Chronic (persistent): $chronic_count patients ($(round(100 * chronic_count / nrow(patient_outcomes), digits = 1))%)")
 
 #=============================================================================
 # Part 4: Plot Natural History with Acute vs Chronic Outcomes
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 4: Visualizing Natural History Dynamics")
-println("=" ^ 70)
+println("="^70)
 
 # Create 2x2 panel plot showing all four biomarkers
 println("\nCreating population dynamics plot...")
@@ -184,13 +184,13 @@ println("Saved: outputs/hbv_viral_panel.png")
 # Part 5: Compute Summary Statistics
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 5: Summary Statistics by Time and Outcome")
-println("=" ^ 70)
+println("="^70)
 
 # Summarize each biomarker
 for biomarker in [:log_HBsAg, :log_V, :log_ALT, :log_E]
-    summary = summarize_hbv_dynamics_by_time(classified_df, biomarker; group_col=:outcome)
+    summary = summarize_hbv_dynamics_by_time(classified_df, biomarker; group_col = :outcome)
 
     println("\n$(biomarker) Summary (selected time points):")
 
@@ -203,10 +203,14 @@ for biomarker in [:log_HBsAg, :log_V, :log_ALT, :log_E]
 
             if nrow(baseline) > 0 && nrow(final) > 0
                 println("  $outcome:")
-                println("    Day 0:   median=$(round(baseline.median[1], digits=2)), " *
-                        "90% CI=[$(round(baseline.q05[1], digits=2)), $(round(baseline.q95[1], digits=2))]")
-                println("    Day $(Int(final.time[1])): median=$(round(final.median[1], digits=2)), " *
-                        "90% CI=[$(round(final.q05[1], digits=2)), $(round(final.q95[1], digits=2))]")
+                println(
+                    "    Day 0:   median=$(round(baseline.median[1], digits = 2)), " *
+                        "90% CI=[$(round(baseline.q05[1], digits = 2)), $(round(baseline.q95[1], digits = 2))]"
+                )
+                println(
+                    "    Day $(Int(final.time[1])): median=$(round(final.median[1], digits = 2)), " *
+                        "90% CI=[$(round(final.q05[1], digits = 2)), $(round(final.q95[1], digits = 2))]"
+                )
             end
         end
     end
@@ -216,9 +220,9 @@ end
 # Part 6: Simulate Treatment Response Dynamics
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 6: Simulating Treatment Response Dynamics")
-println("=" ^ 70)
+println("="^70)
 
 # Use a subset of chronic patients for treatment simulation
 chronic_ids = patient_outcomes[patient_outcomes.outcome .== :chronic, :id]
@@ -269,9 +273,9 @@ println("  End off-treatment: day $(phase_times.off_treatment.stop)")
 # Part 7: Plot Treatment Response
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 7: Visualizing Treatment Response")
-println("=" ^ 70)
+println("="^70)
 
 # Plot treatment response with phase markers
 println("\nCreating treatment response plot...")
@@ -301,9 +305,9 @@ println("Saved: outputs/hbv_treatment_all_biomarkers.png")
 # Part 8: Compare Treatment Arms (Optional)
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 8: Treatment Arm Comparison")
-println("=" ^ 70)
+println("="^70)
 
 # Run VCT for different treatment arms
 println("\nRunning VCT for multiple treatment arms...")
@@ -325,7 +329,7 @@ for arm in [CONTROL, NUC_ONLY, IFN_ONLY, NUC_IFN_COMBO]
         observation_interval = 14  # Bi-weekly for efficiency
     )
 
-    arm_df = simulate_hbv_dynamics(compare_vpop, config; seed=42)
+    arm_df = simulate_hbv_dynamics(compare_vpop, config; seed = 42)
     arm_df.treatment .= string(arm)
     arm_results[arm] = arm_df
 end
@@ -339,14 +343,16 @@ println("\nCreating treatment comparison figure...")
 fig4 = Figure(size = (1000, 800))
 
 # HBsAg comparison
-ax1 = Axis(fig4[1, 1],
+ax1 = Axis(
+    fig4[1, 1],
     xlabel = "Time (days)",
     ylabel = HBV_BIOMARKER_LABELS[:log_HBsAg],
     title = "HBsAg by Treatment Arm"
 )
 
 # Viral load comparison
-ax2 = Axis(fig4[1, 2],
+ax2 = Axis(
+    fig4[1, 2],
     xlabel = "Time (days)",
     ylabel = HBV_BIOMARKER_LABELS[:log_V],
     title = "Viral Load by Treatment Arm"
@@ -395,9 +401,9 @@ println("Saved: outputs/hbv_treatment_comparison.png")
 # Summary
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("HBV Population Dynamics Visualization Complete!")
-println("=" ^ 70)
+println("="^70)
 
 println("\nGenerated Figures:")
 println("  1. hbv_natural_history.png - 2x2 panel: All biomarkers, acute vs chronic")
@@ -410,8 +416,10 @@ println("  6. hbv_treatment_comparison.png - Multi-arm treatment comparison")
 println("\nVisualization Features:")
 println("  - Population median + 90% CI + IQR bands")
 println("  - Stratification by outcome (acute/chronic) or treatment arm")
-println("  - LOQ threshold lines (HBsAg: $(round(HBV_LOQ_THRESHOLDS[:log_HBsAg], digits=2)), " *
-        "Viral: $(round(HBV_LOQ_THRESHOLDS[:log_V], digits=2)))")
+println(
+    "  - LOQ threshold lines (HBsAg: $(round(HBV_LOQ_THRESHOLDS[:log_HBsAg], digits = 2)), " *
+        "Viral: $(round(HBV_LOQ_THRESHOLDS[:log_V], digits = 2)))"
+)
 println("  - Treatment phase markers")
 println("  - Individual patient trajectories option")
 

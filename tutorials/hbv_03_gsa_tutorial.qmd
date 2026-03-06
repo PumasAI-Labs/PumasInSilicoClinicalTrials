@@ -3,47 +3,6 @@ title: "HBV Series: Global Sensitivity Analysis"
 subtitle: "Identifying Key Drivers of Treatment Response"
 author:
   - Vijay Ivaturi
-execute:
-  cache: true
-  error: false
-julia: 
-  exeflags: ["+Pumas@2.7.1"]
-format:
-  html:
-    include-in-header:
-      text: |
-        <style>
-          .header-container {
-            width: 100%;
-          }
-          .logo {
-            display: block;
-            width: 150px;
-            margin-left: -2.5%;
-          }
-        </style>
-        <link rel = "shortcut icon" href = "https://pumas.ai/favicon.ico" />
-    include-before-body:
-      text: |
-        <div class="header-container">
-          <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
-        </div>
-    self-contained-math: true
-    anchor-sections: true
-    theme: default
-    toc: true
-    toc-depth: 4
-    toc-expand: 2
-    toc-location: left
-    toc-title: Contents
-    number-sections: true
-    code-summary: Show/Hide Code
-embed-resources: true
-fig-format: svg
-fig-width: 8
-fig-height: 6
-bibliography: references.bib
-csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
 ---
 
 :::{.callout-note}
@@ -59,11 +18,13 @@ This is **Tutorial 3 of 6** in the HBV series.
 | 4 | [Structural Identifiability](hbv_04_structural_identifiability_tutorial.qmd) | |
 | 5 | [MILP Calibration](hbv_05_milp_calibration_tutorial.qmd) | |
 | 6 | [VCT Simulation](hbv_06_vct_simulation_tutorial.qmd) | |
+
 :::
 
 ## Learning Outcomes
 
-Global Sensitivity Analysis (GSA) helps identify which parameters most influence model outputs, guiding parameter estimation and experimental design [@saltelli2008].
+Global Sensitivity Analysis (GSA) helps identify which parameters most influence model outputs,
+guiding parameter estimation and experimental design [@saltelli2008].
 
 In this tutorial, you will learn:
 
@@ -78,7 +39,8 @@ In this tutorial, you will learn:
 This tutorial builds on:
 
 - **[HBV-01](hbv_01_model_introduction_tutorial.qmd)**: HBV model structure
-- **[TB-03](tb_03_gsa_tutorial.qmd)**: Detailed GSA theory (Sobol indices, eFAST)
+- **[TB-03](tb_03_gsa_tutorial.qmd)**: Detailed GSA theory (Sobol indices,
+  eFAST)
 
 We'll apply the GSA concepts from TB-03 to the HBV model without repeating the theory.
 :::
@@ -108,15 +70,15 @@ For GSA, we define ranges for the 9 estimated parameters:
 # HBV parameter ranges for GSA (log10 scale)
 # Range: [tv - 2σ, tv + 2σ] covers ~95% of population
 const HBV_GSA_PARAMS = [
-    (name = "beta",     lower = -6.0, upper = -4.0),    # Infection rate
-    (name = "p_S",      lower = 7.2,  upper = 8.8),     # HBsAg production
-    (name = "m",        lower = 1.9,  upper = 3.1),     # Immune killing
-    (name = "k_Z",      lower = -5.8, upper = -4.2),    # ALT production
-    (name = "convE",    lower = 1.9,  upper = 3.1),     # Effector conversion
-    (name = "epsNUC",   lower = -3.0, upper = -1.0),    # NUC efficacy
-    (name = "epsIFN",   lower = -2.7, upper = -0.3),    # IFN efficacy
-    (name = "r_E_IFN",  lower = -0.5, upper = 1.1),     # IFN immune boost
-    (name = "k_D",      lower = -4.8, upper = -3.2)     # DC activation
+    (name = "beta", lower = -6.0, upper = -4.0),    # Infection rate
+    (name = "p_S", lower = 7.2, upper = 8.8),     # HBsAg production
+    (name = "m", lower = 1.9, upper = 3.1),     # Immune killing
+    (name = "k_Z", lower = -5.8, upper = -4.2),    # ALT production
+    (name = "convE", lower = 1.9, upper = 3.1),     # Effector conversion
+    (name = "epsNUC", lower = -3.0, upper = -1.0),    # NUC efficacy
+    (name = "epsIFN", lower = -2.7, upper = -0.3),    # IFN efficacy
+    (name = "r_E_IFN", lower = -0.5, upper = 1.1),     # IFN immune boost
+    (name = "k_D", lower = -4.8, upper = -3.2),     # DC activation
 ]
 
 println("HBV GSA Parameter Ranges:")
@@ -140,7 +102,7 @@ Treatment effect on HBsAg decline:
 
 where k_decline depends on treatment efficacy and immune parameters.
 """
-function simulate_hbsag_simple(params; t_final::Float64=365.0, treatment::Symbol=:combo)
+function simulate_hbsag_simple(params; t_final::Float64 = 365.0, treatment::Symbol = :combo)
     beta, p_S, m, k_Z, convE, epsNUC, epsIFN, r_E_IFN, k_D = params
 
     # Initial HBsAg (depends on p_S)
@@ -173,7 +135,7 @@ function simulate_hbsag_simple(params; t_final::Float64=365.0, treatment::Symbol
         log_HBsAg_final = log_HBsAg_final,
         log_HBsAg_nadir = log_HBsAg_nadir,
         initial_hbsag = log_S0,
-        decline_rate = k_decline
+        decline_rate = k_decline,
     )
 end
 
@@ -181,9 +143,9 @@ end
 typical_params = [-5.0, 8.0, 2.5, -5.0, 2.5, -2.0, -1.5, 0.3, -4.0]
 test_result = simulate_hbsag_simple(typical_params)
 println("\nTypical patient (combo treatment, 1 year):")
-println("  Initial HBsAg: $(round(test_result.initial_hbsag, digits=2)) log10 IU/mL")
-println("  Final HBsAg: $(round(test_result.log_HBsAg_final, digits=2)) log10 IU/mL")
-println("  Decline rate: $(round(test_result.decline_rate, digits=5)) /day")
+println("  Initial HBsAg: $(round(test_result.initial_hbsag, digits = 2)) log10 IU/mL")
+println("  Final HBsAg: $(round(test_result.log_HBsAg_final, digits = 2)) log10 IU/mL")
+println("  Decline rate: $(round(test_result.decline_rate, digits = 5)) /day")
 ```
 
 ## Part 2: Running Sobol Analysis
@@ -211,7 +173,7 @@ end
 ```{julia}
 # Model function for final HBsAg - must return a scalar for GlobalSensitivity.gsa()
 function model_final_hbsag(params)
-    result = simulate_hbsag_simple(params; treatment=:combo)
+    result = simulate_hbsag_simple(params; treatment = :combo)
     return result.log_HBsAg_final
 end
 
@@ -233,15 +195,15 @@ S1 = sobol_result.S1
 ST = sobol_result.ST
 
 println("\nSobol Indices for Final HBsAg (Combo Treatment):")
-println("=" ^ 50)
+println("="^50)
 
 sobol_df = DataFrame(
     parameter = param_names,
-    S1 = round.(S1, digits=3),
-    ST = round.(ST, digits=3),
-    interaction = round.(ST .- S1, digits=3)
+    S1 = round.(S1, digits = 3),
+    ST = round.(ST, digits = 3),
+    interaction = round.(ST .- S1, digits = 3)
 )
-sort!(sobol_df, :ST, rev=true)
+sort!(sobol_df, :ST, rev = true)
 simple_table(sobol_df)
 ```
 
@@ -251,7 +213,7 @@ simple_table(sobol_df)
 #| fig-cap: "Sobol sensitivity indices for HBV model. First-order (S₁) shows direct effects; Total-order (Sₜ) includes interactions."
 
 # Create DataFrame for AoG plotting
-sorted_idx = sortperm(ST, rev=true)
+sorted_idx = sortperm(ST, rev = true)
 sorted_names = param_names[sorted_idx]
 
 sobol_plot_df = DataFrame(
@@ -261,26 +223,28 @@ sobol_plot_df = DataFrame(
 )
 
 # Set parameter order for x-axis
-sobol_plot_df.parameter = categorical(sobol_plot_df.parameter, levels=sorted_names)
+sobol_plot_df.parameter = categorical(sobol_plot_df.parameter, levels = sorted_names)
 
 # Create AoG plot
 plt = data(sobol_plot_df) *
-    mapping(:parameter, :sensitivity, color=:index_type, dodge=:index_type) *
+    mapping(:parameter, :sensitivity, color = :index_type, dodge = :index_type) *
     visual(BarPlot)
 
 fig = Figure(size = (900, 500))
-ax = Axis(fig[1, 1],
+ax = Axis(
+    fig[1, 1],
     title = "Sensitivity of Final HBsAg to Model Parameters",
     xlabel = "Parameter",
-    ylabel = "Sensitivity Index")
+    ylabel = "Sensitivity Index"
+)
 
 ag = draw!(ax, plt, scales(Color = (; palette = [:steelblue, :orange])))
 
 # Reference line (Makie annotation)
-hlines!(ax, [0.1], color=:red, linestyle=:dash, linewidth=2)
+hlines!(ax, [0.1], color = :red, linestyle = :dash, linewidth = 2)
 
 # Legend outside plot
-legend!(fig[1, 2], ag, framevisible=false)
+legend!(fig[1, 2], ag, framevisible = false)
 
 fig
 ```
@@ -312,7 +276,7 @@ treatments = [:nuc, :ifn, :combo]
 treatment_results = Dict{Symbol, NamedTuple}()
 
 for tx in treatments
-    model_fn = params -> simulate_hbsag_simple(params; treatment=tx).log_HBsAg_final
+    model_fn = params -> simulate_hbsag_simple(params; treatment = tx).log_HBsAg_final
     result = GlobalSensitivity.gsa(model_fn, Sobol(), bounds; samples = 300)
     treatment_results[tx] = (S1 = result.S1, ST = result.ST)
 end
@@ -320,7 +284,7 @@ end
 # Create comparison DataFrame
 comparison_df = DataFrame(parameter = param_names)
 for tx in treatments
-    comparison_df[!, Symbol("ST_$(tx)")] = round.(treatment_results[tx].ST, digits=3)
+    comparison_df[!, Symbol("ST_$(tx)")] = round.(treatment_results[tx].ST, digits = 3)
 end
 
 println("Total-Order Sensitivity by Treatment:")
@@ -341,36 +305,40 @@ treatment_labels = Dict(:nuc => "NUC", :ifn => "IFN", :combo => "Combo")
 
 for tx in treatments
     for (i, pname) in enumerate(param_names)
-        push!(treatment_plot_df, (
-            parameter = pname,
-            sensitivity = treatment_results[tx].ST[i],
-            treatment = treatment_labels[tx]
-        ))
+        push!(
+            treatment_plot_df, (
+                parameter = pname,
+                sensitivity = treatment_results[tx].ST[i],
+                treatment = treatment_labels[tx],
+            )
+        )
     end
 end
 
 # Set parameter order for x-axis
-treatment_plot_df.parameter = categorical(treatment_plot_df.parameter, levels=param_names)
-treatment_plot_df.treatment = categorical(treatment_plot_df.treatment, levels=["NUC", "IFN", "Combo"])
+treatment_plot_df.parameter = categorical(treatment_plot_df.parameter, levels = param_names)
+treatment_plot_df.treatment = categorical(treatment_plot_df.treatment, levels = ["NUC", "IFN", "Combo"])
 
 # Create AoG plot
 plt = data(treatment_plot_df) *
-    mapping(:parameter, :sensitivity, color=:treatment, dodge=:treatment) *
+    mapping(:parameter, :sensitivity, color = :treatment, dodge = :treatment) *
     visual(BarPlot)
 
 fig = Figure(size = (1000, 500))
-ax = Axis(fig[1, 1],
+ax = Axis(
+    fig[1, 1],
     title = "Parameter Sensitivity by Treatment Arm",
     xlabel = "Parameter",
-    ylabel = "Total-Order Sensitivity (Sₜ)")
+    ylabel = "Total-Order Sensitivity (Sₜ)"
+)
 
 ag = draw!(ax, plt, scales(Color = (; palette = [:blue, :green, :purple])))
 
 # Reference line (Makie annotation)
-hlines!(ax, [0.1], color=:red, linestyle=:dash, linewidth=2)
+hlines!(ax, [0.1], color = :red, linestyle = :dash, linewidth = 2)
 
 # Legend outside plot
-legend!(fig[1, 2], ag, framevisible=false)
+legend!(fig[1, 2], ag, framevisible = false)
 
 fig
 ```
@@ -416,8 +384,8 @@ efast_ST = vec(efast_result.ST)
 # Compare methods
 comparison_methods = DataFrame(
     parameter = param_names,
-    Sobol_ST = round.(ST, digits=3),
-    eFAST_ST = round.(efast_ST, digits=3)
+    Sobol_ST = round.(ST, digits = 3),
+    eFAST_ST = round.(efast_ST, digits = 3)
 )
 
 println("\nComparison: Sobol vs eFAST")
@@ -433,9 +401,9 @@ simple_table(comparison_methods)
 influential = param_names[ST .> 0.1]
 non_influential = param_names[ST .< 0.05]
 
-println("=" ^ 50)
+println("="^50)
 println("GSA RECOMMENDATIONS")
-println("=" ^ 50)
+println("="^50)
 println("\nInfluential parameters (Sₜ > 0.1):")
 for p in influential
     println("  • $p - Focus estimation efforts here")
@@ -452,7 +420,8 @@ end
 :::{.callout-tip}
 ## For Model Development
 
-1. **Prioritize data collection** for HBsAg production (p_S) and treatment efficacy (epsNUC, epsIFN)
+1. **Prioritize data collection** for HBsAg production (p_S)
+   and treatment efficacy (epsNUC, epsIFN)
 2. **Consider fixing** k_Z and k_D if data is limited
 3. **Treatment response prediction** depends most on efficacy parameters
 :::
@@ -462,7 +431,8 @@ end
 
 1. **Stratify by p_S** (baseline HBsAg) for subgroup analysis
 2. **Treatment arm comparisons** sensitive to efficacy parameter distributions
-3. **Combination therapy** benefits from favorable values of both epsNUC and epsIFN
+3. **Combination therapy** benefits from favorable values of both epsNUC
+   and epsIFN
 :::
 
 ## Summary
@@ -490,7 +460,8 @@ end
 
 ### What's Next?
 
-In [Tutorial 4: Structural Identifiability](hbv_04_structural_identifiability_tutorial.qmd), we'll analyze which HBV parameters can be identified from different measurement scenarios.
+In [Tutorial 4: Structural Identifiability](hbv_04_structural_identifiability_tutorial.qmd),
+we'll analyze which HBV parameters can be identified from different measurement scenarios.
 
 ### References
 

@@ -27,9 +27,9 @@ using CairoMakie
 # Step 1: Generate Virtual Population
 =============================================================================#
 
-println("=" ^ 60)
+println("="^60)
 println("Step 1: Generating Virtual Population")
-println("=" ^ 60)
+println("="^60)
 
 # Parameters from Qi & Cao (2023):
 # - f: Treatment-sensitive fraction, median=0.27, ω=2.16, range [0,1]
@@ -38,7 +38,7 @@ println("=" ^ 60)
 # - Correlation: r(f,g) = -0.64
 
 n_patients = 10_000
-vpop = generate_tumor_burden_vpop(n_patients; seed=22)
+vpop = generate_tumor_burden_vpop(n_patients; seed = 22)
 
 # Display summary statistics
 param_names = [:f, :g, :k]
@@ -52,17 +52,17 @@ corr_validation = validate_correlations(vpop, param_names, expected_corr)
 println("\nCorrelation Validation:")
 println("  Expected r(f,g) = -0.64")
 println("  Observed correlation matrix:")
-display(round.(corr_validation.observed, digits=3))
-println("  Max difference: ", round(corr_validation.max_difference, digits=4))
+display(round.(corr_validation.observed, digits = 3))
+println("  Max difference: ", round(corr_validation.max_difference, digits = 4))
 println("  Valid (< 5% tolerance): ", corr_validation.valid)
 
 #=============================================================================
 # Step 2: Run Virtual Clinical Trial
 =============================================================================#
 
-println("\n" * "=" ^ 60)
+println("\n" * "="^60)
 println("Step 2: Running Virtual Clinical Trial")
-println("=" ^ 60)
+println("="^60)
 
 # Observation times: 0 to 126 days (18 weeks)
 observation_times = 0:1:126
@@ -90,9 +90,9 @@ println("  Control arm: $(nrow(control_results)) observations")
 # Step 3: Analyze Response Rates
 =============================================================================#
 
-println("\n" * "=" ^ 60)
+println("\n" * "="^60)
 println("Step 3: Analyzing Response Rates")
-println("=" ^ 60)
+println("="^60)
 
 # Threshold for complete response (from paper)
 # Minimum detectable PET is ~7mm, tumor baseline 3-5cm for Stage IIIA
@@ -130,22 +130,22 @@ combined = innerjoin(
 combined.percent_reduction = 100 .* (combined.Nt_control .- combined.Nt_treatment) ./ combined.Nt_control
 
 println("\nTreatment Effect at Week 18:")
-println("  Median tumor size reduction: $(round(median(combined.percent_reduction), digits=1))%")
-println("  5th percentile: $(round(quantile(combined.percent_reduction, 0.05), digits=1))%")
-println("  95th percentile: $(round(quantile(combined.percent_reduction, 0.95), digits=1))%")
+println("  Median tumor size reduction: $(round(median(combined.percent_reduction), digits = 1))%")
+println("  5th percentile: $(round(quantile(combined.percent_reduction, 0.05), digits = 1))%")
+println("  95th percentile: $(round(quantile(combined.percent_reduction, 0.95), digits = 1))%")
 
 #=============================================================================
 # Step 4: Visualization
 =============================================================================#
 
-println("\n" * "=" ^ 60)
+println("\n" * "="^60)
 println("Step 4: Creating Visualizations")
-println("=" ^ 60)
+println("="^60)
 
 # Prepare data for plotting
 # Calculate median and quartiles at each time point
 function summarize_dynamics(results::DataFrame)
-    @chain results begin
+    return @chain results begin
         @groupby(:time)
         @combine(
             :median = median(:Nt),
@@ -287,11 +287,11 @@ fig4
 save(joinpath(@__DIR__, "..", "outputs", "parameter_correlation.png"), fig4)
 println("Saved: outputs/parameter_correlation.png")
 
-println("\n" * "=" ^ 60)
+println("\n" * "="^60)
 println("ISCT Complete!")
-println("=" ^ 60)
+println("="^60)
 println("\nKey Results:")
 println("  - Generated $(n_patients) virtual patients")
 println("  - Correlation validation: $(corr_validation.valid ? "PASSED" : "FAILED")")
-println("  - Complete response rate at 18 weeks: $(round(response_analysis.median_rate[3], digits=2))%")
-println("  - Median tumor size reduction: $(round(median(combined.percent_reduction), digits=1))%")
+println("  - Complete response rate at 18 weeks: $(round(response_analysis.median_rate[3], digits = 2))%")
+println("  - Median tumor size reduction: $(round(median(combined.percent_reduction), digits = 1))%")

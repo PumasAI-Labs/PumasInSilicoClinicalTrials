@@ -30,13 +30,13 @@ using CairoMakie
 # Part 1: Tumor Burden VCT
 =============================================================================#
 
-println("=" ^ 70)
+println("="^70)
 println("Part 1: Tumor Burden Virtual Clinical Trial")
-println("=" ^ 70)
+println("="^70)
 
 # Generate virtual population
 println("\nGenerating virtual population...")
-vpop_tb = generate_tumor_burden_vpop(5000; seed=22)
+vpop_tb = generate_tumor_burden_vpop(5000; seed = 22)
 println("Generated $(nrow(vpop_tb)) virtual patients")
 
 # Summarize parameters
@@ -70,17 +70,17 @@ for week in [6, 12, 18]
     ctrl_responders = sum(ctrl_data.Nt .< 0.14)
 
     println("  Week $week:")
-    println("    Treatment: $(round(100*tx_responders/nrow(tx_data), digits=1))% complete response")
-    println("    Control: $(round(100*ctrl_responders/nrow(ctrl_data), digits=1))% complete response")
+    println("    Treatment: $(round(100 * tx_responders / nrow(tx_data), digits = 1))% complete response")
+    println("    Control: $(round(100 * ctrl_responders / nrow(ctrl_data), digits = 1))% complete response")
 end
 
 #=============================================================================
 # Part 2: HBV Virtual Clinical Trial
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 2: HBV Virtual Clinical Trial")
-println("=" ^ 70)
+println("="^70)
 
 # Load or generate HBV virtual population
 println("\nGenerating HBV virtual population...")
@@ -113,7 +113,7 @@ println("  Treatment arms: Control, NUC, IFN, NUC+IFN")
 println("  Population: Treatment-naive (non-suppressed)")
 
 # Show trial phases
-config_naive = VCTConfig(treatment=NUC_IFN_COMBO, suppressed=false)
+config_naive = VCTConfig(treatment = NUC_IFN_COMBO, suppressed = false)
 phases = get_phase_times(config_naive)
 println("\nTrial Phases (naive):")
 println("  Untreated: Day 0 - $(phases.untreated.stop) ($(phases.untreated.stop ÷ 365) years)")
@@ -130,9 +130,9 @@ trial_results = run_hbv_trial_comparison(
 )
 
 # Analyze endpoints
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("HBV Trial Results")
-println("=" ^ 70)
+println("="^70)
 
 comparison = compare_treatment_arms(trial_results)
 
@@ -145,8 +145,10 @@ for treatment in [CONTROL, NUC_ONLY, IFN_ONLY, NUC_IFN_COMBO]
     println("  N = $(nrow(results.summary))")
 
     for row in eachrow(rates)
-        println("  $(row.endpoint): $(round(row.rate, digits=1))% " *
-                "(95% CI: $(round(row.ci_lower, digits=1))-$(round(row.ci_upper, digits=1))%)")
+        println(
+            "  $(row.endpoint): $(round(row.rate, digits = 1))% " *
+                "(95% CI: $(round(row.ci_lower, digits = 1))-$(round(row.ci_upper, digits = 1))%)"
+        )
     end
 end
 
@@ -159,12 +161,12 @@ display(baseline_stats)
 # Part 3: Suppressed Population Comparison
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 3: NA-Suppressed Population Trial")
-println("=" ^ 70)
+println("="^70)
 
 # Configure suppressed trial
-config_sup = VCTConfig(treatment=NUC_IFN_COMBO, suppressed=true)
+config_sup = VCTConfig(treatment = NUC_IFN_COMBO, suppressed = true)
 phases_sup = get_phase_times(config_sup)
 
 println("Trial Phases (suppressed):")
@@ -190,8 +192,10 @@ for treatment in [NUC_ONLY, IFN_ONLY, NUC_IFN_COMBO]
     fc_rate = @subset(rates, :endpoint .== "Functional Cure")
 
     if nrow(fc_rate) > 0
-        println("  $(treatment): FC = $(round(fc_rate.rate[1], digits=1))% " *
-                "(95% CI: $(round(fc_rate.ci_lower[1], digits=1))-$(round(fc_rate.ci_upper[1], digits=1))%)")
+        println(
+            "  $(treatment): FC = $(round(fc_rate.rate[1], digits = 1))% " *
+                "(95% CI: $(round(fc_rate.ci_lower[1], digits = 1))-$(round(fc_rate.ci_upper[1], digits = 1))%)"
+        )
     end
 end
 
@@ -199,16 +203,16 @@ end
 # Part 4: Visualization
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 4: Creating Visualizations")
-println("=" ^ 70)
+println("="^70)
 
 # Figure 1: Tumor Burden Dynamics
 fig1 = Figure(size = (800, 500))
 
 # Calculate median and quartiles by time
 function summarize_by_time(df)
-    @chain df begin
+    return @chain df begin
         @groupby(:time)
         @combine(
             :median = median(:Nt),
@@ -222,23 +226,32 @@ end
 tx_summary = summarize_by_time(trial_tb.treatment)
 ctrl_summary = summarize_by_time(trial_tb.control)
 
-ax1 = Axis(fig1[1, 1],
+ax1 = Axis(
+    fig1[1, 1],
     xlabel = "Time (weeks)",
     ylabel = "Baseline-Normalized Tumor Diameter",
     title = "Tumor Burden VCT: Treatment vs Control"
 )
 
 # Control arm
-band!(ax1, ctrl_summary.time_weeks, ctrl_summary.q25, ctrl_summary.q75,
-      color = (:gray, 0.3))
-lines!(ax1, ctrl_summary.time_weeks, ctrl_summary.median,
-       color = :gray, linewidth = 2, label = "Control")
+band!(
+    ax1, ctrl_summary.time_weeks, ctrl_summary.q25, ctrl_summary.q75,
+    color = (:gray, 0.3)
+)
+lines!(
+    ax1, ctrl_summary.time_weeks, ctrl_summary.median,
+    color = :gray, linewidth = 2, label = "Control"
+)
 
 # Treatment arm
-band!(ax1, tx_summary.time_weeks, tx_summary.q25, tx_summary.q75,
-      color = (:blue, 0.3))
-lines!(ax1, tx_summary.time_weeks, tx_summary.median,
-       color = :blue, linewidth = 2, label = "Treatment")
+band!(
+    ax1, tx_summary.time_weeks, tx_summary.q25, tx_summary.q75,
+    color = (:blue, 0.3)
+)
+lines!(
+    ax1, tx_summary.time_weeks, tx_summary.median,
+    color = :blue, linewidth = 2, label = "Treatment"
+)
 
 xlims!(ax1, 0, 18)
 ylims!(ax1, 0.5, 1.7)
@@ -249,7 +262,8 @@ println("Saved: outputs/vct_tumor_burden.png")
 
 # Figure 2: HBV Treatment Comparison (Bar Chart)
 fig2 = Figure(size = (700, 500))
-ax2 = Axis(fig2[1, 1],
+ax2 = Axis(
+    fig2[1, 1],
     xlabel = "Treatment Arm",
     ylabel = "Functional Cure Rate (%)",
     title = "HBV VCT: Functional Cure Rates by Treatment",
@@ -267,15 +281,18 @@ ci_low = [fc_rates[fc_rates.treatment .== t, :ci_lower][1] for t in treatments_o
 ci_high = [fc_rates[fc_rates.treatment .== t, :ci_upper][1] for t in treatments_order]
 
 barplot!(ax2, 1:4, rates, color = [:gray, :blue, :orange, :green])
-errorbars!(ax2, 1:4, rates, rates .- ci_low, ci_high .- rates,
-           color = :black, whiskerwidth = 10)
+errorbars!(
+    ax2, 1:4, rates, rates .- ci_low, ci_high .- rates,
+    color = :black, whiskerwidth = 10
+)
 fig2
 save(joinpath(@__DIR__, "..", "outputs", "vct_hbv_fc_rates.png"), fig2)
 println("Saved: outputs/vct_hbv_fc_rates.png")
 
 # Figure 3: Naive vs Suppressed Comparison
 fig3 = Figure(size = (600, 500))
-ax3 = Axis(fig3[1, 1],
+ax3 = Axis(
+    fig3[1, 1],
     xlabel = "Treatment",
     ylabel = "Functional Cure Rate (%)",
     title = "HBV VCT: Naive vs Suppressed Populations",
@@ -296,10 +313,14 @@ rates_naive = [fc_naive[fc_naive.treatment .== t, :rate][1] for t in treatments_
 rates_sup = [fc_sup[fc_sup.treatment .== t, :rate][1] for t in treatments_3]
 
 barwidth = 0.35
-barplot!(ax3, (1:3) .- barwidth/2, rates_naive, width = barwidth,
-         color = :blue, label = "Naive")
-barplot!(ax3, (1:3) .+ barwidth/2, rates_sup, width = barwidth,
-         color = :orange, label = "Suppressed")
+barplot!(
+    ax3, (1:3) .- barwidth / 2, rates_naive, width = barwidth,
+    color = :blue, label = "Naive"
+)
+barplot!(
+    ax3, (1:3) .+ barwidth / 2, rates_sup, width = barwidth,
+    color = :orange, label = "Suppressed"
+)
 
 axislegend(ax3, position = :lt)
 fig3
@@ -310,9 +331,9 @@ println("Saved: outputs/vct_naive_vs_suppressed.png")
 # Summary
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("VCT Simulation Complete!")
-println("=" ^ 70)
+println("="^70)
 
 println("\nKey Results:")
 println("\nTumor Burden Model:")
@@ -323,7 +344,7 @@ println("\nHBV Model (Naive):")
 for treatment in [NUC_ONLY, IFN_ONLY, NUC_IFN_COMBO]
     rates = @subset(comparison, :treatment .== string(treatment), :endpoint .== "Functional Cure")
     if nrow(rates) > 0
-        println("  - $(treatment): $(round(rates.rate[1], digits=1))% FC rate")
+        println("  - $(treatment): $(round(rates.rate[1], digits = 1))% FC rate")
     end
 end
 
@@ -331,7 +352,7 @@ println("\nHBV Model (Suppressed):")
 for treatment in [NUC_ONLY, IFN_ONLY, NUC_IFN_COMBO]
     rates = @subset(comparison_sup, :treatment .== string(treatment), :endpoint .== "Functional Cure")
     if nrow(rates) > 0
-        println("  - $(treatment): $(round(rates.rate[1], digits=1))% FC rate")
+        println("  - $(treatment): $(round(rates.rate[1], digits = 1))% FC rate")
     end
 end
 

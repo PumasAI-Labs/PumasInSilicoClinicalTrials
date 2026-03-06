@@ -30,25 +30,27 @@ set_isct_theme!()
 # Part 1: Virtual Population Visualization
 =============================================================================#
 
-println("=" ^ 70)
+println("="^70)
 println("Part 1: Virtual Population Visualization")
-println("=" ^ 70)
+println("="^70)
 
 # Generate virtual population
 println("\nGenerating virtual population...")
-vpop = generate_tumor_burden_vpop(5000; seed=22)
+vpop = generate_tumor_burden_vpop(5000; seed = 22)
 println("Generated $(nrow(vpop)) virtual patients")
 
 # Plot parameter distributions
 println("\nCreating parameter distribution plots...")
-fig1 = plot_parameter_distributions(vpop, [:f, :g, :k];
+fig1 = plot_parameter_distributions(
+    vpop, [:f, :g, :k];
     title = "Tumor Burden Model Parameters"
 )
 save_figure(fig1, joinpath(@__DIR__, "..", "outputs", "viz_param_distributions.png"))
 
 # Plot parameter correlations
 println("Creating correlation matrix...")
-fig2 = plot_parameter_correlations(vpop, [:f, :g, :k];
+fig2 = plot_parameter_correlations(
+    vpop, [:f, :g, :k];
     title = "Parameter Correlations (Tumor Burden)"
 )
 save_figure(fig2, joinpath(@__DIR__, "..", "outputs", "viz_param_correlations.png"))
@@ -57,18 +59,20 @@ save_figure(fig2, joinpath(@__DIR__, "..", "outputs", "viz_param_correlations.pn
 println("\nParameter Summary:")
 for param in [:f, :g, :k]
     vals = vpop[!, param]
-    println("  $param: mean=$(round(mean(vals), digits=4)), " *
-            "std=$(round(std(vals), digits=4)), " *
-            "range=[$(round(minimum(vals), digits=4)), $(round(maximum(vals), digits=4))]")
+    println(
+        "  $param: mean=$(round(mean(vals), digits = 4)), " *
+            "std=$(round(std(vals), digits = 4)), " *
+            "range=[$(round(minimum(vals), digits = 4)), $(round(maximum(vals), digits = 4))]"
+    )
 end
 
 #=============================================================================
 # Part 2: VCT Dynamics Visualization
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 2: VCT Dynamics Visualization")
-println("=" ^ 70)
+println("="^70)
 
 # Run tumor burden VCT
 println("\nRunning tumor burden VCT simulation...")
@@ -109,14 +113,14 @@ save_figure(fig4, joinpath(@__DIR__, "..", "outputs", "viz_waterfall.png"))
 # Part 3: Treatment Comparison
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 3: Treatment Comparison Visualization")
-println("=" ^ 70)
+println("="^70)
 
 # Calculate response rates at different time points
 println("\nCalculating response rates...")
 
-function calculate_response_stats(df, time_days, threshold=0.14)
+function calculate_response_stats(df, time_days, threshold = 0.14)
     subset = @subset(df, :time .== time_days)
     rate = 100 * sum(subset.Nt .< threshold) / nrow(subset)
     # Simple bootstrap for CI
@@ -138,20 +142,24 @@ for week in [6, 12, 18]
     tx_stats = calculate_response_stats(trial_results.treatment, day)
     ctrl_stats = calculate_response_stats(trial_results.control, day)
 
-    push!(response_data, (
-        week = week,
-        treatment = "Treatment",
-        rate = tx_stats[1],
-        ci_lower = tx_stats[2],
-        ci_upper = tx_stats[3]
-    ))
-    push!(response_data, (
-        week = week,
-        treatment = "Control",
-        rate = ctrl_stats[1],
-        ci_lower = ctrl_stats[2],
-        ci_upper = ctrl_stats[3]
-    ))
+    push!(
+        response_data, (
+            week = week,
+            treatment = "Treatment",
+            rate = tx_stats[1],
+            ci_lower = tx_stats[2],
+            ci_upper = tx_stats[3],
+        )
+    )
+    push!(
+        response_data, (
+            week = week,
+            treatment = "Control",
+            rate = ctrl_stats[1],
+            ci_lower = ctrl_stats[2],
+            ci_upper = ctrl_stats[3],
+        )
+    )
 end
 
 println("\nResponse Rates:")
@@ -161,7 +169,8 @@ display(response_data)
 println("\nCreating response comparison plot...")
 fig5 = Figure(size = (700, 450))
 
-ax5 = Axis(fig5[1, 1],
+ax5 = Axis(
+    fig5[1, 1],
     xlabel = "Week",
     ylabel = "Complete Response Rate (%)",
     title = "Response Rate Over Time",
@@ -173,20 +182,24 @@ tx_data = @subset(response_data, :treatment .== "Treatment")
 ctrl_data = @subset(response_data, :treatment .== "Control")
 
 barwidth = 0.35
-x_tx = [1, 2, 3] .- barwidth/2
-x_ctrl = [1, 2, 3] .+ barwidth/2
+x_tx = [1, 2, 3] .- barwidth / 2
+x_ctrl = [1, 2, 3] .+ barwidth / 2
 
-barplot!(ax5, x_ctrl, ctrl_data.rate, width=barwidth, color=:gray, label="Control")
-errorbars!(ax5, x_ctrl, ctrl_data.rate,
-           ctrl_data.rate .- ctrl_data.ci_lower, ctrl_data.ci_upper .- ctrl_data.rate,
-           color=:black, whiskerwidth=8)
+barplot!(ax5, x_ctrl, ctrl_data.rate, width = barwidth, color = :gray, label = "Control")
+errorbars!(
+    ax5, x_ctrl, ctrl_data.rate,
+    ctrl_data.rate .- ctrl_data.ci_lower, ctrl_data.ci_upper .- ctrl_data.rate,
+    color = :black, whiskerwidth = 8
+)
 
-barplot!(ax5, x_tx, tx_data.rate, width=barwidth, color=:blue, label="Treatment")
-errorbars!(ax5, x_tx, tx_data.rate,
-           tx_data.rate .- tx_data.ci_lower, tx_data.ci_upper .- tx_data.rate,
-           color=:black, whiskerwidth=8)
+barplot!(ax5, x_tx, tx_data.rate, width = barwidth, color = :blue, label = "Treatment")
+errorbars!(
+    ax5, x_tx, tx_data.rate,
+    tx_data.rate .- tx_data.ci_lower, tx_data.ci_upper .- tx_data.rate,
+    color = :black, whiskerwidth = 8
+)
 
-axislegend(ax5, position=:lt)
+axislegend(ax5, position = :lt)
 
 save_figure(fig5, joinpath(@__DIR__, "..", "outputs", "viz_response_comparison.png"))
 
@@ -194,9 +207,9 @@ save_figure(fig5, joinpath(@__DIR__, "..", "outputs", "viz_response_comparison.p
 # Part 4: Calibration Visualization
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 4: Calibration Visualization")
-println("=" ^ 70)
+println("="^70)
 
 # Create synthetic uncalibrated population
 println("\nCreating synthetic populations for calibration demo...")
@@ -211,11 +224,11 @@ vpop_orig = DataFrame(
 target_edges = [1.0, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]
 target_pcts = [5.0, 15.0, 30.0, 30.0, 15.0, 5.0]
 
-target = create_target_from_specification(target_edges, target_pcts; variable_name=:HBsAg)
+target = create_target_from_specification(target_edges, target_pcts; variable_name = :HBsAg)
 
 # Run calibration
 println("Running MILP calibration...")
-result = solve_milp_calibration(vpop_orig.HBsAg, target, 0.15; time_limit=30.0)
+result = solve_milp_calibration(vpop_orig.HBsAg, target, 0.15; time_limit = 30.0)
 print_calibration_summary(result)
 
 # Create calibrated population
@@ -223,7 +236,8 @@ vpop_calib = vpop_orig[result.selected_indices, :]
 
 # Plot comparison
 println("\nCreating calibration comparison plot...")
-fig6 = plot_vpop_comparison(vpop_orig, vpop_calib, :HBsAg;
+fig6 = plot_vpop_comparison(
+    vpop_orig, vpop_calib, :HBsAg;
     title = "MILP Calibration: Before vs After"
 )
 save_figure(fig6, joinpath(@__DIR__, "..", "outputs", "viz_calibration_comparison.png"))
@@ -237,7 +251,7 @@ function bin_percentages(values, edges)
     counts = zeros(length(edges) - 1)
     for v in values
         for i in 1:length(counts)
-            if v >= edges[i] && v < edges[i+1]
+            if v >= edges[i] && v < edges[i + 1]
                 counts[i] += 1
                 break
             end
@@ -253,7 +267,8 @@ pct_target = target_pcts
 bin_labels = ["1-2", "2-2.5", "2.5-3", "3-3.5", "3.5-4", "4-5"]
 n_bins = length(bin_labels)
 
-ax7 = Axis(fig7[1, 1],
+ax7 = Axis(
+    fig7[1, 1],
     xlabel = "HBsAg Range (log₁₀ IU/mL)",
     ylabel = "Percentage (%)",
     title = "Distribution Matching",
@@ -261,11 +276,11 @@ ax7 = Axis(fig7[1, 1],
 )
 
 barwidth7 = 0.25
-barplot!(ax7, (1:n_bins) .- barwidth7, pct_orig, width=barwidth7, color=:blue, label="Original")
-barplot!(ax7, (1:n_bins), pct_calib, width=barwidth7, color=:green, label="Calibrated")
-barplot!(ax7, (1:n_bins) .+ barwidth7, pct_target, width=barwidth7, color=:orange, label="Target")
+barplot!(ax7, (1:n_bins) .- barwidth7, pct_orig, width = barwidth7, color = :blue, label = "Original")
+barplot!(ax7, (1:n_bins), pct_calib, width = barwidth7, color = :green, label = "Calibrated")
+barplot!(ax7, (1:n_bins) .+ barwidth7, pct_target, width = barwidth7, color = :orange, label = "Target")
 
-axislegend(ax7, position=:rt)
+axislegend(ax7, position = :rt)
 
 save_figure(fig7, joinpath(@__DIR__, "..", "outputs", "viz_bin_comparison.png"))
 
@@ -273,9 +288,9 @@ save_figure(fig7, joinpath(@__DIR__, "..", "outputs", "viz_bin_comparison.png"))
 # Part 5: GSA Visualization
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 5: GSA Visualization")
-println("=" ^ 70)
+println("="^70)
 
 # Run GSA
 println("\nRunning eFAST analysis...")
@@ -289,14 +304,16 @@ print_gsa_summary(gsa_result)
 
 # Plot sensitivity indices
 println("\nCreating GSA bar chart...")
-fig8 = plot_gsa_indices(gsa_result, :final_tumor;
+fig8 = plot_gsa_indices(
+    gsa_result, :final_tumor;
     title = "Tumor Burden GSA"
 )
 save_figure(fig8, joinpath(@__DIR__, "..", "outputs", "viz_gsa_indices.png"))
 
 # Create GSA heatmap
 println("Creating GSA heatmap...")
-fig9 = plot_gsa_heatmap(gsa_result;
+fig9 = plot_gsa_heatmap(
+    gsa_result;
     index_type = :total_order,
     title = "Total Order Sensitivity Heatmap"
 )
@@ -306,9 +323,9 @@ save_figure(fig9, joinpath(@__DIR__, "..", "outputs", "viz_gsa_heatmap.png"))
 # Part 6: Summary Dashboard
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 6: Summary Dashboard")
-println("=" ^ 70)
+println("="^70)
 
 println("\nCreating ISCT summary figure...")
 fig10 = create_isct_summary_figure(
@@ -324,20 +341,21 @@ save_figure(fig10, joinpath(@__DIR__, "..", "outputs", "viz_isct_summary.png"))
 # Part 7: Quick Exploration Utilities
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 7: Quick Exploration Utilities Demo")
-println("=" ^ 70)
+println("="^70)
 
 # Quick histogram
 println("\nQuick histogram example...")
-fig_quick1 = quick_hist(vpop.f; title="Treatment-Sensitive Fraction (f)", bins=40)
+fig_quick1 = quick_hist(vpop.f; title = "Treatment-Sensitive Fraction (f)", bins = 40)
 save_figure(fig_quick1, joinpath(@__DIR__, "..", "outputs", "viz_quick_hist.png"))
 
 # Quick scatter
 println("Quick scatter example...")
-fig_quick2 = quick_scatter(vpop.g, vpop.f;
-    xlabel="Growth Rate (g)", ylabel="Sensitive Fraction (f)",
-    title="g vs f Correlation"
+fig_quick2 = quick_scatter(
+    vpop.g, vpop.f;
+    xlabel = "Growth Rate (g)", ylabel = "Sensitive Fraction (f)",
+    title = "g vs f Correlation"
 )
 save_figure(fig_quick2, joinpath(@__DIR__, "..", "outputs", "viz_quick_scatter.png"))
 
@@ -345,9 +363,9 @@ save_figure(fig_quick2, joinpath(@__DIR__, "..", "outputs", "viz_quick_scatter.p
 # Summary
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Visualization Example Complete!")
-println("=" ^ 70)
+println("="^70)
 
 println("\nGenerated Figures:")
 println("  1. viz_param_distributions.png - Parameter histograms")

@@ -35,11 +35,11 @@ const ISCT_THEME = Theme(
         xlabelsize = 12,
         ylabelsize = 12,
         xticklabelsize = 10,
-        yticklabelsize = 10
+        yticklabelsize = 10,
     ),
     Legend = (
         framevisible = false,
-        labelsize = 10
+        labelsize = 10,
     )
 )
 
@@ -93,7 +93,7 @@ const HBV_LOQ_THRESHOLDS = Dict(
 Apply the ISCT theme globally.
 """
 function set_isct_theme!()
-    set_theme!(ISCT_THEME)
+    return set_theme!(ISCT_THEME)
 end
 
 #=============================================================================
@@ -120,11 +120,11 @@ Create histogram panel for virtual population parameters.
 Makie Figure with parameter histograms
 """
 function plot_parameter_distributions(
-    vpop::DataFrame,
-    params::Vector{Symbol};
-    nbins::Int = 30,
-    title::String = "Parameter Distributions"
-)
+        vpop::DataFrame,
+        params::Vector{Symbol};
+        nbins::Int = 30,
+        title::String = "Parameter Distributions"
+    )
     n_params = length(params)
     ncols = min(n_params, 3)
     nrows = ceil(Int, n_params / ncols)
@@ -135,7 +135,8 @@ function plot_parameter_distributions(
         row = div(i - 1, ncols) + 1
         col = mod(i - 1, ncols) + 1
 
-        ax = Axis(fig[row, col],
+        ax = Axis(
+            fig[row, col],
             xlabel = string(param),
             ylabel = "Count",
             title = string(param)
@@ -162,19 +163,19 @@ AlgebraOfGraphics version: Create histogram panel for virtual population paramet
 Uses data() |> mapping() |> visual() |> draw() pattern.
 """
 function plot_parameter_distributions_aog(
-    vpop::DataFrame,
-    params::Vector{Symbol};
-    nbins::Int = 30,
-    title::String = "Parameter Distributions"
-)
+        vpop::DataFrame,
+        params::Vector{Symbol};
+        nbins::Int = 30,
+        title::String = "Parameter Distributions"
+    )
     # Stack parameters into long format for AOG faceting
-    long_df = stack(vpop[:, params], params, variable_name=:parameter, value_name=:value)
+    long_df = stack(vpop[:, params], params, variable_name = :parameter, value_name = :value)
 
     # Create the plot specification
     plt = data(long_df) *
-          mapping(:value) *
-          histogram(bins=nbins) *
-          mapping(col=:parameter)
+        mapping(:value) *
+        histogram(bins = nbins) *
+        mapping(col = :parameter)
 
     # Draw with layout
     fig = draw(
@@ -205,10 +206,10 @@ Create scatter plot matrix showing parameter correlations.
 Makie Figure with correlation scatter plots
 """
 function plot_parameter_correlations(
-    vpop::DataFrame,
-    params::Vector{Symbol};
-    title::String = "Parameter Correlations"
-)
+        vpop::DataFrame,
+        params::Vector{Symbol};
+        title::String = "Parameter Correlations"
+    )
     n_params = length(params)
     fig = Figure(size = (200 * n_params, 200 * n_params))
 
@@ -226,13 +227,17 @@ function plot_parameter_correlations(
                 hist!(ax, vpop_sample[!, params[i]], bins = 20, color = (:blue, 0.6))
             elseif i > j
                 # Lower triangle: scatter plot
-                scatter!(ax, vpop_sample[!, params[j]], vpop_sample[!, params[i]],
-                        markersize = 3, color = (:blue, 0.3))
+                scatter!(
+                    ax, vpop_sample[!, params[j]], vpop_sample[!, params[i]],
+                    markersize = 3, color = (:blue, 0.3)
+                )
 
                 # Add correlation coefficient
                 r = cor(vpop[!, params[j]], vpop[!, params[i]])
-                text!(ax, 0.05, 0.95, text = "r=$(round(r, digits=2))",
-                      space = :relative, align = (:left, :top), fontsize = 10)
+                text!(
+                    ax, 0.05, 0.95, text = "r=$(round(r, digits = 2))",
+                    space = :relative, align = (:left, :top), fontsize = 10
+                )
             else
                 # Upper triangle: empty or density
                 hidedecorations!(ax)
@@ -266,10 +271,10 @@ AlgebraOfGraphics version: Create pairplot showing parameter correlations.
 Uses AOG's pairplot functionality for scatter matrix with histograms on diagonal.
 """
 function plot_parameter_correlations_aog(
-    vpop::DataFrame,
-    params::Vector{Symbol};
-    title::String = "Parameter Correlations"
-)
+        vpop::DataFrame,
+        params::Vector{Symbol};
+        title::String = "Parameter Correlations"
+    )
     # Sample for performance if large dataset
     sample_size = min(nrow(vpop), 1000)
     sample_idx = rand(1:nrow(vpop), sample_size)
@@ -281,8 +286,8 @@ function plot_parameter_correlations_aog(
     layers = data(vpop_sample) * mapping(params..., params...)
 
     # Build the layers: histogram on diagonal, scatter elsewhere
-    diag = mapping(params) * histogram(bins=20)
-    offdiag = mapping(params..., params...) * visual(Scatter, markersize=3, alpha=0.3)
+    diag = mapping(params) * histogram(bins = 20)
+    offdiag = mapping(params..., params...) * visual(Scatter, markersize = 3, alpha = 0.3)
 
     # Alternative simpler approach using basic AOG patterns
     # Create pairs plot manually
@@ -293,12 +298,12 @@ function plot_parameter_correlations_aog(
         for j in 1:n_params
             if i == j
                 # Diagonal: histogram using AOG
-                plt = data(vpop_sample) * mapping(params[i]) * histogram(bins=20)
+                plt = data(vpop_sample) * mapping(params[i]) * histogram(bins = 20)
                 ag = draw!(fig[i, j], plt)
             elseif i > j
                 # Lower triangle: scatter plot using AOG
                 plt = data(vpop_sample) * mapping(params[j], params[i]) *
-                      visual(Scatter, markersize=3, alpha=0.3)
+                    visual(Scatter, markersize = 3, alpha = 0.3)
                 ag = draw!(fig[i, j], plt)
             else
                 # Upper triangle: hide
@@ -325,30 +330,36 @@ end
 Compare parameter distribution before and after calibration.
 """
 function plot_vpop_comparison(
-    vpop_original::DataFrame,
-    vpop_calibrated::DataFrame,
-    param::Symbol;
-    nbins::Int = 30,
-    title::String = "Before vs After Calibration"
-)
+        vpop_original::DataFrame,
+        vpop_calibrated::DataFrame,
+        param::Symbol;
+        nbins::Int = 30,
+        title::String = "Before vs After Calibration"
+    )
     fig = Figure(size = (700, 400))
 
-    ax1 = Axis(fig[1, 1],
+    ax1 = Axis(
+        fig[1, 1],
         xlabel = string(param),
         ylabel = "Density",
         title = "Original (n=$(nrow(vpop_original)))"
     )
 
-    ax2 = Axis(fig[1, 2],
+    ax2 = Axis(
+        fig[1, 2],
         xlabel = string(param),
         ylabel = "Density",
         title = "Calibrated (n=$(nrow(vpop_calibrated)))"
     )
 
-    hist!(ax1, vpop_original[!, param], bins = nbins,
-          normalization = :pdf, color = (:blue, 0.6))
-    hist!(ax2, vpop_calibrated[!, param], bins = nbins,
-          normalization = :pdf, color = (:green, 0.6))
+    hist!(
+        ax1, vpop_original[!, param], bins = nbins,
+        normalization = :pdf, color = (:blue, 0.6)
+    )
+    hist!(
+        ax2, vpop_calibrated[!, param], bins = nbins,
+        normalization = :pdf, color = (:green, 0.6)
+    )
 
     # Link axes
     linkyaxes!(ax1, ax2)
@@ -372,12 +383,12 @@ AlgebraOfGraphics version: Compare parameter distribution before and after calib
 Uses AOG faceting with combined DataFrame.
 """
 function plot_vpop_comparison_aog(
-    vpop_original::DataFrame,
-    vpop_calibrated::DataFrame,
-    param::Symbol;
-    nbins::Int = 30,
-    title::String = "Before vs After Calibration"
-)
+        vpop_original::DataFrame,
+        vpop_calibrated::DataFrame,
+        param::Symbol;
+        nbins::Int = 30,
+        title::String = "Before vs After Calibration"
+    )
     # Combine data with source label
     df_orig = DataFrame(
         value = vpop_original[!, param],
@@ -391,9 +402,9 @@ function plot_vpop_comparison_aog(
 
     # Create AOG plot with faceting
     plt = data(combined_df) *
-          mapping(:value) *
-          histogram(bins=nbins, normalization=:pdf) *
-          mapping(col=:source => sorter(["Original (n=$(nrow(vpop_original)))", "Calibrated (n=$(nrow(vpop_calibrated)))"]))
+        mapping(:value) *
+        histogram(bins = nbins, normalization = :pdf) *
+        mapping(col = :source => sorter(["Original (n=$(nrow(vpop_original)))", "Calibrated (n=$(nrow(vpop_calibrated)))"]))
 
     fig = draw(
         plt;
@@ -430,16 +441,17 @@ Plot tumor burden dynamics for treatment vs control arms.
 Makie Figure with median and IQR bands
 """
 function plot_tumor_dynamics(
-    treatment_df::DataFrame,
-    control_df::DataFrame;
-    time_col::Symbol = :time,
-    value_col::Symbol = :Nt,
-    title::String = "Tumor Burden Dynamics"
-)
+        treatment_df::DataFrame,
+        control_df::DataFrame;
+        time_col::Symbol = :time,
+        value_col::Symbol = :Nt,
+        title::String = "Tumor Burden Dynamics"
+    )
     # Calculate summary statistics using plain DataFrames (avoids macro scoping issues)
     function summarize_by_time(df, time_col, value_col)
         gdf = groupby(df, time_col)
-        result = combine(gdf,
+        result = combine(
+            gdf,
             value_col => median => :median,
             value_col => (x -> quantile(x, 0.25)) => :q25,
             value_col => (x -> quantile(x, 0.75)) => :q75,
@@ -455,31 +467,44 @@ function plot_tumor_dynamics(
 
     fig = Figure(size = (700, 500))
 
-    ax = Axis(fig[1, 1],
+    ax = Axis(
+        fig[1, 1],
         xlabel = "Time (weeks)",
         ylabel = "Baseline-Normalized Tumor Diameter",
         title = title
     )
 
     # Control arm (90% CI band)
-    band!(ax, ctrl_summary.time_weeks, ctrl_summary.q05, ctrl_summary.q95,
-          color = (:gray, 0.2))
+    band!(
+        ax, ctrl_summary.time_weeks, ctrl_summary.q05, ctrl_summary.q95,
+        color = (:gray, 0.2)
+    )
     # Control arm (IQR band)
-    band!(ax, ctrl_summary.time_weeks, ctrl_summary.q25, ctrl_summary.q75,
-          color = (:gray, 0.3))
+    band!(
+        ax, ctrl_summary.time_weeks, ctrl_summary.q25, ctrl_summary.q75,
+        color = (:gray, 0.3)
+    )
     # Control median
-    lines!(ax, ctrl_summary.time_weeks, ctrl_summary.median,
-           color = :gray, linewidth = 2, label = "Control")
+    lines!(
+        ax, ctrl_summary.time_weeks, ctrl_summary.median,
+        color = :gray, linewidth = 2, label = "Control"
+    )
 
     # Treatment arm (90% CI band)
-    band!(ax, tx_summary.time_weeks, tx_summary.q05, tx_summary.q95,
-          color = (:blue, 0.2))
+    band!(
+        ax, tx_summary.time_weeks, tx_summary.q05, tx_summary.q95,
+        color = (:blue, 0.2)
+    )
     # Treatment arm (IQR band)
-    band!(ax, tx_summary.time_weeks, tx_summary.q25, tx_summary.q75,
-          color = (:blue, 0.3))
+    band!(
+        ax, tx_summary.time_weeks, tx_summary.q25, tx_summary.q75,
+        color = (:blue, 0.3)
+    )
     # Treatment median
-    lines!(ax, tx_summary.time_weeks, tx_summary.median,
-           color = :blue, linewidth = 2, label = "Treatment")
+    lines!(
+        ax, tx_summary.time_weeks, tx_summary.median,
+        color = :blue, linewidth = 2, label = "Treatment"
+    )
 
     axislegend(ax, position = :lt)
 
@@ -500,16 +525,17 @@ AlgebraOfGraphics version: Plot tumor burden dynamics for treatment vs control a
 Uses AOG layering with summary statistics computed beforehand.
 """
 function plot_tumor_dynamics_aog(
-    treatment_df::DataFrame,
-    control_df::DataFrame;
-    time_col::Symbol = :time,
-    value_col::Symbol = :Nt,
-    title::String = "Tumor Burden Dynamics"
-)
+        treatment_df::DataFrame,
+        control_df::DataFrame;
+        time_col::Symbol = :time,
+        value_col::Symbol = :Nt,
+        title::String = "Tumor Burden Dynamics"
+    )
     # Calculate summary statistics with arm labels (plain DataFrames)
     function summarize_with_arm(df, arm_name)
         gdf = groupby(df, time_col)
-        result = combine(gdf,
+        result = combine(
+            gdf,
             value_col => median => :median,
             value_col => (x -> quantile(x, 0.25)) => :q25,
             value_col => (x -> quantile(x, 0.75)) => :q75,
@@ -528,9 +554,11 @@ function plot_tumor_dynamics_aog(
     # Create the plot layers
     # Median lines with color by arm
     line_layer = data(combined) *
-                 mapping(:time_weeks => "Time (weeks)", :median => "Tumor Size",
-                        color=:arm => "Arm") *
-                 visual(Lines, linewidth=2)
+        mapping(
+        :time_weeks => "Time (weeks)", :median => "Tumor Size",
+        color = :arm => "Arm"
+    ) *
+        visual(Lines, linewidth = 2)
 
     # Band layer for IQR (Note: AOG doesn't have native band, so we use separate approach)
     # For bands, we'll use a hybrid approach
@@ -564,16 +592,16 @@ end
 Create waterfall plot showing percent change from baseline.
 """
 function plot_response_waterfall(
-    sim_results::DataFrame,
-    baseline_time::Real,
-    final_time::Real;
-    id_col::Symbol = :id,
-    time_col::Symbol = :time,
-    value_col::Symbol = :Nt,
-    threshold::Float64 = 0.14,
-    title::String = "Response Waterfall Plot",
-    max_patients::Int = 100
-)
+        sim_results::DataFrame,
+        baseline_time::Real,
+        final_time::Real;
+        id_col::Symbol = :id,
+        time_col::Symbol = :time,
+        value_col::Symbol = :Nt,
+        threshold::Float64 = 0.14,
+        title::String = "Response Waterfall Plot",
+        max_patients::Int = 100
+    )
     # Calculate percent change (plain DataFrames)
     baseline = sim_results[sim_results[!, time_col] .== baseline_time, [id_col, value_col]]
     baseline = rename(baseline, value_col => :baseline)
@@ -589,21 +617,24 @@ function plot_response_waterfall(
 
     # Limit number of patients for visualization
     if nrow(changes) > max_patients
-        sample_idx = round.(Int, range(1, nrow(changes), length=max_patients))
+        sample_idx = round.(Int, range(1, nrow(changes), length = max_patients))
         changes = changes[sample_idx, :]
     end
 
     fig = Figure(size = (800, 500))
 
-    ax = Axis(fig[1, 1],
+    ax = Axis(
+        fig[1, 1],
         xlabel = "Patient",
         ylabel = "Change from Baseline (%)",
         title = title
     )
 
     # Color by response
-    colors = [c < (threshold - 1) * 100 ? :green : (c > 20 ? :red : :gray)
-              for c in changes.pct_change]
+    colors = [
+        c < (threshold - 1) * 100 ? :green : (c > 20 ? :red : :gray)
+            for c in changes.pct_change
+    ]
 
     barplot!(ax, 1:nrow(changes), changes.pct_change, color = colors)
 
@@ -633,16 +664,16 @@ AlgebraOfGraphics version: Create waterfall plot showing percent change from bas
 Uses AOG with computed response categories for coloring.
 """
 function plot_response_waterfall_aog(
-    sim_results::DataFrame,
-    baseline_time::Real,
-    final_time::Real;
-    id_col::Symbol = :id,
-    time_col::Symbol = :time,
-    value_col::Symbol = :Nt,
-    threshold::Float64 = 0.14,
-    title::String = "Response Waterfall Plot",
-    max_patients::Int = 100
-)
+        sim_results::DataFrame,
+        baseline_time::Real,
+        final_time::Real;
+        id_col::Symbol = :id,
+        time_col::Symbol = :time,
+        value_col::Symbol = :Nt,
+        threshold::Float64 = 0.14,
+        title::String = "Response Waterfall Plot",
+        max_patients::Int = 100
+    )
     # Calculate percent change (plain DataFrames)
     baseline = sim_results[sim_results[!, time_col] .== baseline_time, [id_col, value_col]]
     baseline = rename(baseline, value_col => :baseline)
@@ -656,20 +687,24 @@ function plot_response_waterfall_aog(
     # Sort and sample
     sort!(changes, :pct_change)
     if nrow(changes) > max_patients
-        sample_idx = round.(Int, range(1, nrow(changes), length=max_patients))
+        sample_idx = round.(Int, range(1, nrow(changes), length = max_patients))
         changes = changes[sample_idx, :]
     end
 
     # Add response category and patient order
-    changes[!, :response] = [c < (threshold - 1) * 100 ? "CR" : (c > 20 ? "PD" : "SD")
-                             for c in changes.pct_change]
+    changes[!, :response] = [
+        c < (threshold - 1) * 100 ? "CR" : (c > 20 ? "PD" : "SD")
+            for c in changes.pct_change
+    ]
     changes[!, :patient_order] = 1:nrow(changes)
 
     # Create AOG bar plot with color by response
     plt = data(changes) *
-          mapping(:patient_order => "Patient", :pct_change => "Change from Baseline (%)",
-                  color=:response => "Response") *
-          visual(BarPlot)
+        mapping(
+        :patient_order => "Patient", :pct_change => "Change from Baseline (%)",
+        color = :response => "Response"
+    ) *
+        visual(BarPlot)
 
     fig = draw(plt; axis = (title = title,))
 
@@ -697,10 +732,10 @@ Create bar chart comparing endpoints across treatment arms.
 - `title`: Plot title
 """
 function plot_treatment_comparison(
-    results_dict::Dict,
-    endpoint::Symbol;
-    title::String = "Treatment Comparison"
-)
+        results_dict::Dict,
+        endpoint::Symbol;
+        title::String = "Treatment Comparison"
+    )
     treatments = collect(keys(results_dict))
     n_treatments = length(treatments)
 
@@ -710,7 +745,8 @@ function plot_treatment_comparison(
 
     fig = Figure(size = (600, 450))
 
-    ax = Axis(fig[1, 1],
+    ax = Axis(
+        fig[1, 1],
         xlabel = "Treatment Arm",
         ylabel = "$(endpoint) Rate (%)",
         title = title,
@@ -720,8 +756,10 @@ function plot_treatment_comparison(
     colors = [get(TREATMENT_COLORS, Symbol(t), colorant"#999999") for t in treatments]
 
     barplot!(ax, 1:n_treatments, rates, color = colors)
-    errorbars!(ax, 1:n_treatments, rates, rates .- ci_low, ci_high .- rates,
-               color = :black, whiskerwidth = 10)
+    errorbars!(
+        ax, 1:n_treatments, rates, rates .- ci_low, ci_high .- rates,
+        color = :black, whiskerwidth = 10
+    )
 
     return fig
 end
@@ -738,10 +776,10 @@ AlgebraOfGraphics version: Create bar chart comparing endpoints across treatment
 Uses AOG with DataFrame of results for cleaner declarative syntax.
 """
 function plot_treatment_comparison_aog(
-    results_dict::Dict,
-    endpoint::Symbol;
-    title::String = "Treatment Comparison"
-)
+        results_dict::Dict,
+        endpoint::Symbol;
+        title::String = "Treatment Comparison"
+    )
     # Build DataFrame from results
     df = DataFrame(
         treatment = String[],
@@ -756,17 +794,21 @@ function plot_treatment_comparison_aog(
 
     # Create AOG bar plot
     plt = data(df) *
-          mapping(:treatment => "Treatment Arm", :rate => "$(endpoint) Rate (%)",
-                  color=:treatment => "Treatment") *
-          visual(BarPlot)
+        mapping(
+        :treatment => "Treatment Arm", :rate => "$(endpoint) Rate (%)",
+        color = :treatment => "Treatment"
+    ) *
+        visual(BarPlot)
 
     fig = draw(plt; axis = (title = title,))
 
     # Add error bars manually (AOG doesn't directly support asymmetric error bars)
     ax = current_axis()
     x_positions = 1:nrow(df)
-    errorbars!(ax, x_positions, df.rate, df.rate .- df.ci_low, df.ci_high .- df.rate,
-               color = :black, whiskerwidth = 10)
+    errorbars!(
+        ax, x_positions, df.rate, df.rate .- df.ci_low, df.ci_high .- df.rate,
+        color = :black, whiskerwidth = 10
+    )
 
     return fig
 end
@@ -781,10 +823,10 @@ end
 Plot HBV viral and HBsAg dynamics for sample of patients.
 """
 function plot_hbv_dynamics(
-    dynamics_df::DataFrame;
-    id_sample::Int = 10,
-    title::String = "HBV Viral Dynamics"
-)
+        dynamics_df::DataFrame;
+        id_sample::Int = 10,
+        title::String = "HBV Viral Dynamics"
+    )
     # Sample patients
     unique_ids = unique(dynamics_df.id)
     sample_ids = unique_ids[1:min(id_sample, length(unique_ids))]
@@ -794,7 +836,8 @@ function plot_hbv_dynamics(
     fig = Figure(size = (800, 600))
 
     # HBsAg panel
-    ax1 = Axis(fig[1, 1],
+    ax1 = Axis(
+        fig[1, 1],
         xlabel = "Time (days)",
         ylabel = "log₁₀(HBsAg) IU/mL",
         title = "HBsAg Dynamics"
@@ -803,15 +846,20 @@ function plot_hbv_dynamics(
     if :log_HBsAg in names(dynamics_df)
         for id in sample_ids
             patient_data = @subset(sample_df, :id .== id)
-            lines!(ax1, patient_data.time, patient_data.log_HBsAg,
-                   color = (:blue, 0.3), linewidth = 0.5)
+            lines!(
+                ax1, patient_data.time, patient_data.log_HBsAg,
+                color = (:blue, 0.3), linewidth = 0.5
+            )
         end
-        hlines!(ax1, [log10(0.05)], color = :red, linestyle = :dash,
-                label = "LOQ (0.05 IU/mL)")
+        hlines!(
+            ax1, [log10(0.05)], color = :red, linestyle = :dash,
+            label = "LOQ (0.05 IU/mL)"
+        )
     end
 
     # Viral load panel
-    ax2 = Axis(fig[2, 1],
+    ax2 = Axis(
+        fig[2, 1],
         xlabel = "Time (days)",
         ylabel = "log₁₀(HBV DNA) copies/mL",
         title = "Viral Load Dynamics"
@@ -820,11 +868,15 @@ function plot_hbv_dynamics(
     if :log_V in names(dynamics_df)
         for id in sample_ids
             patient_data = @subset(sample_df, :id .== id)
-            lines!(ax2, patient_data.time, patient_data.log_V,
-                   color = (:orange, 0.3), linewidth = 0.5)
+            lines!(
+                ax2, patient_data.time, patient_data.log_V,
+                color = (:orange, 0.3), linewidth = 0.5
+            )
         end
-        hlines!(ax2, [log10(25)], color = :red, linestyle = :dash,
-                label = "LOQ (25 copies/mL)")
+        hlines!(
+            ax2, [log10(25)], color = :red, linestyle = :dash,
+            label = "LOQ (25 copies/mL)"
+        )
     end
 
     Label(fig[0, :], title, fontsize = 16)
@@ -844,10 +896,10 @@ AlgebraOfGraphics version: Plot HBV viral and HBsAg dynamics for sample of patie
 Uses AOG with group aesthetic for individual patient trajectories.
 """
 function plot_hbv_dynamics_aog(
-    dynamics_df::DataFrame;
-    id_sample::Int = 10,
-    title::String = "HBV Viral Dynamics"
-)
+        dynamics_df::DataFrame;
+        id_sample::Int = 10,
+        title::String = "HBV Viral Dynamics"
+    )
     # Sample patients
     unique_ids = unique(dynamics_df.id)
     sample_ids = unique_ids[1:min(id_sample, length(unique_ids))]
@@ -858,9 +910,11 @@ function plot_hbv_dynamics_aog(
     # HBsAg panel using AOG
     if :log_HBsAg in names(dynamics_df)
         plt_hbsag = data(sample_df) *
-                    mapping(:time => "Time (days)", :log_HBsAg => "log₁₀(HBsAg) IU/mL",
-                           group=:id => nonnumeric) *
-                    visual(Lines, alpha=0.3, linewidth=0.5)
+            mapping(
+            :time => "Time (days)", :log_HBsAg => "log₁₀(HBsAg) IU/mL",
+            group = :id => nonnumeric
+        ) *
+            visual(Lines, alpha = 0.3, linewidth = 0.5)
         draw!(fig[1, 1], plt_hbsag; axis = (title = "HBsAg Dynamics",))
 
         # Add LOQ line
@@ -871,9 +925,11 @@ function plot_hbv_dynamics_aog(
     # Viral load panel using AOG
     if :log_V in names(dynamics_df)
         plt_viral = data(sample_df) *
-                    mapping(:time => "Time (days)", :log_V => "log₁₀(HBV DNA) copies/mL",
-                           group=:id => nonnumeric) *
-                    visual(Lines, alpha=0.3, linewidth=0.5)
+            mapping(
+            :time => "Time (days)", :log_V => "log₁₀(HBV DNA) copies/mL",
+            group = :id => nonnumeric
+        ) *
+            visual(Lines, alpha = 0.3, linewidth = 0.5)
         draw!(fig[2, 1], plt_viral; axis = (title = "Viral Load Dynamics",))
 
         # Add LOQ line
@@ -917,13 +973,13 @@ by infection outcome (acute vs chronic) or treatment arm.
 Makie Figure with 2x2 panel layout
 """
 function plot_hbv_population_dynamics(
-    dynamics_df::DataFrame;
-    biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V, :log_ALT, :log_E],
-    stratify_by::Union{Symbol,Nothing} = :outcome,
-    show_loq::Bool = true,
-    time_unit::Symbol = :days,
-    title::String = "HBV Infection Dynamics"
-)
+        dynamics_df::DataFrame;
+        biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V, :log_ALT, :log_E],
+        stratify_by::Union{Symbol, Nothing} = :outcome,
+        show_loq::Bool = true,
+        time_unit::Symbol = :days,
+        title::String = "HBV Infection Dynamics"
+    )
     # Limit to 4 biomarkers
     biomarkers = biomarkers[1:min(4, length(biomarkers))]
     n_biomarkers = length(biomarkers)
@@ -953,7 +1009,8 @@ function plot_hbv_population_dynamics(
         # Get biomarker label
         ylabel = get(HBV_BIOMARKER_LABELS, biomarker, string(biomarker))
 
-        ax = Axis(fig[row, col],
+        ax = Axis(
+            fig[row, col],
             xlabel = time_label,
             ylabel = ylabel,
             title = string(biomarker)
@@ -978,7 +1035,8 @@ function plot_hbv_population_dynamics(
 
             # Compute summary statistics (plain DataFrames)
             gdf = groupby(group_df, :time)
-            summary = combine(gdf,
+            summary = combine(
+                gdf,
                 biomarker => median => :median,
                 biomarker => (x -> quantile(x, 0.05)) => :q05,
                 biomarker => (x -> quantile(x, 0.25)) => :q25,
@@ -989,22 +1047,30 @@ function plot_hbv_population_dynamics(
             sort!(summary, :time)
 
             # Plot 90% CI band
-            band!(ax, summary.time_plot, summary.q05, summary.q95,
-                  color = (group_color, 0.2))
+            band!(
+                ax, summary.time_plot, summary.q05, summary.q95,
+                color = (group_color, 0.2)
+            )
 
             # Plot IQR band
-            band!(ax, summary.time_plot, summary.q25, summary.q75,
-                  color = (group_color, 0.3))
+            band!(
+                ax, summary.time_plot, summary.q25, summary.q75,
+                color = (group_color, 0.3)
+            )
 
             # Plot median line
-            lines!(ax, summary.time_plot, summary.median,
-                   color = group_color, linewidth = 2, label = group_label)
+            lines!(
+                ax, summary.time_plot, summary.median,
+                color = group_color, linewidth = 2, label = group_label
+            )
         end
 
         # Add LOQ threshold lines
         if show_loq && haskey(HBV_LOQ_THRESHOLDS, biomarker)
-            hlines!(ax, [HBV_LOQ_THRESHOLDS[biomarker]],
-                    color = :red, linestyle = :dash, linewidth = 1)
+            hlines!(
+                ax, [HBV_LOQ_THRESHOLDS[biomarker]],
+                color = :red, linestyle = :dash, linewidth = 1
+            )
         end
 
         # Add legend only to first panel
@@ -1035,13 +1101,13 @@ Note: AOG doesn't natively support ribbon/band plots, so this uses a hybrid appr
 with AOG for line plots and CairoMakie for bands.
 """
 function plot_hbv_population_dynamics_aog(
-    dynamics_df::DataFrame;
-    biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V, :log_ALT, :log_E],
-    stratify_by::Union{Symbol,Nothing} = :outcome,
-    show_loq::Bool = true,
-    time_unit::Symbol = :days,
-    title::String = "HBV Infection Dynamics"
-)
+        dynamics_df::DataFrame;
+        biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V, :log_ALT, :log_E],
+        stratify_by::Union{Symbol, Nothing} = :outcome,
+        show_loq::Bool = true,
+        time_unit::Symbol = :days,
+        title::String = "HBV Infection Dynamics"
+    )
     # Limit to 4 biomarkers
     biomarkers = biomarkers[1:min(4, length(biomarkers))]
 
@@ -1050,38 +1116,47 @@ function plot_hbv_population_dynamics_aog(
     time_label = time_unit == :weeks ? "Time (weeks)" : "Time (days)"
 
     # Stack data into long format for AOG
-    long_df = stack(dynamics_df[:, vcat([:id, :time], stratify_by !== nothing ? [stratify_by] : Symbol[], biomarkers)],
-                    biomarkers, variable_name=:biomarker, value_name=:value)
+    long_df = stack(
+        dynamics_df[:, vcat([:id, :time], stratify_by !== nothing ? [stratify_by] : Symbol[], biomarkers)],
+        biomarkers, variable_name = :biomarker, value_name = :value
+    )
     long_df[!, :time_plot] = long_df.time ./ time_divisor
 
     # Compute summary statistics by time, biomarker, and stratification
     group_cols = stratify_by !== nothing ? [:time_plot, :biomarker, stratify_by] : [:time_plot, :biomarker]
 
     summary_df = combine(groupby(long_df, group_cols)) do gdf
-        (median = median(gdf.value),
-         q05 = quantile(gdf.value, 0.05),
-         q25 = quantile(gdf.value, 0.25),
-         q75 = quantile(gdf.value, 0.75),
-         q95 = quantile(gdf.value, 0.95))
+        (
+            median = median(gdf.value),
+            q05 = quantile(gdf.value, 0.05),
+            q25 = quantile(gdf.value, 0.25),
+            q75 = quantile(gdf.value, 0.75),
+            q95 = quantile(gdf.value, 0.95),
+        )
     end
     sort!(summary_df, :time_plot)
 
     # Create the median line plot using AOG
     if stratify_by !== nothing
         plt = data(summary_df) *
-              mapping(:time_plot => time_label, :median => "Value",
-                     color=stratify_by => string(stratify_by),
-                     layout=:biomarker) *
-              visual(Lines, linewidth=2)
+            mapping(
+            :time_plot => time_label, :median => "Value",
+            color = stratify_by => string(stratify_by),
+            layout = :biomarker
+        ) *
+            visual(Lines, linewidth = 2)
     else
         plt = data(summary_df) *
-              mapping(:time_plot => time_label, :median => "Value",
-                     layout=:biomarker) *
-              visual(Lines, linewidth=2)
+            mapping(
+            :time_plot => time_label, :median => "Value",
+            layout = :biomarker
+        ) *
+            visual(Lines, linewidth = 2)
     end
 
     # Draw using AOG faceting
-    fig = draw(plt;
+    fig = draw(
+        plt;
         axis = (ylabel = "Value",),
         figure = (title = title,),
         facet = (linkxaxes = :minimal, linkyaxes = :none)
@@ -1089,7 +1164,7 @@ function plot_hbv_population_dynamics_aog(
 
     # Add bands manually to each axis (AOG doesn't support bands natively)
     for (i, biomarker) in enumerate(biomarkers)
-        ax = contents(fig.figure[div(i-1, 2)+1, mod(i-1, 2)+1])[1]
+        ax = contents(fig.figure[div(i - 1, 2) + 1, mod(i - 1, 2) + 1])[1]
 
         biomarker_summary = @subset(summary_df, :biomarker .== string(biomarker))
 
@@ -1099,16 +1174,24 @@ function plot_hbv_population_dynamics_aog(
                 group_summary = biomarker_summary[biomarker_summary[!, stratify_by] .== group, :]
                 group_color = get(HBV_OUTCOME_COLORS, group, colorant"#1f77b4")
 
-                band!(ax, group_summary.time_plot, group_summary.q05, group_summary.q95,
-                      color = (group_color, 0.2))
-                band!(ax, group_summary.time_plot, group_summary.q25, group_summary.q75,
-                      color = (group_color, 0.3))
+                band!(
+                    ax, group_summary.time_plot, group_summary.q05, group_summary.q95,
+                    color = (group_color, 0.2)
+                )
+                band!(
+                    ax, group_summary.time_plot, group_summary.q25, group_summary.q75,
+                    color = (group_color, 0.3)
+                )
             end
         else
-            band!(ax, biomarker_summary.time_plot, biomarker_summary.q05, biomarker_summary.q95,
-                  color = (:blue, 0.2))
-            band!(ax, biomarker_summary.time_plot, biomarker_summary.q25, biomarker_summary.q75,
-                  color = (:blue, 0.3))
+            band!(
+                ax, biomarker_summary.time_plot, biomarker_summary.q05, biomarker_summary.q95,
+                color = (:blue, 0.2)
+            )
+            band!(
+                ax, biomarker_summary.time_plot, biomarker_summary.q25, biomarker_summary.q75,
+                color = (:blue, 0.3)
+            )
         end
 
         # Add LOQ lines
@@ -1133,10 +1216,10 @@ Specialized wrapper around plot_hbv_population_dynamics for natural history
 visualization with appropriate defaults.
 """
 function plot_hbv_natural_history(
-    dynamics_df::DataFrame;
-    biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V, :log_ALT, :log_E],
-    title::String = "HBV Natural History: Acute vs Chronic"
-)
+        dynamics_df::DataFrame;
+        biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V, :log_ALT, :log_E],
+        title::String = "HBV Natural History: Acute vs Chronic"
+    )
     return plot_hbv_population_dynamics(
         dynamics_df;
         biomarkers = biomarkers,
@@ -1166,12 +1249,12 @@ Plot HBV treatment response dynamics with optional phase markers.
 - `title`: Plot title
 """
 function plot_hbv_treatment_response(
-    dynamics_df::DataFrame;
-    biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V],
-    show_phases::Bool = true,
-    phase_times::Union{NamedTuple,Nothing} = nothing,
-    title::String = "HBV Treatment Response"
-)
+        dynamics_df::DataFrame;
+        biomarkers::Vector{Symbol} = [:log_HBsAg, :log_V],
+        show_phases::Bool = true,
+        phase_times::Union{NamedTuple, Nothing} = nothing,
+        title::String = "HBV Treatment Response"
+    )
     fig = plot_hbv_population_dynamics(
         dynamics_df;
         biomarkers = biomarkers,
@@ -1208,10 +1291,10 @@ Add vertical lines marking treatment phase transitions to an axis.
 - `label_phases`: Whether to add phase labels (experimental)
 """
 function add_treatment_phase_markers!(
-    ax::Axis,
-    phase_times::NamedTuple;
-    label_phases::Bool = false
-)
+        ax::Axis,
+        phase_times::NamedTuple;
+        label_phases::Bool = false
+    )
     # Phase transition times
     phase_colors = Dict(
         :untreated => :gray,
@@ -1222,23 +1305,31 @@ function add_treatment_phase_markers!(
 
     # Add vertical lines at phase boundaries
     if haskey(phase_times, :untreated)
-        vlines!(ax, [phase_times.untreated.stop],
-                color = :black, linestyle = :dash, linewidth = 1)
+        vlines!(
+            ax, [phase_times.untreated.stop],
+            color = :black, linestyle = :dash, linewidth = 1
+        )
     end
 
     if haskey(phase_times, :nuc_background) && phase_times.nuc_background.stop > phase_times.nuc_background.start
-        vlines!(ax, [phase_times.nuc_background.stop],
-                color = :black, linestyle = :dash, linewidth = 1)
+        vlines!(
+            ax, [phase_times.nuc_background.stop],
+            color = :black, linestyle = :dash, linewidth = 1
+        )
     end
 
     if haskey(phase_times, :treatment)
-        vlines!(ax, [phase_times.treatment.stop],
-                color = :black, linestyle = :solid, linewidth = 1)
+        vlines!(
+            ax, [phase_times.treatment.stop],
+            color = :black, linestyle = :solid, linewidth = 1
+        )
     end
 
-    if haskey(phase_times, :off_treatment)
-        vlines!(ax, [phase_times.off_treatment.stop],
-                color = :black, linestyle = :solid, linewidth = 1)
+    return if haskey(phase_times, :off_treatment)
+        vlines!(
+            ax, [phase_times.off_treatment.stop],
+            color = :black, linestyle = :solid, linewidth = 1
+        )
     end
 end
 
@@ -1265,14 +1356,14 @@ Create a single-panel plot for one HBV biomarker.
 - `title`: Plot title
 """
 function plot_hbv_biomarker_panel(
-    dynamics_df::DataFrame,
-    biomarker::Symbol;
-    stratify_by::Union{Symbol,Nothing} = :outcome,
-    time_unit::Symbol = :days,
-    show_individual::Bool = false,
-    n_individual::Int = 20,
-    title::String = ""
-)
+        dynamics_df::DataFrame,
+        biomarker::Symbol;
+        stratify_by::Union{Symbol, Nothing} = :outcome,
+        time_unit::Symbol = :days,
+        show_individual::Bool = false,
+        n_individual::Int = 20,
+        title::String = ""
+    )
     fig = Figure(size = (700, 500))
 
     time_divisor = time_unit == :weeks ? 7.0 : 1.0
@@ -1283,7 +1374,8 @@ function plot_hbv_biomarker_panel(
         title = ylabel
     end
 
-    ax = Axis(fig[1, 1],
+    ax = Axis(
+        fig[1, 1],
         xlabel = time_label,
         ylabel = ylabel,
         title = title
@@ -1318,14 +1410,17 @@ function plot_hbv_biomarker_panel(
             sample_ids = unique_ids[1:min(n_individual, length(unique_ids))]
             for id in sample_ids
                 patient_df = group_df[group_df.id .== id, :]
-                lines!(ax, patient_df.time ./ time_divisor, patient_df[!, biomarker],
-                       color = (group_color, 0.2), linewidth = 0.5)
+                lines!(
+                    ax, patient_df.time ./ time_divisor, patient_df[!, biomarker],
+                    color = (group_color, 0.2), linewidth = 0.5
+                )
             end
         end
 
         # Compute and plot population summary (plain DataFrames)
         gdf = groupby(group_df, :time)
-        summary = combine(gdf,
+        summary = combine(
+            gdf,
             biomarker => median => :median,
             biomarker => (x -> quantile(x, 0.05)) => :q05,
             biomarker => (x -> quantile(x, 0.25)) => :q25,
@@ -1337,14 +1432,18 @@ function plot_hbv_biomarker_panel(
 
         band!(ax, summary.time_plot, summary.q05, summary.q95, color = (group_color, 0.2))
         band!(ax, summary.time_plot, summary.q25, summary.q75, color = (group_color, 0.3))
-        lines!(ax, summary.time_plot, summary.median,
-               color = group_color, linewidth = 2, label = group_label)
+        lines!(
+            ax, summary.time_plot, summary.median,
+            color = group_color, linewidth = 2, label = group_label
+        )
     end
 
     # LOQ threshold
     if haskey(HBV_LOQ_THRESHOLDS, biomarker)
-        hlines!(ax, [HBV_LOQ_THRESHOLDS[biomarker]],
-                color = :red, linestyle = :dash, linewidth = 1, label = "LOQ")
+        hlines!(
+            ax, [HBV_LOQ_THRESHOLDS[biomarker]],
+            color = :red, linestyle = :dash, linewidth = 1, label = "LOQ"
+        )
     end
 
     if !isnothing(stratify_by)
@@ -1370,14 +1469,14 @@ AlgebraOfGraphics version: Create a single-panel plot for one HBV biomarker.
 Uses AOG for line plots with group aesthetic, with CairoMakie bands overlaid.
 """
 function plot_hbv_biomarker_panel_aog(
-    dynamics_df::DataFrame,
-    biomarker::Symbol;
-    stratify_by::Union{Symbol,Nothing} = :outcome,
-    time_unit::Symbol = :days,
-    show_individual::Bool = false,
-    n_individual::Int = 20,
-    title::String = ""
-)
+        dynamics_df::DataFrame,
+        biomarker::Symbol;
+        stratify_by::Union{Symbol, Nothing} = :outcome,
+        time_unit::Symbol = :days,
+        show_individual::Bool = false,
+        n_individual::Int = 20,
+        title::String = ""
+    )
     time_divisor = time_unit == :weeks ? 7.0 : 1.0
     time_label = time_unit == :weeks ? "Time (weeks)" : "Time (days)"
     ylabel = get(HBV_BIOMARKER_LABELS, biomarker, string(biomarker))
@@ -1401,17 +1500,21 @@ function plot_hbv_biomarker_panel_aog(
 
         if stratify_by !== nothing && hasproperty(plot_df, stratify_by)
             indiv_plt = data(sample_df) *
-                        mapping(:time_plot, biomarker,
-                               group=:id => nonnumeric, color=stratify_by) *
-                        visual(Lines, alpha=0.2, linewidth=0.5)
+                mapping(
+                :time_plot, biomarker,
+                group = :id => nonnumeric, color = stratify_by
+            ) *
+                visual(Lines, alpha = 0.2, linewidth = 0.5)
         else
             indiv_plt = data(sample_df) *
-                        mapping(:time_plot, biomarker, group=:id => nonnumeric) *
-                        visual(Lines, alpha=0.2, linewidth=0.5)
+                mapping(:time_plot, biomarker, group = :id => nonnumeric) *
+                visual(Lines, alpha = 0.2, linewidth = 0.5)
         end
 
-        draw!(fig[1, 1], indiv_plt;
-              axis = (xlabel = time_label, ylabel = ylabel, title = title))
+        draw!(
+            fig[1, 1], indiv_plt;
+            axis = (xlabel = time_label, ylabel = ylabel, title = title)
+        )
     else
         ax = Axis(fig[1, 1], xlabel = time_label, ylabel = ylabel, title = title)
     end
@@ -1426,7 +1529,8 @@ function plot_hbv_biomarker_panel_aog(
             group_color = get(HBV_OUTCOME_COLORS, group, colorant"#1f77b4")
 
             gdf = groupby(group_df, :time_plot)
-            summary = combine(gdf,
+            summary = combine(
+                gdf,
                 biomarker => median => :median,
                 biomarker => (x -> quantile(x, 0.05)) => :q05,
                 biomarker => (x -> quantile(x, 0.25)) => :q25,
@@ -1437,13 +1541,16 @@ function plot_hbv_biomarker_panel_aog(
 
             band!(ax, summary.time_plot, summary.q05, summary.q95, color = (group_color, 0.2))
             band!(ax, summary.time_plot, summary.q25, summary.q75, color = (group_color, 0.3))
-            lines!(ax, summary.time_plot, summary.median,
-                   color = group_color, linewidth = 2, label = string(group))
+            lines!(
+                ax, summary.time_plot, summary.median,
+                color = group_color, linewidth = 2, label = string(group)
+            )
         end
         axislegend(ax, position = :rt)
     else
         gdf = groupby(plot_df, :time_plot)
-        summary = combine(gdf,
+        summary = combine(
+            gdf,
             biomarker => median => :median,
             biomarker => (x -> quantile(x, 0.05)) => :q05,
             biomarker => (x -> quantile(x, 0.25)) => :q25,
@@ -1459,8 +1566,10 @@ function plot_hbv_biomarker_panel_aog(
 
     # LOQ threshold
     if haskey(HBV_LOQ_THRESHOLDS, biomarker)
-        hlines!(ax, [HBV_LOQ_THRESHOLDS[biomarker]],
-                color = :red, linestyle = :dash, linewidth = 1)
+        hlines!(
+            ax, [HBV_LOQ_THRESHOLDS[biomarker]],
+            color = :red, linestyle = :dash, linewidth = 1
+        )
     end
 
     return fig
@@ -1481,43 +1590,52 @@ end
 Compare original, calibrated, and target distributions.
 """
 function plot_calibration_result(
-    original_values::AbstractVector,
-    calibrated_values::AbstractVector,
-    target;
-    title::String = "MILP Calibration Result"
-)
+        original_values::AbstractVector,
+        calibrated_values::AbstractVector,
+        target;
+        title::String = "MILP Calibration Result"
+    )
     fig = Figure(size = (800, 600))
 
     # Original distribution
-    ax1 = Axis(fig[1, 1],
+    ax1 = Axis(
+        fig[1, 1],
         xlabel = string(target.variable_name),
         ylabel = "Percentage (%)",
         title = "Original (n=$(length(original_values)))"
     )
 
-    hist!(ax1, original_values, bins = length(target.percentages),
-          normalization = :probability, color = (:blue, 0.5))
+    hist!(
+        ax1, original_values, bins = length(target.percentages),
+        normalization = :probability, color = (:blue, 0.5)
+    )
 
     # Calibrated distribution
-    ax2 = Axis(fig[2, 1],
+    ax2 = Axis(
+        fig[2, 1],
         xlabel = string(target.variable_name),
         ylabel = "Percentage (%)",
         title = "Calibrated (n=$(length(calibrated_values)))"
     )
 
-    hist!(ax2, calibrated_values, bins = length(target.percentages),
-          normalization = :probability, color = (:green, 0.5))
+    hist!(
+        ax2, calibrated_values, bins = length(target.percentages),
+        normalization = :probability, color = (:green, 0.5)
+    )
 
     # Target distribution (bar chart)
-    ax3 = Axis(fig[3, 1],
+    ax3 = Axis(
+        fig[3, 1],
         xlabel = string(target.variable_name),
         ylabel = "Percentage (%)",
         title = "Target Distribution"
     )
 
-    bin_centers = [(target.edges[i] + target.edges[i+1])/2 for i in 1:length(target.percentages)]
-    barplot!(ax3, 1:length(target.percentages), target.percentages,
-             color = (:orange, 0.7))
+    bin_centers = [(target.edges[i] + target.edges[i + 1]) / 2 for i in 1:length(target.percentages)]
+    barplot!(
+        ax3, 1:length(target.percentages), target.percentages,
+        color = (:orange, 0.7)
+    )
 
     Label(fig[0, :], title, fontsize = 16)
 
@@ -1537,11 +1655,11 @@ AlgebraOfGraphics version: Compare original, calibrated, and target distribution
 Uses AOG with faceting for stacked histogram panels.
 """
 function plot_calibration_result_aog(
-    original_values::AbstractVector,
-    calibrated_values::AbstractVector,
-    target;
-    title::String = "MILP Calibration Result"
-)
+        original_values::AbstractVector,
+        calibrated_values::AbstractVector,
+        target;
+        title::String = "MILP Calibration Result"
+    )
     # Combine data into long format
     combined_df = DataFrame(
         value = vcat(original_values, calibrated_values),
@@ -1553,24 +1671,34 @@ function plot_calibration_result_aog(
 
     # Create histogram layer
     plt = data(combined_df) *
-          mapping(:value => string(target.variable_name)) *
-          histogram(bins=length(target.percentages), normalization=:probability) *
-          mapping(row=:source => sorter(["Original (n=$(length(original_values)))",
-                                         "Calibrated (n=$(length(calibrated_values)))"]))
+        mapping(:value => string(target.variable_name)) *
+        histogram(bins = length(target.percentages), normalization = :probability) *
+        mapping(
+        row = :source => sorter(
+            [
+                "Original (n=$(length(original_values)))",
+                "Calibrated (n=$(length(calibrated_values)))",
+            ]
+        )
+    )
 
-    fig = draw(plt;
+    fig = draw(
+        plt;
         axis = (ylabel = "Percentage (%)",),
         figure = (title = title,)
     )
 
     # Add target as separate panel using CairoMakie
-    ax_target = Axis(fig.figure[3, 1],
+    ax_target = Axis(
+        fig.figure[3, 1],
         xlabel = string(target.variable_name),
         ylabel = "Percentage (%)",
         title = "Target Distribution"
     )
-    barplot!(ax_target, 1:length(target.percentages), target.percentages,
-             color = (:orange, 0.7))
+    barplot!(
+        ax_target, 1:length(target.percentages), target.percentages,
+        color = (:orange, 0.7)
+    )
 
     return fig
 end
@@ -1585,13 +1713,14 @@ end
 Plot Pareto front for MILP calibration.
 """
 function plot_pareto_front(
-    pareto_points::Vector;
-    optimal_idx::Union{Int, Nothing} = nothing,
-    title::String = "Pareto Front: VPs vs Distribution Error"
-)
+        pareto_points::Vector;
+        optimal_idx::Union{Int, Nothing} = nothing,
+        title::String = "Pareto Front: VPs vs Distribution Error"
+    )
     fig = Figure(size = (600, 450))
 
-    ax = Axis(fig[1, 1],
+    ax = Axis(
+        fig[1, 1],
         xlabel = "Number of Selected VPs",
         ylabel = "Mean Distribution Error (%)",
         title = title
@@ -1604,8 +1733,10 @@ function plot_pareto_front(
     lines!(ax, vps, errors, color = (:blue, 0.3))
 
     if !isnothing(optimal_idx) && optimal_idx <= length(pareto_points)
-        scatter!(ax, [vps[optimal_idx]], [errors[optimal_idx]],
-                 color = :red, markersize = 15, marker = :star5, label = "Optimal")
+        scatter!(
+            ax, [vps[optimal_idx]], [errors[optimal_idx]],
+            color = :red, markersize = 15, marker = :star5, label = "Optimal"
+        )
     end
 
     axislegend(ax, position = :rt)
@@ -1625,10 +1756,10 @@ AlgebraOfGraphics version: Plot Pareto front for MILP calibration.
 Uses AOG scatter and lines with point highlighting for optimal.
 """
 function plot_pareto_front_aog(
-    pareto_points::Vector;
-    optimal_idx::Union{Int, Nothing} = nothing,
-    title::String = "Pareto Front: VPs vs Distribution Error"
-)
+        pareto_points::Vector;
+        optimal_idx::Union{Int, Nothing} = nothing,
+        title::String = "Pareto Front: VPs vs Distribution Error"
+    )
     # Build DataFrame from pareto points
     df = DataFrame(
         n_selected = [p.n_selected for p in pareto_points],
@@ -1643,14 +1774,16 @@ function plot_pareto_front_aog(
 
     # Create plot with scatter and line
     plt_scatter = data(df) *
-                  mapping(:n_selected => "Number of Selected VPs",
-                         :mean_error => "Mean Distribution Error (%)",
-                         color=:point_type) *
-                  visual(Scatter, markersize=10)
+        mapping(
+        :n_selected => "Number of Selected VPs",
+        :mean_error => "Mean Distribution Error (%)",
+        color = :point_type
+    ) *
+        visual(Scatter, markersize = 10)
 
     plt_line = data(df) *
-               mapping(:n_selected, :mean_error) *
-               visual(Lines, color=(:blue, 0.3))
+        mapping(:n_selected, :mean_error) *
+        visual(Lines, color = (:blue, 0.3))
 
     fig = draw(plt_scatter + plt_line; axis = (title = title,))
 
@@ -1671,10 +1804,10 @@ end
 Create bar chart of GSA sensitivity indices.
 """
 function plot_gsa_indices(
-    gsa_result,
-    output::Symbol;
-    title::String = "Sensitivity Indices"
-)
+        gsa_result,
+        output::Symbol;
+        title::String = "Sensitivity Indices"
+    )
     # Extract data for this output
     fo = filter(row -> row.output == output, gsa_result.first_order)
     to = filter(row -> row.output == output, gsa_result.total_order)
@@ -1691,19 +1824,24 @@ function plot_gsa_indices(
 
     fig = Figure(size = (700, 450))
 
-    ax = Axis(fig[1, 1],
+    ax = Axis(
+        fig[1, 1],
         xlabel = "Parameter",
         ylabel = "Sensitivity Index",
         title = "$title: $output",
         xticks = (1:n_params, string.(param_order)),
-        xticklabelrotation = π/6
+        xticklabelrotation = π / 6
     )
 
     barwidth = 0.35
-    barplot!(ax, (1:n_params) .- barwidth/2, fo_ordered,
-             width = barwidth, color = :blue, label = "First Order (S₁)")
-    barplot!(ax, (1:n_params) .+ barwidth/2, to_ordered,
-             width = barwidth, color = :orange, label = "Total Order (Sₜ)")
+    barplot!(
+        ax, (1:n_params) .- barwidth / 2, fo_ordered,
+        width = barwidth, color = :blue, label = "First Order (S₁)"
+    )
+    barplot!(
+        ax, (1:n_params) .+ barwidth / 2, to_ordered,
+        width = barwidth, color = :orange, label = "Total Order (Sₜ)"
+    )
 
     hlines!(ax, [0.1], color = :red, linestyle = :dash, label = "Threshold")
 
@@ -1724,10 +1862,10 @@ AlgebraOfGraphics version: Create bar chart of GSA sensitivity indices.
 Uses AOG with dodged bar plot for first and total order indices.
 """
 function plot_gsa_indices_aog(
-    gsa_result,
-    output::Symbol;
-    title::String = "Sensitivity Indices"
-)
+        gsa_result,
+        output::Symbol;
+        title::String = "Sensitivity Indices"
+    )
     # Extract data for this output
     fo = filter(row -> row.output == output, gsa_result.first_order)
     to = filter(row -> row.output == output, gsa_result.total_order)
@@ -1752,13 +1890,16 @@ function plot_gsa_indices_aog(
 
     # Create AOG plot with dodged bars
     plt = data(df) *
-          mapping(:parameter => sorter(string.(param_order)) => "Parameter",
-                 :index_value => "Sensitivity Index",
-                 dodge=:index_type, color=:index_type => "Index Type") *
-          visual(BarPlot)
+        mapping(
+        :parameter => sorter(string.(param_order)) => "Parameter",
+        :index_value => "Sensitivity Index",
+        dodge = :index_type, color = :index_type => "Index Type"
+    ) *
+        visual(BarPlot)
 
-    fig = draw(plt;
-        axis = (title = "$title: $output", xticklabelrotation = π/6)
+    fig = draw(
+        plt;
+        axis = (title = "$title: $output", xticklabelrotation = π / 6)
     )
 
     # Add threshold line
@@ -1778,10 +1919,10 @@ end
 Create heatmap of sensitivity indices across outputs.
 """
 function plot_gsa_heatmap(
-    gsa_result;
-    index_type::Symbol = :total_order,
-    title::String = "GSA Heatmap"
-)
+        gsa_result;
+        index_type::Symbol = :total_order,
+        title::String = "GSA Heatmap"
+    )
     indices_df = index_type == :total_order ? gsa_result.total_order : gsa_result.first_order
 
     outputs = gsa_result.outputs
@@ -1800,17 +1941,20 @@ function plot_gsa_heatmap(
 
     fig = Figure(size = (600, 400))
 
-    ax = Axis(fig[1, 1],
+    ax = Axis(
+        fig[1, 1],
         xlabel = "Parameter",
         ylabel = "Output",
         title = title,
         xticks = (1:length(params), string.(params)),
         yticks = (1:length(outputs), string.(outputs)),
-        xticklabelrotation = π/4
+        xticklabelrotation = π / 4
     )
 
-    hm = heatmap!(ax, 1:length(params), 1:length(outputs), matrix',
-                  colormap = :viridis)
+    hm = heatmap!(
+        ax, 1:length(params), 1:length(outputs), matrix',
+        colormap = :viridis
+    )
 
     Colorbar(fig[1, 2], hm, label = "Sensitivity Index")
 
@@ -1829,10 +1973,10 @@ AlgebraOfGraphics version: Create heatmap of sensitivity indices across outputs.
 Uses AOG's heatmap visual with mapping for output and parameter.
 """
 function plot_gsa_heatmap_aog(
-    gsa_result;
-    index_type::Symbol = :total_order,
-    title::String = "GSA Heatmap"
-)
+        gsa_result;
+        index_type::Symbol = :total_order,
+        title::String = "GSA Heatmap"
+    )
     indices_df = index_type == :total_order ? gsa_result.total_order : gsa_result.first_order
 
     # Convert to string columns for AOG
@@ -1844,11 +1988,12 @@ function plot_gsa_heatmap_aog(
 
     # Create heatmap using AOG
     plt = data(df) *
-          mapping(:parameter => "Parameter", :output => "Output", :index => "Sensitivity Index") *
-          visual(Heatmap, colormap=:viridis)
+        mapping(:parameter => "Parameter", :output => "Output", :index => "Sensitivity Index") *
+        visual(Heatmap, colormap = :viridis)
 
-    fig = draw(plt;
-        axis = (title = title, xticklabelrotation = π/4)
+    fig = draw(
+        plt;
+        axis = (title = title, xticklabelrotation = π / 4)
     )
 
     return fig
@@ -1864,10 +2009,10 @@ end
 Compare GSA results across different treatments/conditions.
 """
 function plot_gsa_comparison(
-    gsa_results::Dict,
-    output::Symbol;
-    title::String = "GSA Treatment Comparison"
-)
+        gsa_results::Dict,
+        output::Symbol;
+        title::String = "GSA Treatment Comparison"
+    )
     treatments = collect(keys(gsa_results))
     n_treatments = length(treatments)
 
@@ -1884,23 +2029,26 @@ function plot_gsa_comparison(
 
     fig = Figure(size = (800, 500))
 
-    ax = Axis(fig[1, 1],
+    ax = Axis(
+        fig[1, 1],
         xlabel = "Parameter",
         ylabel = "Total Order Index",
         title = title,
         xticks = (1:n_params, string.(params)),
-        xticklabelrotation = π/4
+        xticklabelrotation = π / 4
     )
 
     barwidth = 0.8 / n_treatments
-    offsets = range(-0.4 + barwidth/2, 0.4 - barwidth/2, length = n_treatments)
+    offsets = range(-0.4 + barwidth / 2, 0.4 - barwidth / 2, length = n_treatments)
     colors = [:blue, :orange, :green, :purple, :red]
 
     for (i, treatment) in enumerate(treatments)
         indices = get_indices(gsa_results[treatment], output)
-        barplot!(ax, (1:n_params) .+ offsets[i], indices,
-                 width = barwidth, color = colors[mod1(i, length(colors))],
-                 label = string(treatment))
+        barplot!(
+            ax, (1:n_params) .+ offsets[i], indices,
+            width = barwidth, color = colors[mod1(i, length(colors))],
+            label = string(treatment)
+        )
     end
 
     axislegend(ax, position = :rt)
@@ -1920,10 +2068,10 @@ AlgebraOfGraphics version: Compare GSA results across different treatments/condi
 Uses AOG with dodged bars for treatment comparison.
 """
 function plot_gsa_comparison_aog(
-    gsa_results::Dict,
-    output::Symbol;
-    title::String = "GSA Treatment Comparison"
-)
+        gsa_results::Dict,
+        output::Symbol;
+        title::String = "GSA Treatment Comparison"
+    )
     treatments = collect(keys(gsa_results))
     first_result = gsa_results[first(treatments)]
     params = first_result.parameters
@@ -1945,12 +2093,15 @@ function plot_gsa_comparison_aog(
 
     # Create AOG plot with dodged bars
     plt = data(df) *
-          mapping(:parameter => "Parameter", :index_value => "Total Order Index",
-                 dodge=:treatment, color=:treatment => "Treatment") *
-          visual(BarPlot)
+        mapping(
+        :parameter => "Parameter", :index_value => "Total Order Index",
+        dodge = :treatment, color = :treatment => "Treatment"
+    ) *
+        visual(BarPlot)
 
-    fig = draw(plt;
-        axis = (title = title, xticklabelrotation = π/4)
+    fig = draw(
+        plt;
+        axis = (title = title, xticklabelrotation = π / 4)
     )
 
     return fig
@@ -1971,18 +2122,19 @@ end
 Create comprehensive summary figure for ISCT results.
 """
 function create_isct_summary_figure(
-    vpop::DataFrame,
-    params::Vector{Symbol},
-    treatment_df::DataFrame,
-    control_df::DataFrame;
-    title::String = "ISCT Workflow Summary"
-)
+        vpop::DataFrame,
+        params::Vector{Symbol},
+        treatment_df::DataFrame,
+        control_df::DataFrame;
+        title::String = "ISCT Workflow Summary"
+    )
     fig = Figure(size = (1200, 800))
 
     # Panel A: Parameter distributions
     n_params = min(length(params), 3)
     for (i, param) in enumerate(params[1:n_params])
-        ax = Axis(fig[1, i],
+        ax = Axis(
+            fig[1, i],
             xlabel = string(param),
             ylabel = "Count",
             title = "$(param) Distribution"
@@ -1991,7 +2143,8 @@ function create_isct_summary_figure(
     end
 
     # Panel B: VCT dynamics
-    ax_vct = Axis(fig[2, 1:2],
+    ax_vct = Axis(
+        fig[2, 1:2],
         xlabel = "Time (weeks)",
         ylabel = "Tumor Size",
         title = "VCT Dynamics"
@@ -2019,7 +2172,8 @@ function create_isct_summary_figure(
     axislegend(ax_vct, position = :lt)
 
     # Panel C: Response summary (placeholder)
-    ax_response = Axis(fig[2, 3],
+    ax_response = Axis(
+        fig[2, 3],
         xlabel = "Arm",
         ylabel = "Response Rate (%)",
         title = "Response at Week 18",
@@ -2051,7 +2205,7 @@ Save figure to file with consistent settings.
 """
 function save_figure(fig::Figure, filepath::String; px_per_unit::Int = 2)
     save(filepath, fig, px_per_unit = px_per_unit)
-    println("Saved: $filepath")
+    return println("Saved: $filepath")
 end
 
 """
@@ -2072,9 +2226,11 @@ end
 
 Create quick scatter plot for exploration.
 """
-function quick_scatter(x::AbstractVector, y::AbstractVector;
-                       xlabel::String = "x", ylabel::String = "y",
-                       title::String = "Scatter Plot")
+function quick_scatter(
+        x::AbstractVector, y::AbstractVector;
+        xlabel::String = "x", ylabel::String = "y",
+        title::String = "Scatter Plot"
+    )
     fig = Figure(size = (500, 400))
     ax = Axis(fig[1, 1], xlabel = xlabel, ylabel = ylabel, title = title)
     scatter!(ax, x, y, markersize = 5, color = (:blue, 0.5))
@@ -2090,7 +2246,7 @@ Uses simple AOG histogram pattern.
 """
 function quick_hist_aog(values::AbstractVector; title::String = "Distribution", bins::Int = 30)
     df = DataFrame(value = values)
-    plt = data(df) * mapping(:value => "Value") * histogram(bins=bins)
+    plt = data(df) * mapping(:value => "Value") * histogram(bins = bins)
     fig = draw(plt; axis = (ylabel = "Count", title = title))
     return fig
 end
@@ -2104,13 +2260,15 @@ AlgebraOfGraphics version: Create quick scatter plot for exploration.
 
 Uses simple AOG scatter pattern.
 """
-function quick_scatter_aog(x::AbstractVector, y::AbstractVector;
-                           xlabel::String = "x", ylabel::String = "y",
-                           title::String = "Scatter Plot")
+function quick_scatter_aog(
+        x::AbstractVector, y::AbstractVector;
+        xlabel::String = "x", ylabel::String = "y",
+        title::String = "Scatter Plot"
+    )
     df = DataFrame(x = x, y = y)
     plt = data(df) *
-          mapping(:x => xlabel, :y => ylabel) *
-          visual(Scatter, markersize=5, alpha=0.5)
+        mapping(:x => xlabel, :y => ylabel) *
+        visual(Scatter, markersize = 5, alpha = 0.5)
     fig = draw(plt; axis = (title = title,))
     return fig
 end
@@ -2152,9 +2310,9 @@ fig = plot_identifiability_comparison(report.global_results)
 ```
 """
 function plot_identifiability_comparison(
-    results::Dict;
-    title::String = "Identifiability Comparison Across Scenarios"
-)
+        results::Dict;
+        title::String = "Identifiability Comparison Across Scenarios"
+    )
     # Get all unique parameters and scenarios
     all_params = Set{Symbol}()
     for result in values(results)
@@ -2177,7 +2335,7 @@ function plot_identifiability_comparison(
             for (p, status) in result.identifiability
                 if Symbol(string(p)) == param
                     matrix[i, j] = status == :globally ? 1.0 :
-                                   status == :locally ? 0.5 : 0.0
+                        status == :locally ? 0.5 : 0.0
                     break
                 end
             end
@@ -2186,43 +2344,51 @@ function plot_identifiability_comparison(
 
     fig = Figure(size = (max(400, 80 * n_params), max(300, 60 * n_scenarios)))
 
-    ax = Axis(fig[1, 1],
+    ax = Axis(
+        fig[1, 1],
         xlabel = "Parameter",
         ylabel = "Measurement Scenario",
         title = title,
         xticks = (1:n_params, string.(params)),
         yticks = (1:n_scenarios, string.(scenarios)),
-        xticklabelrotation = π/6
+        xticklabelrotation = π / 6
     )
 
     # Custom colormap: red (0) -> orange (0.5) -> green (1)
     colormap = [
         IDENTIFIABILITY_COLORS[:nonidentifiable],
         IDENTIFIABILITY_COLORS[:locally],
-        IDENTIFIABILITY_COLORS[:globally]
+        IDENTIFIABILITY_COLORS[:globally],
     ]
 
-    hm = heatmap!(ax, 1:n_params, 1:n_scenarios, matrix',
-                  colormap = colormap, colorrange = (0, 1))
+    hm = heatmap!(
+        ax, 1:n_params, 1:n_scenarios, matrix',
+        colormap = colormap, colorrange = (0, 1)
+    )
 
     # Add text annotations
     for i in 1:n_scenarios
         for j in 1:n_params
             val = matrix[i, j]
             status = val == 1.0 ? "G" : val == 0.5 ? "L" : "N"
-            text!(ax, j, i, text = status,
-                  align = (:center, :center),
-                  color = :white, fontsize = 12, font = :bold)
+            text!(
+                ax, j, i, text = status,
+                align = (:center, :center),
+                color = :white, fontsize = 12, font = :bold
+            )
         end
     end
 
     # Legend
-    Legend(fig[1, 2],
-        [MarkerElement(marker = :rect, color = c) for c in [
-            IDENTIFIABILITY_COLORS[:globally],
-            IDENTIFIABILITY_COLORS[:locally],
-            IDENTIFIABILITY_COLORS[:nonidentifiable]
-        ]],
+    Legend(
+        fig[1, 2],
+        [
+            MarkerElement(marker = :rect, color = c) for c in [
+                    IDENTIFIABILITY_COLORS[:globally],
+                    IDENTIFIABILITY_COLORS[:locally],
+                    IDENTIFIABILITY_COLORS[:nonidentifiable],
+                ]
+        ],
         ["Globally (G)", "Locally (L)", "Non-identifiable (N)"],
         "Status",
         framevisible = false
@@ -2240,20 +2406,22 @@ end
 AlgebraOfGraphics version: Create a heatmap comparing parameter identifiability.
 """
 function plot_identifiability_comparison_aog(
-    results::Dict;
-    title::String = "Identifiability Comparison Across Scenarios"
-)
+        results::Dict;
+        title::String = "Identifiability Comparison Across Scenarios"
+    )
     # Build long-format DataFrame
     rows = NamedTuple[]
 
     for (scenario, result) in results
         for (param, status) in result.identifiability
-            push!(rows, (
-                scenario = string(scenario),
-                parameter = string(param),
-                status = string(status),
-                value = status == :globally ? 1.0 : status == :locally ? 0.5 : 0.0
-            ))
+            push!(
+                rows, (
+                    scenario = string(scenario),
+                    parameter = string(param),
+                    status = string(status),
+                    value = status == :globally ? 1.0 : status == :locally ? 0.5 : 0.0,
+                )
+            )
         end
     end
 
@@ -2261,11 +2429,13 @@ function plot_identifiability_comparison_aog(
 
     # Create heatmap using AOG
     plt = data(df) *
-          mapping(:parameter => "Parameter", :scenario => "Scenario",
-                  :value => "Identifiability") *
-          visual(Heatmap, colormap = [:red, :orange, :green])
+        mapping(
+        :parameter => "Parameter", :scenario => "Scenario",
+        :value => "Identifiability"
+    ) *
+        visual(Heatmap, colormap = [:red, :orange, :green])
 
-    fig = draw(plt; axis = (title = title, xticklabelrotation = π/6))
+    fig = draw(plt; axis = (title = title, xticklabelrotation = π / 6))
 
     return fig
 end
@@ -2292,9 +2462,9 @@ fig = plot_identifiability_summary(report)
 ```
 """
 function plot_identifiability_summary(
-    report;
-    title::String = "Identifiability Analysis Summary"
-)
+        report;
+        title::String = "Identifiability Analysis Summary"
+    )
     # Check if we have global or local results
     has_global = !isempty(report.global_results)
     results = has_global ? report.global_results : report.local_results
@@ -2304,12 +2474,13 @@ function plot_identifiability_summary(
 
     fig = Figure(size = (max(500, 150 * n_scenarios), 450))
 
-    ax = Axis(fig[1, 1],
+    ax = Axis(
+        fig[1, 1],
         xlabel = "Measurement Scenario",
         ylabel = "Number of Parameters",
         title = title,
         xticks = (1:n_scenarios, string.(scenarios)),
-        xticklabelrotation = π/6
+        xticklabelrotation = π / 6
     )
 
     if has_global
@@ -2320,35 +2491,45 @@ function plot_identifiability_summary(
 
         # Stacked bar chart
         barwidth = 0.7
-        barplot!(ax, 1:n_scenarios, global_counts,
-                 width = barwidth, stack = :y,
-                 color = IDENTIFIABILITY_COLORS[:globally],
-                 label = "Globally Identifiable")
-        barplot!(ax, 1:n_scenarios, local_counts,
-                 width = barwidth, stack = :y,
-                 color = IDENTIFIABILITY_COLORS[:locally],
-                 label = "Locally Identifiable",
-                 offset = global_counts)
-        barplot!(ax, 1:n_scenarios, nonid_counts,
-                 width = barwidth, stack = :y,
-                 color = IDENTIFIABILITY_COLORS[:nonidentifiable],
-                 label = "Non-identifiable",
-                 offset = global_counts .+ local_counts)
+        barplot!(
+            ax, 1:n_scenarios, global_counts,
+            width = barwidth, stack = :y,
+            color = IDENTIFIABILITY_COLORS[:globally],
+            label = "Globally Identifiable"
+        )
+        barplot!(
+            ax, 1:n_scenarios, local_counts,
+            width = barwidth, stack = :y,
+            color = IDENTIFIABILITY_COLORS[:locally],
+            label = "Locally Identifiable",
+            offset = global_counts
+        )
+        barplot!(
+            ax, 1:n_scenarios, nonid_counts,
+            width = barwidth, stack = :y,
+            color = IDENTIFIABILITY_COLORS[:nonidentifiable],
+            label = "Non-identifiable",
+            offset = global_counts .+ local_counts
+        )
     else
         # Local results only
         id_counts = [length(results[s].identifiable) for s in scenarios]
         nonid_counts = [length(results[s].nonidentifiable) for s in scenarios]
 
         barwidth = 0.7
-        barplot!(ax, 1:n_scenarios, id_counts,
-                 width = barwidth, stack = :y,
-                 color = IDENTIFIABILITY_COLORS[:globally],
-                 label = "Locally Identifiable")
-        barplot!(ax, 1:n_scenarios, nonid_counts,
-                 width = barwidth, stack = :y,
-                 color = IDENTIFIABILITY_COLORS[:nonidentifiable],
-                 label = "Non-identifiable",
-                 offset = id_counts)
+        barplot!(
+            ax, 1:n_scenarios, id_counts,
+            width = barwidth, stack = :y,
+            color = IDENTIFIABILITY_COLORS[:globally],
+            label = "Locally Identifiable"
+        )
+        barplot!(
+            ax, 1:n_scenarios, nonid_counts,
+            width = barwidth, stack = :y,
+            color = IDENTIFIABILITY_COLORS[:nonidentifiable],
+            label = "Non-identifiable",
+            offset = id_counts
+        )
     end
 
     axislegend(ax, position = :rt)
@@ -2365,9 +2546,11 @@ function plot_identifiability_summary(
         end
 
         if !isempty(recommendations)
-            Label(fig[2, 1],
-                  join(recommendations, "\n"),
-                  fontsize = 10, halign = :left)
+            Label(
+                fig[2, 1],
+                join(recommendations, "\n"),
+                fontsize = 10, halign = :left
+            )
         end
     end
 
@@ -2383,9 +2566,9 @@ end
 AlgebraOfGraphics version: Create summary bar chart for identifiability.
 """
 function plot_identifiability_summary_aog(
-    report;
-    title::String = "Identifiability Analysis Summary"
-)
+        report;
+        title::String = "Identifiability Analysis Summary"
+    )
     # Check if we have global or local results
     has_global = !isempty(report.global_results)
     results = has_global ? report.global_results : report.local_results
@@ -2408,11 +2591,13 @@ function plot_identifiability_summary_aog(
 
     # Create stacked bar chart using AOG
     plt = data(df) *
-          mapping(:scenario => "Scenario", :count => "Number of Parameters",
-                  stack = :status, color = :status => "Status") *
-          visual(BarPlot)
+        mapping(
+        :scenario => "Scenario", :count => "Number of Parameters",
+        stack = :status, color = :status => "Status"
+    ) *
+        visual(BarPlot)
 
-    fig = draw(plt; axis = (title = title, xticklabelrotation = π/6))
+    fig = draw(plt; axis = (title = title, xticklabelrotation = π / 6))
 
     return fig
 end
@@ -2435,16 +2620,17 @@ Plot identifiable parameter functions/combinations.
 Makie Figure showing identifiable functions
 """
 function plot_identifiability_functions(
-    funcs_result;
-    max_display::Int = 10,
-    title::String = "Identifiable Parameter Functions"
-)
+        funcs_result;
+        max_display::Int = 10,
+        title::String = "Identifiable Parameter Functions"
+    )
     funcs = funcs_result.identifiable_functions
     n_display = min(length(funcs), max_display)
 
     fig = Figure(size = (600, max(300, 30 * n_display)))
 
-    ax = Axis(fig[1, 1],
+    ax = Axis(
+        fig[1, 1],
         title = title * "\n(Scenario: $(funcs_result.scenario.name))",
         xlabel = "",
         ylabel = "Function Index"
@@ -2461,18 +2647,22 @@ function plot_identifiability_functions(
             func_str = func_str[1:57] * "..."
         end
 
-        text!(ax, 0.05, n_display - i + 0.5,
-              text = "$i. $func_str",
-              align = (:left, :center),
-              fontsize = 10)
+        text!(
+            ax, 0.05, n_display - i + 0.5,
+            text = "$i. $func_str",
+            align = (:left, :center),
+            fontsize = 10
+        )
     end
 
     xlims!(ax, 0, 1)
     ylims!(ax, 0, n_display + 1)
 
     if length(funcs) > max_display
-        Label(fig[2, 1], "... and $(length(funcs) - max_display) more functions",
-              fontsize = 10, color = :gray)
+        Label(
+            fig[2, 1], "... and $(length(funcs) - max_display) more functions",
+            fontsize = 10, color = :gray
+        )
     end
 
     return fig

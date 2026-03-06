@@ -3,47 +3,6 @@ title: "HBV Series: Virtual Clinical Trial Simulation"
 subtitle: "Multi-Arm HBV Treatment Comparison with Functional Cure Endpoints"
 author:
   - Vijay Ivaturi
-execute:
-  cache: true
-  error: false
-julia: 
-  exeflags: ["+Pumas@2.7.1"]
-format:
-  html:
-    include-in-header:
-      text: |
-        <style>
-          .header-container {
-            width: 100%;
-          }
-          .logo {
-            display: block;
-            width: 150px;
-            margin-left: -2.5%;
-          }
-        </style>
-        <link rel = "shortcut icon" href = "https://pumas.ai/favicon.ico" />
-    include-before-body:
-      text: |
-        <div class="header-container">
-          <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
-        </div>
-    self-contained-math: true
-    anchor-sections: true
-    theme: default
-    toc: true
-    toc-depth: 4
-    toc-expand: 2
-    toc-location: left
-    toc-title: Contents
-    number-sections: true
-    code-summary: Show/Hide Code
-embed-resources: true
-fig-format: svg
-fig-width: 8
-fig-height: 6
-bibliography: references.bib
-csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
 ---
 
 :::{.callout-note}
@@ -59,15 +18,18 @@ This is **Tutorial 6 of 6** in the HBV series.
 | 4 | [Structural Identifiability](hbv_04_structural_identifiability_tutorial.qmd) | ✓ Complete |
 | 5 | [MILP Calibration](hbv_05_milp_calibration_tutorial.qmd) | ✓ Complete |
 | 6 | **VCT Simulation (current)** | ← You are here |
+
 :::
 
 ## Learning Outcomes
 
-This tutorial brings together all concepts from the HBV series to run a comprehensive Virtual Clinical Trial comparing multiple treatment strategies.
+This tutorial brings together all concepts from the HBV series to run a comprehensive Virtual
+Clinical Trial comparing multiple treatment strategies.
 
 In this tutorial, you will learn:
 
-- How to structure HBV treatment phases (untreated → NUC background → treatment → off-treatment)
+- How to structure HBV treatment phases (untreated → NUC background → treatment
+  → off-treatment)
 - How to simulate multiple treatment arms (Control, NUC, IFN, Combination)
 - How to calculate functional cure and HBsAg loss rates
 - How to analyze and visualize VCT results
@@ -109,11 +71,11 @@ const HBV_PHASES = (
     untreated = 5 * 365,       # 5 years - establish chronic infection
     nuc_background = 4 * 365,  # 4 years - NUC background (suppressed patients)
     treatment = 48 * 7,        # 48 weeks - active treatment
-    off_treatment = 24 * 7     # 24 weeks - durability assessment
+    off_treatment = 24 * 7,     # 24 weeks - durability assessment
 )
 
 println("HBV VCT Treatment Phases:")
-println("=" ^ 50)
+println("="^50)
 total_days = sum(HBV_PHASES)
 running_total = 0
 for (phase, days) in pairs(HBV_PHASES)
@@ -132,7 +94,7 @@ println("\nTotal simulation: $total_days days ($(total_days ÷ 365) years)")
 
 ```{julia}
 # Define treatment arms
-@enum TreatmentArm CONTROL=0 NUC_ONLY=1 IFN_ONLY=2 NUC_IFN_COMBO=3
+@enum TreatmentArm CONTROL = 0 NUC_ONLY = 1 IFN_ONLY = 2 NUC_IFN_COMBO = 3
 
 treatment_arms = DataFrame(
     arm = ["Control", "NUC Only", "IFN Only", "NUC+IFN"],
@@ -143,7 +105,7 @@ treatment_arms = DataFrame(
         "No treatment during treatment phase",
         "Nucleoside analog only",
         "Interferon only",
-        "Combination therapy"
+        "Combination therapy",
     ]
 )
 
@@ -157,7 +119,7 @@ We'll use a simplified version of the vpop generation and calibration from previ
 
 ```{julia}
 # Simplified HBV vpop generation (from HBV-02)
-function generate_hbv_vpop(n::Int; seed::Union{Int,Nothing}=nothing)
+function generate_hbv_vpop(n::Int; seed::Union{Int, Nothing} = nothing)
     if !isnothing(seed)
         Random.seed!(seed)
     end
@@ -184,10 +146,10 @@ end
 
 # Generate population
 n_vps = 500  # Smaller for tutorial speed
-vpop = generate_hbv_vpop(n_vps; seed=42)
+vpop = generate_hbv_vpop(n_vps; seed = 42)
 
 println("Generated $(nrow(vpop)) virtual patients")
-println("Baseline HBsAg: median=$(round(10^median(vpop.log_hbsag_bl), digits=1)) IU/mL")
+println("Baseline HBsAg: median=$(round(10^median(vpop.log_hbsag_bl), digits = 1)) IU/mL")
 ```
 
 ## Part 3: Simplified VCT Simulation
@@ -201,10 +163,10 @@ Simulate HBsAg dynamics for one patient over the VCT.
 Returns DataFrame with time and log_HBsAg.
 """
 function simulate_hbv_patient(
-    patient::DataFrameRow,
-    arm::TreatmentArm;
-    phases::NamedTuple = HBV_PHASES
-)
+        patient::DataFrameRow,
+        arm::TreatmentArm;
+        phases::NamedTuple = HBV_PHASES
+    )
     # Phase times
     t1 = phases.untreated
     t2 = t1 + phases.nuc_background
@@ -334,7 +296,7 @@ function is_functional_cure(log_hbsag_eot::Real, log_hbsag_fu::Real)
 end
 
 println("Endpoint Definitions:")
-println("  HBsAg Loss: HBsAg < $(LOQ_HBsAg) IU/mL (log10 < $(round(log10(LOQ_HBsAg), digits=2)))")
+println("  HBsAg Loss: HBsAg < $(LOQ_HBsAg) IU/mL (log10 < $(round(log10(LOQ_HBsAg), digits = 2)))")
 println("  Functional Cure: Sustained HBsAg loss through 24-week follow-up")
 ```
 
@@ -396,19 +358,19 @@ simple_table(endpoint_results)
 """
 Calculate bootstrap 95% CI for a rate.
 """
-function bootstrap_ci(data::Vector{Bool}; n_boot::Int=1000)
+function bootstrap_ci(data::Vector{Bool}; n_boot::Int = 1000)
     n = length(data)
     estimates = Float64[]
 
     for _ in 1:n_boot
-        boot_sample = sample(data, n, replace=true)
+        boot_sample = sample(data, n, replace = true)
         push!(estimates, 100 * mean(boot_sample))
     end
 
     return (
         estimate = 100 * mean(data),
         lower = quantile(estimates, 0.025),
-        upper = quantile(estimates, 0.975)
+        upper = quantile(estimates, 0.975),
     )
 end
 
@@ -480,10 +442,12 @@ plt = plt_band + plt_lines
 arm_colors = [:gray, :blue, :green, :purple]
 
 fig = Figure(size = (1000, 600))
-ax = Axis(fig[1, 1],
+ax = Axis(
+    fig[1, 1],
     xlabel = "Time (days)",
     ylabel = "log₁₀ HBsAg (IU/mL)",
-    title = "HBsAg Dynamics: Treatment Comparison")
+    title = "HBsAg Dynamics: Treatment Comparison"
+)
 
 # Draw AoG plot
 ag = draw!(ax, plt, scales(Color = (; palette = arm_colors)))
@@ -501,8 +465,10 @@ vlines!(ax, [t_eot], color = :gray, linestyle = :dot)
 legend!(fig[1, 2], ag)
 
 # Add text annotation for threshold
-text!(ax, t_eot + 50, log10(0.05) + 0.3, text = "FC Threshold",
-      fontsize = 10, color = :green)
+text!(
+    ax, t_eot + 50, log10(0.05) + 0.3, text = "FC Threshold",
+    fontsize = 10, color = :green
+)
 
 fig
 ```
@@ -525,11 +491,13 @@ plt_bars = data(fc_ci_plot) *
 arm_colors = [:gray, :blue, :green, :purple]
 
 fig = Figure(size = (800, 450))
-ax = Axis(fig[1, 1],
+ax = Axis(
+    fig[1, 1],
     xlabel = "Treatment Arm",
     ylabel = "Functional Cure Rate (%)",
     title = "Functional Cure Rates by Treatment",
-    limits = (nothing, (0, 50)))
+    limits = (nothing, (0, 50))
+)
 
 # Draw AoG plot
 ag = draw!(ax, plt_bars, scales(Color = (; palette = arm_colors)))
@@ -537,8 +505,10 @@ ag = draw!(ax, plt_bars, scales(Color = (; palette = arm_colors)))
 # Add error bars with Makie (AoG doesn't support rangebars directly)
 # Get x positions from categorical order
 x_positions = 1:length(arm_names)
-rangebars!(ax, x_positions, fc_ci_plot.ci_lower, fc_ci_plot.ci_upper,
-           color = :black, linewidth = 2, whiskerwidth = 10)
+rangebars!(
+    ax, x_positions, fc_ci_plot.ci_lower, fc_ci_plot.ci_upper,
+    color = :black, linewidth = 2, whiskerwidth = 10
+)
 
 # Legend outside plot
 legend!(fig[1, 2], ag)
@@ -585,10 +555,12 @@ plt_waterfall = data(changes) *
 response_colors = [:green, :gray, :red]
 
 fig = Figure(size = (1000, 450))
-ax = Axis(fig[1, 1],
+ax = Axis(
+    fig[1, 1],
     xlabel = "Patient (sorted by response)",
     ylabel = "Change in log₁₀ HBsAg",
-    title = "Waterfall Plot: Combination Arm")
+    title = "Waterfall Plot: Combination Arm"
+)
 
 # Draw AoG plot
 ag = draw!(ax, plt_waterfall, scales(Color = (; palette = response_colors)))
@@ -610,9 +582,9 @@ fig
 ### Key Results
 
 ```{julia}
-println("=" ^ 60)
+println("="^60)
 println("HBV VIRTUAL CLINICAL TRIAL SUMMARY")
-println("=" ^ 60)
+println("="^60)
 
 println("\nTreatment Comparison:")
 simple_table(endpoint_results)
@@ -623,7 +595,7 @@ best_rate = maximum(fc_ci.rate)
 
 println("\nKey Finding:")
 println("  Best performing arm: $best_arm")
-println("  Functional cure rate: $(round(best_rate, digits=1))%")
+println("  Functional cure rate: $(round(best_rate, digits = 1))%")
 println("\nCombination therapy achieves highest FC rates by combining:")
 println("  - Direct viral suppression (NUC)")
 println("  - Immune enhancement (IFN)")
@@ -631,7 +603,9 @@ println("  - Immune enhancement (IFN)")
 
 ### VCT Workflow Complete
 
-Congratulations! You have completed the HBV Tutorial Series. You now have the skills to:
+Congratulations!
+You have completed the HBV Tutorial Series.
+You now have the skills to:
 
 1. **Understand HBV biology** and the QSP model structure
 2. **Generate virtual populations** with copula sampling

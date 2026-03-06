@@ -2,44 +2,6 @@
 title: "Virtual Population Generation using Gaussian Copulas"
 author:
   - Vijay Ivaturi
-execute:
-  cache: true
-  error: false
-engine: julia
-format:
-  html:
-    include-in-header:
-      text: |
-        <style>
-          .header-container {
-            width: 100%;
-          }
-          .logo {
-            display: block;
-            width: 150px;
-            margin-left: -2.5%;
-          }
-        </style>
-        <link rel = "shortcut icon" href = "https://pumas.ai/favicon.ico" />
-    include-before-body:
-      text: |
-        <div class="header-container">
-          <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
-        </div>
-    anchor-sections: true
-    theme: default
-    toc: true
-    toc-depth: 4
-    toc-expand: 2
-    toc-location: left
-    toc-title: Contents
-    number-sections: true
-    code-summary: Show/Hide Code
-fig-format: svg
-fig-width: 8
-fig-height: 6
-bibliography: references.bib
-csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
 ---
 
 :::{.callout-note}
@@ -55,11 +17,14 @@ This is **Tutorial 2 of 6** in the Tumor Burden series.
 | 4 | [Structural Identifiability](tb_04_structural_identifiability_tutorial.qmd) | |
 | 5 | [MILP Calibration](tb_05_milp_calibration_tutorial.qmd) | |
 | 6 | [VCT Simulation](tb_06_vct_simulation_tutorial.qmd) | |
+
 :::
 
 ## Learning Outcomes
 
-Virtual populations are essential for conducting In Silico Clinical Trials (ISCTs). When parameters are estimated using Nonlinear Mixed Effects (NLME) models, they exhibit correlations that must be preserved when generating new virtual patients [@cortes2025].
+Virtual populations are essential for conducting In Silico Clinical Trials (ISCTs).
+When parameters are estimated using Nonlinear Mixed Effects (NLME) models,
+they exhibit correlations that must be preserved when generating new virtual patients [@cortes2025].
 
 In this tutorial, you will learn:
 
@@ -72,7 +37,9 @@ In this tutorial, you will learn:
 
 ## Prerequisites
 
-This tutorial builds on the Tumor Burden Model introduced in [Tutorial 1](tb_01_model_introduction_tutorial.qmd). We use the same parameter specifications:
+This tutorial builds on the Tumor Burden Model introduced in
+[Tutorial 1](tb_01_model_introduction_tutorial.qmd).
+We use the same parameter specifications:
 
 - **f** (sensitive fraction): median 0.27, bounds [0, 1]
 - **g** (growth rate): median 0.0013, bounds [0, 0.13] d⁻¹
@@ -83,16 +50,21 @@ This tutorial builds on the Tumor Burden Model introduced in [Tutorial 1](tb_01_
 
 ### The Problem: Why Not Just Sample Independently?
 
-Imagine you have fitted an NLME model and obtained estimates for three parameters: treatment-sensitive fraction (f), tumor growth rate (g), and death rate (k). Each parameter has a mean, variance, and importantly—**correlations with other parameters**.
+Imagine you have fitted an NLME model and obtained estimates for three parameters:
+treatment-sensitive fraction (f), tumor growth rate (g), and death rate (k).
+Each parameter has a mean, variance, and importantly— **correlations with other parameters**.
 
-A naive approach would be to sample each parameter independently from its marginal distribution. But this approach **destroys the correlation structure** that exists in the real patient population.
+A naive approach would be to sample each parameter independently from its marginal distribution.
+But this approach **destroys the correlation structure** that exists in the real patient population.
 
 :::{.callout-warning}
 ## The Correlation Problem
 
-Consider the tumor burden model from @qi2022. The parameters f and g have a correlation of r = -0.64, meaning:
+Consider the tumor burden model from @qi2022.
+The parameters f and g have a correlation of r = -0.64, meaning:
 
-- Patients with high f (more treatment-sensitive cells) tend to have lower g (slower tumor growth)
+- Patients with high f (more treatment-sensitive cells) tend to have lower g
+  (slower tumor growth)
 - This biological relationship must be preserved in the virtual population
 
 **If we sample f and g independently:**
@@ -104,19 +76,25 @@ Consider the tumor burden model from @qi2022. The parameters f and g have a corr
 
 ### What is a Copula?
 
-A **copula** is a mathematical function that joins univariate marginal distributions to form a multivariate distribution. The key theorem is Sklar's theorem [@sklar1959]:
+A **copula** is a mathematical function
+that joins univariate marginal distributions to form a multivariate distribution.
+The key theorem is Sklar's theorem [@sklar1959]:
 
-> Any multivariate joint distribution can be written as a function of its marginal distributions and a copula that describes the dependence structure.
+> Any multivariate joint distribution can be written as a function of its marginal distributions
+> and a copula that describes the dependence structure.
 
 This means we can:
 
-1. **Separate** the marginal distributions (how each parameter is distributed individually)
+1. **Separate** the marginal distributions (how each parameter is distributed
+   individually)
 2. **Capture** the dependence structure in a copula
 3. **Combine** them to generate correlated samples
 
 ### Why Gaussian Copulas?
 
-The **Gaussian copula** uses the multivariate normal distribution to capture correlations [@nelsen2006]. It has several advantages:
+The **Gaussian copula** uses the multivariate normal distribution to capture correlations
+[@nelsen2006].
+It has several advantages:
 
 | Feature | Benefit |
 |:--------|:--------|
@@ -131,8 +109,10 @@ The **Gaussian copula** uses the multivariate normal distribution to capture cor
 The Gaussian copula preserves **Spearman (rank) correlations** through any monotonic transformation.
 This is crucial because sampling with a copula consists of
 
-1. Sampling uniformly distributed values in the unit hypercube from the copula with the specified correlation structure
-2. Transforming sampled values to the target marginal distributions (e.g., logit-normal) by applying the respective quantile functions
+1. Sampling uniformly distributed values in the unit hypercube from the copula
+   with the specified correlation structure
+2. Transforming sampled values to the target marginal distributions (e.g.,
+   logit-normal) by applying the respective quantile functions
 
 Pearson correlations are NOT preserved through nonlinear transforms, but Spearman correlations are.
 :::
@@ -145,14 +125,16 @@ Many pharmacometric parameters are bounded:
 - Fraction sensitive f: [0, 1]
 - Rates with physiological upper limits
 
-The **logit-normal distribution** handles bounded parameters by working on the logit (log-odds) scale:
+The **logit-normal distribution** handles bounded parameters by working on the logit (log-odds)
+scale:
 
 $$\text{logit}(p) = \log\left(\frac{p}{1-p}\right)$$
 
-If $Y \sim \text{Normal}(\mu, \sigma)$, then $P = \text{logistic}(Y) = \frac{1}{1 + e^{-Y}}$ follows a logit-normal distribution bounded on [0, 1].
+If $Y \sim \text{Normal}(\mu, \sigma)$,
+then $P = \text{logistic}(Y) = \frac{1}{1 + e^{-Y}}$ follows a logit-normal distribution bounded on
+[0, 1].
 
-For general bounds [a, b]:
-$$P = a + (b - a) \cdot \text{logistic}(Y)$$
+For general bounds [a, b]: $$P = a + (b - a) \cdot \text{logistic}(Y)$$
 
 ## Libraries
 
@@ -180,7 +162,8 @@ Random.seed!(42)
 - `Copulas`: Implements various copula families including Gaussian copulas
 - `StatsBase`: Spearman correlation computation
 - `AlgebraOfGraphics` + `CairoMakie`: Publication-quality visualizations
-- `PairPlots`: Corner plots showing pairwise relationships and marginal distributions
+- `PairPlots`: Corner plots showing pairwise relationships
+  and marginal distributions
 - `SummaryTables`: Clean rendering of DataFrames in documents
 
 ## Part 1: Parameter Specifications
@@ -202,18 +185,22 @@ tumor_burden_model = @model begin
         timeu = u"d"  # Time unit is days
     end
 
+    @options begin
+        checklinear = false
+    end
+
     @param begin
         # Typical values (population parameters)
-        tvf ∈ RealDomain(lower=0.0, upper=1.0)
-        tvg ∈ RealDomain(lower=0.0)
-        tvk ∈ RealDomain(lower=0.0)
+        tvf ∈ RealDomain(lower = 0.0, upper = 1.0)
+        tvg ∈ RealDomain(lower = 0.0)
+        tvk ∈ RealDomain(lower = 0.0)
 
         # Inter-individual variability (diagonal covariance matrix)
         # Values on the transformed scale (logit for f, log for g and k)
         Ω ∈ PDiagDomain(3)
 
         # Residual error (standard deviation)
-        σ ∈ RealDomain(lower=0.0)
+        σ ∈ RealDomain(lower = 0.0)
     end
 
     @random begin
@@ -227,14 +214,13 @@ tumor_burden_model = @model begin
         # Transform random effects to individual parameters
         # f: logit-normal transformation (bounded 0-1)
         f = logistic(logit(tvf) + η[1])
-        # g, k: log-normal transformation (positive values)
+        # g: log-normal transformation (positive value)
         g = tvg * exp(η[2])
-        k = tvk * exp(η[3])
-
-        # Treatment effect on death rate
+        # k: log-normal transformation (positive value)
+        # Additionally, treatment affects death rate:
         # treatment = 0 → control arm (no killing)
-        # treatment = 1 → treatment arm (killing at rate k)
-        k_eff = treatment * k
+        # treatment = 1 → treatment arm (killing at rate tvk * exp(η[3]))
+        k = treatment * tvk * exp(η[3])
     end
 
     # Initial conditions (normalized tumor = 1)
@@ -244,10 +230,10 @@ tumor_burden_model = @model begin
     end
 
     @dynamics begin
-        # Sensitive cells: die at effective rate (0 if control, k if treatment)
-        N_sens' = -k_eff * N_sens
+        # Sensitive cells: die at rate k (0 if control)
+        N_sens' = -k * N_sens
 
-        # Resistant cells: always grow at rate g
+        # Resistant cells: grow at rate g
         N_res' = g * N_res
     end
 
@@ -261,7 +247,8 @@ tumor_burden_model = @model begin
 end
 ```
 
-For details on the model biology and parameters, see [Tutorial 1: Model Introduction](tb_01_model_introduction_tutorial.qmd).
+For details on the model biology and parameters,
+see [Tutorial 1: Model Introduction](tb_01_model_introduction_tutorial.qmd).
 
 ### Parameter Values from Literature
 
@@ -290,14 +277,14 @@ cor_f_g = -0.64  # Negative correlation: high f ↔ low g
 Let us demonstrate why independent sampling breaks the correlation structure.
 
 ```{julia}
-patients = [Subject(; id, time=[0.0], covariates=(; treatment=false)) for id in 1:10_000]
-param = (; tvf=pop_f, tvg=pop_g, tvk=pop_k, Ω=Diagonal([ω_f^2, ω_g^2, ω_k^2]), σ=resid_σ)
-sims = simobs(tumor_burden_model, patients, param; simulate_error=false)
+patients = [Subject(; id, time = [0.0], covariates = (; treatment = false)) for id in 1:10_000]
+param = (; tvf = pop_f, tvg = pop_g, tvk = pop_k, Ω = Diagonal([ω_f^2, ω_g^2, ω_k^2]), σ = resid_σ)
+sims = simobs(tumor_burden_model, patients, param; simulate_error = false)
 ```
 
 ```{julia}
 vpop_indep = postprocess(sims) do generated, _
-    (; f=only(unique(generated.f)), g=only(unique(generated.g)), k=only(unique(generated.k)))
+    (; f = only(unique(generated.f)), g = only(unique(generated.g)), k = only(unique(generated.k)))
 end |> DataFrame
 ```
 
@@ -314,9 +301,10 @@ corspearman(vpop_indep.f, vpop_indep.g)
 but the expected correlation was -0.64!
 
 :::{.callout-warning}
-## Result: Correlation Lost!
+## Result: Correlation Lost
 
-The independently sampled population has essentially **zero correlation** between f and g, when the true correlation should be -0.64.
+The independently sampled population has essentially **zero correlation** between f and g,
+when the true correlation should be -0.64.
 This would lead to a virtual population that doesn't represent real patient heterogeneity.
 :::
 
@@ -329,15 +317,15 @@ The copula-based sampling algorithm is illustrated in @fig-copula-sampling.
 In Pumas this algorithm corresponds to the following steps:
 
 ```{mermaid}
+%%| echo: false
 flowchart TB
     A["Step 1: Define Model Parameters"] --> B["Step 2: Define Correlation Matrix<br/>(Spearman correlations)"]
     B --> C["Step 3: Create Gaussian Copula<br/>with correlation matrix"]
     C --> D["Step 4: Create Joint Distribution of Random Effects<br/>from marginals and copula"]
-    C --> D["Step 5: Sample Correlated Random Effects<br/>η ~ Sklar"]
-    D --> E["Step 6: Perform Model Simulation<br/>with sampled random effects"]
- 
+    D --> E["Step 5: Sample Correlated Random Effects"]
+    E --> F["Step 6: Perform Model Simulation"]
+
     style A fill:#e1f5fe,stroke:#01579b
-    style D fill:#fff3e0,stroke:#e65100
     style F fill:#e8f5e9,stroke:#2e7d32
 ```
 
@@ -382,17 +370,19 @@ correlated_randeffs = rand(correlated_randeffs_dist, length(patients))
 :::{.callout-note}
 ## Understanding Copula Samples
 
-The matrix `correlated_randeffs` contains values where each random effect is distributed according to a normal distribution with the specificed standard deviation:
+The matrix `correlated_randeffs` contains values
+where each random effect is distributed according to a normal distribution with the specified
+standard deviation:
 
 ```{julia}
-mean(correlated_randeffs; dims=2)
+mean(correlated_randeffs; dims = 2)
 ```
 
 ```{julia}
-std(correlated_randeffs; dims=2)
+std(correlated_randeffs; dims = 2)
 ```
 
-Addtitionally, the samples are **correlated** according to our Gaussian copula:
+Additionally, the samples are **correlated** according to our Gaussian copula:
 
 ```{julia}
 corspearman(correlated_randeffs')
@@ -406,14 +396,14 @@ We now have correlated random effects that we can use for performing model simul
 
 ```{julia}
 vrandeffs = [(; η) for η in eachcol(correlated_randeffs)]
-sims = simobs(tumor_burden_model, patients, param, vrandeffs; simulate_error=false)
+sims = simobs(tumor_burden_model, patients, param, vrandeffs; simulate_error = false)
 ```
 
 We create a DataFrame of the simulated parameters `f`, `g` and `k` of the dynamical system:
 
 ```{julia}
 vpop = postprocess(sims) do generated, _
-    (; f=only(unique(generated.f)), g=only(unique(generated.g)), k=only(unique(generated.k)))
+    (; f = only(unique(generated.f)), g = only(unique(generated.g)), k = only(unique(generated.k)))
 end |> DataFrame
 
 overview_table(vpop)
@@ -422,11 +412,16 @@ overview_table(vpop)
 :::{.callout-note}
 ## Why Does This Preserve Correlations?
 
-The quantile function is **monotonically increasing**: if $U_1 < U_2$, then $\text{quantile}(U_1) < \text{quantile}(U_2)$.
+The quantile function is **monotonically increasing**: if $U_1 < U_2$,
+then $\text{quantile}(U_1) < \text{quantile}(U_2)$.
 
-Spearman correlation measures the correlation of **ranks**. Since the quantile transform preserves the ordering of values, it preserves the ranks, and therefore preserves the Spearman correlation.
+Spearman correlation measures the correlation of **ranks**.
+Since the quantile transform preserves the ordering of values, it preserves the ranks,
+and therefore preserves the Spearman correlation.
 
-This is why we specified **Spearman correlations** in our correlation matrix—they survive monotonic transformations like the quantile function and the logistic function in Step 6.
+This is why we specified **Spearman correlations** in our correlation matrix—
+they survive monotonic transformations like the quantile function
+and the logistic function in Step 6.
 :::
 
 ## Part 4: Validation
@@ -449,7 +444,7 @@ The absolute difference from the target correlation matrix is:
 ```
 
 :::{.callout-tip}
-## Validation Passed!
+## Validation Passed
 
 The observed correlations closely match the expected correlations.
 The small differences are due to sampling variability and decrease with larger sample sizes.
@@ -457,16 +452,16 @@ The small differences are due to sampling variability and decrease with larger s
 
 ### Check Marginal Distributions
 
-Let's verify that `f`, `g` and `k` follow their expected distributions
-by comparing the expected and observed median and omega (standard deviation of untransformed sample):
+Let's verify that `f`, `g` and `k` follow their expected distributions by comparing the expected
+and observed median and omega (standard deviation of untransformed sample):
 
 ```{julia}
 DataFrame(
-    parameter=[:f, :g, :k],
-    expected_median=[pop_f, pop_g, pop_k],
-    observed_median=[median(vpop.f), median(vpop.g), median(vpop.k)],
-    expected_omega=[ω_f, ω_g, ω_k],
-    observed_omega=[std(logit.(vpop.f)), std(log.(vpop.g)), std(log.(vpop.k))],
+    parameter = [:f, :g, :k],
+    expected_median = [pop_f, pop_g, pop_k],
+    observed_median = [median(vpop.f), median(vpop.g), median(vpop.k)],
+    expected_omega = [ω_f, ω_g, ω_k],
+    observed_omega = [std(logit.(vpop.f)), std(log.(vpop.g)), std(log.(vpop.k))],
 ) |> simple_table
 ```
 
@@ -476,10 +471,10 @@ DataFrame(
 
 ```{julia}
 #| fig-cap: "Marginal distributions of virtual population parameters. Lines indicate expected medians from NLME estimation."
-specs_vpop = data(vpop) * mapping([:f, :g, :k] .=> ["f (sensitive fraction)", "g (growth rate, d⁻¹)", "k (death rate, d⁻¹)"], col=dims(1)) * histogram(; normalization=:pdf, datalimits=extrema)
-specs_median = data((; f=[pop_f], g=[pop_g], k=[pop_k])) * mapping([:f, :g, :k], col=dims(1), linestyle=AlgebraOfGraphics.direct("expected median")) * visual(VLines)
+specs_vpop = data(vpop) * mapping([:f, :g, :k] .=> ["f (sensitive fraction)", "g (growth rate, d⁻¹)", "k (death rate, d⁻¹)"], col = dims(1)) * histogram(; normalization = :pdf, datalimits = extrema)
+specs_median = data((; f = [pop_f], g = [pop_g], k = [pop_k])) * mapping([:f, :g, :k], col = dims(1), linestyle = AlgebraOfGraphics.direct("expected median")) * visual(VLines)
 
-draw(specs_vpop + specs_median; axis=(; xlabel="Value", ylabel="Density"), facet=(; linkxaxes=false, linkyaxes=false), legend=(; position=:bottom))
+draw(specs_vpop + specs_median; axis = (; xlabel = "Value", ylabel = "Density"), facet = (; linkxaxes = false, linkyaxes = false), legend = (; position = :bottom))
 ```
 
 ### Correlation Structure: Independent vs Copula Sampling
@@ -488,19 +483,19 @@ draw(specs_vpop + specs_median; axis=(; xlabel="Value", ylabel="Density"), facet
 #| fig-cap: "Comparison of correlation structure: independent sampling destroys the f-g correlation, while copula sampling preserves it."
 
 # Combine both methods into one DataFrame
-vpop_total = vcat(vpop_indep, vpop; source="method" => ["Independent (r ≈ 0)", "Copula (r = -0.64)"])
+vpop_total = vcat(vpop_indep, vpop; source = "method" => ["Independent (r ≈ 0)", "Copula (r = -0.64)"])
 
 # Create scatter plot with faceting by method
 plt_scatter = data(vpop_total) *
-              mapping(
-                  :f => "f (sensitive fraction)",
-                  :g => "g (growth rate, d⁻¹)",
-                  layout=:method
-              ) *
-              visual(Scatter; marker='○')
+    mapping(
+    :f => "f (sensitive fraction)",
+    :g => "g (growth rate, d⁻¹)",
+    layout = :method
+) *
+    visual(Scatter; marker = '○')
 
 draw(
-    plt_scatter;
+    plt_scatter
 )
 ```
 
@@ -510,9 +505,11 @@ draw(
 The difference is striking:
 
 - **Independent Sampling:** Points show no apparent relationship between f and g
-- **Copula-Based Sampling:** Points show a clear negative relationship—high f values tend to pair with low g values
+- **Copula-Based Sampling:** Points show a clear negative relationship—
+  high f values tend to pair with low g values
 
-This negative correlation is biologically meaningful: tumors with more treatment-sensitive cells tend to grow more slowly.
+This negative correlation is biologically meaningful:
+tumors with more treatment-sensitive cells tend to grow more slowly.
 :::
 
 ### Corner Plot: All Pairwise Relationships
@@ -525,7 +522,7 @@ pairplot(
         PairPlots.MarginHist(),
         PairPlots.Calculation(corspearman),
     ),
-    labels=Dict(
+    labels = Dict(
         :f => "f (sensitive fraction)",
         :g => "g (growth rate)",
         :k => "k (death rate)",
@@ -535,7 +532,8 @@ pairplot(
 
 ## Part 6: Optional - Save Results
 
-The generated virtual population will be used in subsequent tutorials. You can optionally save it to a CSV file.
+The generated virtual population will be used in subsequent tutorials.
+You can optionally save it to a CSV file.
 
 ```{julia}
 #| output: false
@@ -558,7 +556,8 @@ When specifying the correlation matrix for a Gaussian copula:
 
 - Use **Spearman (rank) correlations** from your NLME output
 - Pearson correlations can be distorted by nonlinear transformations
-- Most NLME software reports correlation matrices on the eta (random effect) scale
+- Most NLME software reports correlation matrices on the eta (random effect)
+  scale
 :::
 
 :::{.callout-tip}
@@ -570,6 +569,7 @@ When specifying the correlation matrix for a Gaussian copula:
 | Positive rates (CL, V) | [0, ∞) | Log-normal |
 | Bounded positive (with physiological max) | [0, max] | Logit-normal |
 | Unbounded | (-∞, ∞) | Normal |
+
 :::
 
 :::{.callout-tip}
@@ -593,9 +593,11 @@ Always validate your virtual population before running ISCTs:
 
 ### Key Takeaways
 
-1. **Independent sampling destroys correlations** in the virtual population, leading to biased ISCT predictions
+1. **Independent sampling destroys correlations** in the virtual population,
+   leading to biased ISCT predictions
 
-2. **Gaussian copulas preserve rank (Spearman) correlations** through any monotonic transformation
+2. **Gaussian copulas preserve rank (Spearman) correlations** through any
+   monotonic transformation
 
 3. **The algorithm in Pumas:**
    - Define parameter specifications
@@ -606,7 +608,8 @@ Always validate your virtual population before running ISCTs:
    - Perform simulations using the sampled random effects
    - Validate results
 
-4. **Always validate** correlations and marginals before using the virtual population
+4. **Always validate** correlations and marginals
+   before using the virtual population
 
 ### Quick Reference: Key Functions
 
@@ -622,7 +625,8 @@ In **Tutorial 3: Global Sensitivity Analysis**, we will:
 
 - Analyze which parameters most influence treatment outcomes
 - Learn about Sobol and eFAST sensitivity methods
-- Discover that `f` dominates but the importance of `g` and `k` varies across timepoints
+- Discover that `f` dominates but the importance of `g`
+  and `k` varies across timepoints
 - Use the generated virtual population here for GSA parameter ranges
 
 ### References

@@ -29,9 +29,9 @@ using CairoMakie
 # Part 1: Tumor Burden GSA
 =============================================================================#
 
-println("=" ^ 70)
+println("="^70)
 println("Part 1: Tumor Burden Global Sensitivity Analysis")
-println("=" ^ 70)
+println("="^70)
 
 # Define parameter ranges based on Qi & Cao (2023)
 println("\nParameter Ranges for GSA:")
@@ -64,9 +64,9 @@ display(summary_tb)
 # Part 2: HBV Model GSA
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 2: HBV Model Global Sensitivity Analysis")
-println("=" ^ 70)
+println("="^70)
 
 # Define parameter ranges for HBV
 println("\nParameter Ranges for HBV GSA:")
@@ -100,9 +100,9 @@ display(summary_hbv)
 # Part 3: Treatment Comparison (NUC vs IFN)
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 3: Treatment-Specific GSA Comparison")
-println("=" ^ 70)
+println("="^70)
 
 # Compare parameter importance across treatments
 println("\nRunning GSA for NUC-only treatment...")
@@ -122,20 +122,20 @@ gsa_ifn = run_hbv_gsa(
 )
 
 # Compare influential parameters
-influential_nuc = get_influential_params(gsa_nuc; threshold=0.1)
-influential_ifn = get_influential_params(gsa_ifn; threshold=0.1)
+influential_nuc = get_influential_params(gsa_nuc; threshold = 0.1)
+influential_ifn = get_influential_params(gsa_ifn; threshold = 0.1)
 
 println("\nInfluential Parameters (Total Order ≥ 0.1):")
-println("  NUC treatment: $(join(influential_nuc, \", \"))")
-println("  IFN treatment: $(join(influential_ifn, \", \"))")
+println("  NUC treatment: $(join(influential_nuc, ", "))")
+println("  IFN treatment: $(join(influential_ifn, ", "))")
 
 #=============================================================================
 # Part 4: Visualization
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("Part 4: Creating Visualizations")
-println("=" ^ 70)
+println("="^70)
 
 # Figure 1: Tumor Burden GSA - Bar Chart
 fig1 = Figure(size = (800, 500))
@@ -146,7 +146,8 @@ tb_final = @chain summary_tb begin
     @orderby(-:total_order)
 end
 
-ax1 = Axis(fig1[1, 1],
+ax1 = Axis(
+    fig1[1, 1],
     xlabel = "Parameter",
     ylabel = "Sensitivity Index",
     title = "Tumor Burden GSA: Final Tumor Size",
@@ -156,13 +157,17 @@ ax1 = Axis(fig1[1, 1],
 x_pos = 1:nrow(tb_final)
 barwidth = 0.35
 
-barplot!(ax1, x_pos .- barwidth/2, tb_final.first_order,
-         width=barwidth, color=:blue, label="First Order")
-barplot!(ax1, x_pos .+ barwidth/2, tb_final.total_order,
-         width=barwidth, color=:orange, label="Total Order")
+barplot!(
+    ax1, x_pos .- barwidth / 2, tb_final.first_order,
+    width = barwidth, color = :blue, label = "First Order"
+)
+barplot!(
+    ax1, x_pos .+ barwidth / 2, tb_final.total_order,
+    width = barwidth, color = :orange, label = "Total Order"
+)
 
-axislegend(ax1, position=:rt)
-hlines!(ax1, [0.1], color=:red, linestyle=:dash, label="Threshold")
+axislegend(ax1, position = :rt)
+hlines!(ax1, [0.1], color = :red, linestyle = :dash, label = "Threshold")
 
 save(joinpath(@__DIR__, "..", "outputs", "gsa_tumor_burden.png"), fig1)
 println("Saved: outputs/gsa_tumor_burden.png")
@@ -176,24 +181,29 @@ hbv_hbsag = @chain summary_hbv begin
     @orderby(-:total_order)
 end
 
-ax2 = Axis(fig2[1, 1],
+ax2 = Axis(
+    fig2[1, 1],
     xlabel = "Parameter",
     ylabel = "Sensitivity Index",
     title = "HBV GSA: Final HBsAg Level",
     xticks = (1:nrow(hbv_hbsag), string.(hbv_hbsag.parameter)),
-    xticklabelrotation = π/4
+    xticklabelrotation = π / 4
 )
 
 x_pos2 = 1:nrow(hbv_hbsag)
 barwidth2 = 0.35
 
-barplot!(ax2, x_pos2 .- barwidth2/2, hbv_hbsag.first_order,
-         width=barwidth2, color=:blue, label="First Order")
-barplot!(ax2, x_pos2 .+ barwidth2/2, hbv_hbsag.total_order,
-         width=barwidth2, color=:orange, label="Total Order")
+barplot!(
+    ax2, x_pos2 .- barwidth2 / 2, hbv_hbsag.first_order,
+    width = barwidth2, color = :blue, label = "First Order"
+)
+barplot!(
+    ax2, x_pos2 .+ barwidth2 / 2, hbv_hbsag.total_order,
+    width = barwidth2, color = :orange, label = "Total Order"
+)
 
-axislegend(ax2, position=:rt)
-hlines!(ax2, [0.1], color=:red, linestyle=:dash)
+axislegend(ax2, position = :rt)
+hlines!(ax2, [0.1], color = :red, linestyle = :dash)
 
 save(joinpath(@__DIR__, "..", "outputs", "gsa_hbv_hbsag.png"), fig2)
 println("Saved: outputs/gsa_hbv_hbsag.png")
@@ -226,25 +236,32 @@ ifn_indices = get_total_order_vector(gsa_ifn, :final_hbsag)
 combo_indices = get_total_order_vector(hbv_gsa, :final_hbsag)
 
 # Create grouped bar chart
-ax3 = Axis(fig3[1, 1],
+ax3 = Axis(
+    fig3[1, 1],
     xlabel = "Parameter",
     ylabel = "Total Order Index",
     title = "HBV GSA: Treatment Comparison (Final HBsAg)",
     xticks = (1:n_params, param_names),
-    xticklabelrotation = π/4
+    xticklabelrotation = π / 4
 )
 
 barwidth3 = 0.25
 offsets = [-barwidth3, 0, barwidth3]
 
-barplot!(ax3, (1:n_params) .+ offsets[1], nuc_indices,
-         width=barwidth3, color=:blue, label="NUC")
-barplot!(ax3, (1:n_params) .+ offsets[2], ifn_indices,
-         width=barwidth3, color=:orange, label="IFN")
-barplot!(ax3, (1:n_params) .+ offsets[3], combo_indices,
-         width=barwidth3, color=:green, label="NUC+IFN")
+barplot!(
+    ax3, (1:n_params) .+ offsets[1], nuc_indices,
+    width = barwidth3, color = :blue, label = "NUC"
+)
+barplot!(
+    ax3, (1:n_params) .+ offsets[2], ifn_indices,
+    width = barwidth3, color = :orange, label = "IFN"
+)
+barplot!(
+    ax3, (1:n_params) .+ offsets[3], combo_indices,
+    width = barwidth3, color = :green, label = "NUC+IFN"
+)
 
-axislegend(ax3, position=:rt)
+axislegend(ax3, position = :rt)
 
 save(joinpath(@__DIR__, "..", "outputs", "gsa_treatment_comparison.png"), fig3)
 println("Saved: outputs/gsa_treatment_comparison.png")
@@ -258,16 +275,19 @@ hbv_interactions = @chain summary_hbv begin
     @orderby(-:interaction)
 end
 
-ax4 = Axis(fig4[1, 1],
+ax4 = Axis(
+    fig4[1, 1],
     xlabel = "Parameter",
     ylabel = "Interaction Effect (Total - First Order)",
     title = "HBV GSA: Parameter Interactions",
     xticks = (1:nrow(hbv_interactions), string.(hbv_interactions.parameter)),
-    xticklabelrotation = π/4
+    xticklabelrotation = π / 4
 )
 
-barplot!(ax4, 1:nrow(hbv_interactions), hbv_interactions.interaction,
-         color=:purple)
+barplot!(
+    ax4, 1:nrow(hbv_interactions), hbv_interactions.interaction,
+    color = :purple
+)
 
 save(joinpath(@__DIR__, "..", "outputs", "gsa_interactions.png"), fig4)
 println("Saved: outputs/gsa_interactions.png")
@@ -276,22 +296,22 @@ println("Saved: outputs/gsa_interactions.png")
 # Summary
 =============================================================================#
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("GSA Analysis Complete!")
-println("=" ^ 70)
+println("="^70)
 
 println("\nKey Findings:")
 
 println("\nTumor Burden Model:")
 top_tb = first(tb_final, 3)
 for row in eachrow(top_tb)
-    println("  - $(row.parameter): Total Order = $(round(row.total_order, digits=3))")
+    println("  - $(row.parameter): Total Order = $(round(row.total_order, digits = 3))")
 end
 
 println("\nHBV Model (NUC+IFN):")
 top_hbv = first(hbv_hbsag, 3)
 for row in eachrow(top_hbv)
-    println("  - $(row.parameter): Total Order = $(round(row.total_order, digits=3))")
+    println("  - $(row.parameter): Total Order = $(round(row.total_order, digits = 3))")
 end
 
 println("\nInterpretation Guide:")

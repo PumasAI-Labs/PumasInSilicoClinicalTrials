@@ -2,86 +2,89 @@
 
 Julia/Pumas implementation of the In Silico Clinical Trial (ISCT) workflow from the paper:
 
-> **"A Step-by-Step Workflow for Performing In Silico Clinical Trials With Nonlinear Mixed Effects Models"**
-> Cortés-Ríos et al., CPT: Pharmacometrics & Systems Pharmacology (2025)
-> DOI: 10.1002/psp4.70122
+> **"A Step-by-Step Workflow for Performing In Silico Clinical Trials With Nonlinear Mixed Effects
+> Models"** Cortés-Ríos et al., CPT: Pharmacometrics & Systems Pharmacology (2025) DOI:
+> 10.1002/psp4.70122
 
-## Status
+## Workflow Overview
 
-**Note:** The MILP calibration module is not yet complete.
+The package implements the six-step ISCT workflow from the paper:
+
+1. **Model definition** — Define the pharmacometric or QSP model in Pumas
+2. **Virtual population generation** — Sample plausible parameter sets using Gaussian copulas
+3. **Sensitivity analysis** — Identify influential parameters via Sobol and eFAST methods
+4. **Structural identifiability** — Assess whether model parameters are identifiable from outputs
+5. **MILP calibration** — Calibrate the virtual population to clinical distributions using
+   mixed-integer linear programming
+6. **Virtual clinical trial simulation** —
+   Run multi-arm VCT simulations with the calibrated population
+
+## Case Studies
+
+### Tumor Burden Model
+
+A 3-parameter tumor burden model used
+as an introductory example to demonstrate each workflow step with minimal complexity.
+
+### HBV QSP Model
+
+An 11-ODE hepatitis B virus QSP model
+that demonstrates the full workflow on a complex mechanistic system with multiple biomarkers
+and treatment arms.
+
+## Tutorials
+
+### Tumor Burden Series
+
+| # | Tutorial | Description |
+|---|---------|-------------|
+| 1 | [Model Introduction](tutorials/tb_01_model_introduction_tutorial.qmd) | Define and simulate the tumor burden model |
+| 2 | [Copula Virtual Population](tutorials/tb_02_copula_vpop_tutorial.qmd) | Generate virtual patients via Gaussian copulas |
+| 3 | [Global Sensitivity Analysis](tutorials/tb_03_gsa_tutorial.qmd) | Sobol and eFAST sensitivity analysis |
+| 4 | [Structural Identifiability](tutorials/tb_04_structural_identifiability_tutorial.qmd) | Parameter identifiability assessment |
+| 5 | [MILP Calibration](tutorials/tb_05_milp_calibration_tutorial.qmd) | Calibrate Vpop to clinical distributions |
+| 6 | [VCT Simulation](tutorials/tb_06_vct_simulation_tutorial.qmd) | Run virtual clinical trials |
+
+### HBV Series
+
+| # | Tutorial | Description |
+|---|---------|-------------|
+| 1 | [Model Introduction](tutorials/hbv_01_model_introduction_tutorial.qmd) | Define and simulate the HBV QSP model |
+| 2 | [Copula Virtual Population](tutorials/hbv_02_copula_vpop_tutorial.qmd) | Generate virtual HBV patients |
+| 3 | [Global Sensitivity Analysis](tutorials/hbv_03_gsa_tutorial.qmd) | Sensitivity analysis for 11-ODE system |
+| 4 | [Structural Identifiability](tutorials/hbv_04_structural_identifiability_tutorial.qmd) | Identifiability with multiple outputs |
+| 5 | [MILP Calibration](tutorials/hbv_05_milp_calibration_tutorial.qmd) | Multi-variable Vpop calibration |
+| 6 | [VCT Simulation](tutorials/hbv_06_vct_simulation_tutorial.qmd) | Multi-arm treatment comparison |
+
+The [documentation website](https://pumasai.github.io/PumasVpopWorkflow/) currently publishes TB
+tutorials 1–4.
+The HBV series and remaining TB tutorials are in development.
 
 ## Getting Started
 
-This project is **not** designed to be used as a standard Julia package. Instead, follow the step-by-step instructions below.
+### Requirements
 
-### Step 1: Open Julia at the Project Root
+- **Pumas 2.8.0** — see `Project.toml` for the complete dependency list
 
-Navigate to the repository root and start Julia with the project environment:
-
-```bash
-cd /path/to/PumasVpopWorkflow
-julia --project=.
-```
-
-### Step 2: Install Dependencies
-
-On first use, install all required dependencies:
+### Installation
 
 ```julia
 using Pkg
+Pkg.activate(".")
 Pkg.instantiate()
 ```
 
-### Step 3: Load the Module
+### Preview the documentation site
 
-Load the ISCTWorkflow module by including the source file:
-
-```julia
-include("src/ISCTWorkflow.jl")
+```bash
+quarto preview
 ```
-
-This will define the `ISCTWorkflow` module with all exported functions.
-
-### Step 4: Run Examples
-
-Open any example file from the `examples/` folder and run the code step by step. Each example uses `using .ISCTWorkflow` (with the leading dot) to import the module from the current namespace.
-
-Available examples:
-
-| Example | Description |
-|---------|-------------|
-| `01_tumor_burden_isct.jl` | Complete ISCT workflow for the tumor burden model |
-| `02_hbv_vpop_analysis.jl` | HBV virtual population analysis and parameter sampling |
-| `03_milp_calibration.jl` | MILP-based virtual population calibration (incomplete) |
-| `04_vct_simulation.jl` | Virtual clinical trial simulation framework |
-| `05_gsa_analysis.jl` | Global sensitivity analysis with Sobol/eFAST |
-| `06_visualization.jl` | Comprehensive visualization examples |
-| `07_hbv_dynamics_visualization.jl` | HBV population dynamics visualization |
 
 ## Module Components
 
-- **Models**: Tumor burden (3-parameter) and HBV QSP (11-ODE) Pumas models
-- **Sampling**: Gaussian copula-based virtual population generation
-- **Calibration**: MILP-based Vpop calibration to clinical distributions (incomplete)
-- **Simulation**: VCT simulation framework with multi-arm support
-- **Sensitivity**: Global sensitivity analysis (Sobol, eFAST)
-- **Visualization**: AlgebraOfGraphics + CairoMakie plotting utilities
-
-## Requirements
-
-- Julia 1.10+
-- Pumas
-- JuMP + HiGHS (for MILP calibration)
-- Copulas.jl
-- GlobalSensitivity.jl
-- AlgebraOfGraphics + CairoMakie (for visualization)
-
-See `Project.toml` for the complete list of dependencies.
-
-## Output
-
-Generated plots are saved to the `outputs/` directory. Create it if needed:
-
-```julia
-mkpath("outputs")
-```
+- **Models** — Tumor burden (3-parameter) and HBV QSP (11-ODE) Pumas models
+- **Sampling** — Gaussian copula-based virtual population generation
+- **Sensitivity** — Global sensitivity analysis (Sobol, eFAST) and structural identifiability
+- **Calibration** — MILP-based Vpop calibration to clinical distributions
+- **Simulation** — VCT simulation framework with multi-arm support
+- **Visualization** — AlgebraOfGraphics + CairoMakie plotting utilities

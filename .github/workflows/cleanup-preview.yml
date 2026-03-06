@@ -1,0 +1,55 @@
+name: Cleanup Preview
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: gh-pages
+          fetch-depth: 1
+
+      - name: Remove preview and squash history
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          SLUG="$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9._-]/-/g')"
+          PREVIEW_PATH="preview/$SLUG"
+
+          if [ ! -d "$PREVIEW_PATH" ]; then
+            echo "No preview directory found at $PREVIEW_PATH, nothing to clean up."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Remove the preview directory
+          git rm -rf "$PREVIEW_PATH"
+
+          # Regenerate preview index
+          {
+            echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Branch Previews</title>'
+            echo '<style>body{font-family:system-ui,sans-serif;max-width:600px;margin:2rem auto;padding:0 1rem}a{display:block;padding:.4rem 0}</style>'
+            echo '</head><body><h1>Branch Previews</h1>'
+            for d in preview/*/; do
+              [ -d "$d" ] || continue
+              name="$(basename "$d")"
+              echo "<a href=\"$name/\">$name</a>"
+            done
+            echo '</body></html>'
+          } > preview/index.html
+          git add preview/index.html
+
+          git commit -m "Remove preview for $SLUG"
+
+          # Squash all gh-pages history into a single orphan commit
+          git branch gh-pages-new "$(echo 'Squash gh-pages history' | git commit-tree 'HEAD^{tree}')"
+          git push --force origin gh-pages-new:gh-pages

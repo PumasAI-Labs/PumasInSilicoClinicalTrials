@@ -16,7 +16,7 @@ end
 const EVEREST_TARGET = (
     edges = [log10(0.05), log10(100), log10(200), log10(500), log10(1000), log10(10000)],
     percentages = [37.5, 10.9, 19.1, 21.5, 11.0],
-    bin_labels = ["<100", "100-200", "200-500", "500-1000", ">1000"]
+    bin_labels = ["<100", "100-200", "200-500", "500-1000", ">1000"],
 )
 
 """
@@ -33,10 +33,12 @@ Calibrate HBV vpop to match target HBsAg distribution using MILP.
 # Returns
 - Calibrated DataFrame with selected virtual patients
 """
-function calibrate_hbsag_milp(vpop::DataFrame,
-                             target_edges::Vector{Float64},
-                             target_pcts::Vector{Float64};
-                             epsilon::Float64=0.1)
+function calibrate_hbsag_milp(
+        vpop::DataFrame,
+        target_edges::Vector{Float64},
+        target_pcts::Vector{Float64};
+        epsilon::Float64 = 0.1
+    )
     # Ensure baseline HBsAg exists
     if !hasproperty(vpop, :log_hbsag_bl)
         add_baseline_hbsag!(vpop)
@@ -50,7 +52,7 @@ function calibrate_hbsag_milp(vpop::DataFrame,
     bin_assignments = zeros(Int, n_vps)
     for i in 1:n_vps
         for b in 1:n_bins
-            if values[i] >= target_edges[b] && values[i] < target_edges[b+1]
+            if values[i] >= target_edges[b] && values[i] < target_edges[b + 1]
                 bin_assignments[i] = b
                 break
             end
@@ -95,7 +97,7 @@ function calibrate_hbsag_milp(vpop::DataFrame,
     status = termination_status(model)
 
     if status in [MOI.OPTIMAL, MOI.FEASIBLE_POINT] ||
-       (status == MOI.TIME_LIMIT && has_values(model))
+            (status == MOI.TIME_LIMIT && has_values(model))
         x_vals = value.(x)
         selected = findall(x_vals .> 0.5)
         calibrated = vpop[selected, :]
@@ -111,12 +113,12 @@ end
 
 Convenience function to calibrate HBV vpop to Everest trial distribution.
 """
-function calibrate_to_everest(vpop::DataFrame; epsilon::Float64=0.1)
+function calibrate_to_everest(vpop::DataFrame; epsilon::Float64 = 0.1)
     return calibrate_hbsag_milp(
         vpop,
         EVEREST_TARGET.edges,
         EVEREST_TARGET.percentages;
-        epsilon=epsilon
+        epsilon = epsilon
     )
 end
 
@@ -125,9 +127,11 @@ end
 
 Validate HBsAg calibration by comparing calibrated vs target distributions.
 """
-function validate_hbsag_calibration(calibrated_vpop::DataFrame,
-                                    target_edges::Vector{Float64},
-                                    target_pcts::Vector{Float64})
+function validate_hbsag_calibration(
+        calibrated_vpop::DataFrame,
+        target_edges::Vector{Float64},
+        target_pcts::Vector{Float64}
+    )
     n_bins = length(target_pcts)
     n_total = nrow(calibrated_vpop)
     values = calibrated_vpop.log_hbsag_bl
@@ -136,7 +140,7 @@ function validate_hbsag_calibration(calibrated_vpop::DataFrame,
     actual_counts = zeros(Int, n_bins)
     for val in values
         for b in 1:n_bins
-            if val >= target_edges[b] && val < target_edges[b+1]
+            if val >= target_edges[b] && val < target_edges[b + 1]
                 actual_counts[b] += 1
                 break
             end
@@ -148,8 +152,8 @@ function validate_hbsag_calibration(calibrated_vpop::DataFrame,
     return DataFrame(
         bin = 1:n_bins,
         target_pct = target_pcts,
-        actual_pct = round.(actual_pcts, digits=1),
-        error = round.(abs.(actual_pcts .- target_pcts), digits=2)
+        actual_pct = round.(actual_pcts, digits = 1),
+        error = round.(abs.(actual_pcts .- target_pcts), digits = 2)
     )
 end
 

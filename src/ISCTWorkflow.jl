@@ -113,12 +113,12 @@ export summarize_gsa, get_influential_params, print_gsa_summary
 
 # Re-export Structural Identifiability Analysis components
 export MeasurementScenario, IdentifiabilityResult, LocalIdentifiabilityResult
-export IdentifiableFunctionsResult, ReparametrizationResult, ComprehensiveIdentifiabilityReport
+export IdentifiableFunctionsResult, ReparameterizationResult, ComprehensiveIdentifiabilityReport
 export HBV_ESTIMATED_PARAM_NAMES
 export create_tumor_burden_scenarios, create_hbv_scenarios
 export extract_ode_system, get_ode_parameters, get_ode_states
 export assess_scenario_identifiability, assess_local_scenario_identifiability
-export find_scenario_identifiable_functions, compute_scenario_reparametrization
+export find_scenario_identifiable_functions, compute_scenario_reparameterization
 export analyze_tumor_burden_identifiability, analyze_hbv_identifiability
 export compare_scenarios, compare_local_scenarios, summarize_identifiability
 export generate_recommendations
@@ -166,11 +166,11 @@ Create Pumas Subject objects from a virtual population DataFrame.
 Vector of Pumas Subject objects ready for simulation
 """
 function create_subjects_from_vpop(
-    vpop::DataFrame,
-    observation_times;
-    treatment::Int = 1,
-    id_col::Symbol = :id
-)
+        vpop::DataFrame,
+        observation_times;
+        treatment::Int = 1,
+        id_col::Symbol = :id
+    )
     subjects = Subject[]
 
     for row in eachrow(vpop)
@@ -218,13 +218,13 @@ With `parallel=true`, uses `EnsembleThreads()` for automatic multi-threaded simu
 Start Julia with `julia --threads=auto` for best performance.
 """
 function simulate_vpop(
-    vpop::DataFrame,
-    observation_times;
-    treatment::Int = 1,
-    seed::Union{Int,Nothing} = nothing,
-    pop_params::NamedTuple = TUMOR_BURDEN_POP_PARAMS,
-    parallel::Bool = true
-)
+        vpop::DataFrame,
+        observation_times;
+        treatment::Int = 1,
+        seed::Union{Int, Nothing} = nothing,
+        pop_params::NamedTuple = TUMOR_BURDEN_POP_PARAMS,
+        parallel::Bool = true
+    )
     if !isnothing(seed)
         Random.seed!(seed)
     end
@@ -232,23 +232,23 @@ function simulate_vpop(
     # Build population of subjects
     population = [
         Subject(
-            id = row.id,
-            covariates = (treatment = treatment,),
-            observations = (tumor_size = nothing,),
-            time = observation_times
-        )
-        for row in eachrow(vpop)
+                id = row.id,
+                covariates = (treatment = treatment,),
+                observations = (tumor_size = nothing,),
+                time = observation_times
+            )
+            for row in eachrow(vpop)
     ]
 
     # Compute all random effects from individual parameters
     vrandeffs = [
         compute_tumor_burden_randeffs(
-            row.f, row.g, row.k;
-            tvf = pop_params.tvf,
-            tvg = pop_params.tvg,
-            tvk = pop_params.tvk
-        )
-        for row in eachrow(vpop)
+                row.f, row.g, row.k;
+                tvf = pop_params.tvf,
+                tvg = pop_params.tvg,
+                tvk = pop_params.tvk
+            )
+            for row in eachrow(vpop)
     ]
 
     # Single simobs call with automatic parallelization
@@ -302,12 +302,12 @@ results.control       # Control arm dynamics
 ```
 """
 function run_tumor_burden_vct(
-    n_patients::Int;
-    observation_times = 0:1:126,
-    seed::Int = 22
-)
+        n_patients::Int;
+        observation_times = 0:1:126,
+        seed::Int = 22
+    )
     # Generate virtual population
-    vpop = generate_tumor_burden_vpop(n_patients; seed=seed)
+    vpop = generate_tumor_burden_vpop(n_patients; seed = seed)
 
     # Simulate treatment arm using main model with computed random effects
     treatment_results = simulate_vpop(
@@ -327,7 +327,7 @@ function run_tumor_burden_vct(
         vpop = vpop,
         treatment = treatment_results,
         control = control_results,
-        observation_times = collect(observation_times)
+        observation_times = collect(observation_times),
     )
 end
 
@@ -372,10 +372,10 @@ Calculate the complete response rate at a specific time point.
 Response rate as a percentage (0-100)
 """
 function calculate_response_rate(
-    sim_results::DataFrame,
-    time_weeks::Int;
-    threshold::Float64 = 0.14
-)
+        sim_results::DataFrame,
+        time_weeks::Int;
+        threshold::Float64 = 0.14
+    )
     time_days = time_weeks * 7
 
     # Get tumor sizes at specified time
@@ -407,12 +407,12 @@ Replicates the analysis from Run_ISCT_results.m in the supplementary material.
 DataFrame with columns: week, median_rate, ci_lower (5th percentile), ci_upper (95th percentile)
 """
 function analyze_response_rates(
-    sim_results::DataFrame;
-    time_weeks::Vector{Int} = [6, 12, 18],
-    threshold::Float64 = 0.14,
-    n_bootstrap::Int = 100,
-    bootstrap_size::Int = 1000
-)
+        sim_results::DataFrame;
+        time_weeks::Vector{Int} = [6, 12, 18],
+        threshold::Float64 = 0.14,
+        n_bootstrap::Int = 100,
+        bootstrap_size::Int = 1000
+    )
     results = DataFrame(
         week = Int[],
         median_rate = Float64[],
@@ -442,12 +442,14 @@ function analyze_response_rates(
             push!(rates, rate)
         end
 
-        push!(results, (
-            week = week,
-            median_rate = median(rates),
-            ci_lower = quantile(rates, 0.05),
-            ci_upper = quantile(rates, 0.95)
-        ))
+        push!(
+            results, (
+                week = week,
+                median_rate = median(rates),
+                ci_lower = quantile(rates, 0.05),
+                ci_upper = quantile(rates, 0.95),
+            )
+        )
     end
 
     return results
@@ -467,7 +469,7 @@ const HBV_PHASES = (
     untreated = 5 * 365,      # 5 years untreated
     nuc_background = 4 * 365, # 4 years NA background (suppressed only)
     treatment = 48 * 7,       # 48 weeks treatment
-    off_treatment = 24 * 7    # 24 weeks follow-up
+    off_treatment = 24 * 7,    # 24 weeks follow-up
 )
 
 """
@@ -477,7 +479,7 @@ const HBV_TREATMENT = (
     control = 0,    # No treatment
     nuc = 1,        # NUC only
     ifn = 2,        # IFN only
-    combo = 3       # NUC + IFN combination
+    combo = 3,       # NUC + IFN combination
 )
 
 """
@@ -498,9 +500,9 @@ Returns time vectors and dosing indicators for each phase.
 NamedTuple with :times, :dNUC, :dIFN arrays
 """
 function create_hbv_dosing_schedule(
-    treatment::Int;
-    suppressed::Bool = false
-)
+        treatment::Int;
+        suppressed::Bool = false
+    )
     # Define time spans for each phase
     t_untreated = 0:1:(HBV_PHASES.untreated)
 
@@ -564,10 +566,10 @@ Calculate functional cure rate from HBV simulation results.
 NamedTuple with :rate, :ci_lower, :ci_upper
 """
 function calculate_hbv_fc_rate(
-    sim_results::DataFrame;
-    n_bootstrap::Int = 100,
-    bootstrap_size::Int = 1000
-)
+        sim_results::DataFrame;
+        n_bootstrap::Int = 100,
+        bootstrap_size::Int = 1000
+    )
     n_total = nrow(sim_results)
 
     # Calculate FC status for each patient
@@ -585,7 +587,7 @@ function calculate_hbv_fc_rate(
     return (
         rate = median(rates),
         ci_lower = quantile(rates, 0.025),
-        ci_upper = quantile(rates, 0.975)
+        ci_upper = quantile(rates, 0.975),
     )
 end
 
@@ -599,10 +601,10 @@ end
 Calculate HBsAg loss rate from HBV simulation results.
 """
 function calculate_hbv_hbsag_loss_rate(
-    sim_results::DataFrame;
-    n_bootstrap::Int = 100,
-    bootstrap_size::Int = 1000
-)
+        sim_results::DataFrame;
+        n_bootstrap::Int = 100,
+        bootstrap_size::Int = 1000
+    )
     n_total = nrow(sim_results)
 
     # Calculate HBsAg loss status
@@ -620,7 +622,7 @@ function calculate_hbv_hbsag_loss_rate(
     return (
         rate = median(rates),
         ci_lower = quantile(rates, 0.025),
-        ci_upper = quantile(rates, 0.975)
+        ci_upper = quantile(rates, 0.975),
     )
 end
 

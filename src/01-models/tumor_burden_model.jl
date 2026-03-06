@@ -46,16 +46,16 @@ Parameters with inter-individual variability:
 const tumor_burden_model = @model begin
     @param begin
         # Population parameters (typical values from Qi & Cao 2023)
-        tvf ∈ RealDomain(lower=0.0, upper=1.0, init=0.27)
-        tvg ∈ RealDomain(lower=0.0, init=0.0013)
-        tvk ∈ RealDomain(lower=0.0, init=0.0091)
+        tvf ∈ RealDomain(lower = 0.0, upper = 1.0, init = 0.27)
+        tvg ∈ RealDomain(lower = 0.0, init = 0.0013)
+        tvk ∈ RealDomain(lower = 0.0, init = 0.0091)
 
         # Inter-individual variability (omega values for logit-normal)
         # These are on the logit-transformed scale
-        Ω ∈ PDiagDomain(init=[2.16, 1.57, 1.24])
+        Ω ∈ PDiagDomain(init = [2.16, 1.57, 1.24])
 
         # Residual error
-        σ ∈ RealDomain(lower=0.0, init=0.05)
+        σ ∈ RealDomain(lower = 0.0, init = 0.05)
     end
 
     @random begin
@@ -133,11 +133,11 @@ This model computes the analytical solution:
 """
 const tumor_burden_model_analytical = @model begin
     @param begin
-        tvf ∈ RealDomain(lower=0.0, upper=1.0, init=0.27)
-        tvg ∈ RealDomain(lower=0.0, init=0.0013)
-        tvk ∈ RealDomain(lower=0.0, init=0.0091)
-        Ω ∈ PDiagDomain(init=[2.16, 1.57, 1.24])
-        σ ∈ RealDomain(lower=0.0, init=0.05)
+        tvf ∈ RealDomain(lower = 0.0, upper = 1.0, init = 0.27)
+        tvg ∈ RealDomain(lower = 0.0, init = 0.0013)
+        tvk ∈ RealDomain(lower = 0.0, init = 0.0091)
+        Ω ∈ PDiagDomain(init = [2.16, 1.57, 1.24])
+        σ ∈ RealDomain(lower = 0.0, init = 0.05)
     end
 
     @random begin

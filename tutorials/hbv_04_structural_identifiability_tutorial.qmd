@@ -3,47 +3,6 @@ title: "HBV Series: Structural Identifiability Analysis"
 subtitle: "Which Parameters Can We Estimate from Clinical Measurements?"
 author:
   - Vijay Ivaturi
-execute:
-  cache: true
-  error: false
-julia: 
-  exeflags: ["+Pumas@2.7.1"]
-format:
-  html:
-    include-in-header:
-      text: |
-        <style>
-          .header-container {
-            width: 100%;
-          }
-          .logo {
-            display: block;
-            width: 150px;
-            margin-left: -2.5%;
-          }
-        </style>
-        <link rel = "shortcut icon" href = "https://pumas.ai/favicon.ico" />
-    include-before-body:
-      text: |
-        <div class="header-container">
-          <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
-        </div>
-    self-contained-math: true
-    anchor-sections: true
-    theme: default
-    toc: true
-    toc-depth: 4
-    toc-expand: 2
-    toc-location: left
-    toc-title: Contents
-    number-sections: true
-    code-summary: Show/Hide Code
-embed-resources: true
-fig-format: svg
-fig-width: 8
-fig-height: 6
-bibliography: references.bib
-csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
 ---
 
 :::{.callout-note}
@@ -59,11 +18,14 @@ This is **Tutorial 4 of 6** in the HBV series.
 | 4 | **Structural Identifiability (current)** | ← You are here |
 | 5 | [MILP Calibration](hbv_05_milp_calibration_tutorial.qmd) | |
 | 6 | [VCT Simulation](hbv_06_vct_simulation_tutorial.qmd) | |
+
 :::
 
 ## Learning Outcomes
 
-Structural identifiability analysis determines whether model parameters can be uniquely estimated from available measurements, assuming perfect data [@wieland2021].
+Structural identifiability analysis determines
+whether model parameters can be uniquely estimated from available measurements,
+assuming perfect data [@wieland2021].
 
 In this tutorial, you will learn:
 
@@ -77,7 +39,8 @@ In this tutorial, you will learn:
 
 This tutorial builds on:
 
-- **[HBV-01](hbv_01_model_introduction_tutorial.qmd)**: HBV model structure (22 fixed + 9 estimated params)
+- **[HBV-01](hbv_01_model_introduction_tutorial.qmd)**:
+  HBV model structure (22 fixed + 9 estimated params)
 - **[TB-04](tb_04_structural_identifiability_tutorial.qmd)**: Detailed SI theory
 
 We'll reference the SI concepts from TB-04 without repeating the full theory.
@@ -96,7 +59,9 @@ The HBV model is significantly more complex than the tumor burden model:
 | Fixed parameters | 0 | 22 |
 | Observable outputs | 1 (tumor size) | 2+ (HBsAg, HBV DNA, ALT) |
 
-With 11 coupled ODEs and 9 estimated parameters, formal global identifiability analysis becomes computationally challenging. We'll use **measurement scenario analysis** to understand identifiability.
+With 11 coupled ODEs and 9 estimated parameters,
+formal global identifiability analysis becomes computationally challenging.
+We'll use **measurement scenario analysis** to understand identifiability.
 
 ## Libraries
 
@@ -162,7 +127,7 @@ scenario_a = DataFrame(
         "Treatment effect on S observed",
         "Treatment effect on S observed",
         "Immune boost not observable",
-        "DC activation not measured"
+        "DC activation not measured",
     ]
 )
 
@@ -191,7 +156,7 @@ scenario_b = DataFrame(
         "Viral suppression directly observed",
         "Viral suppression observed",
         "Enhances V decline indirectly",
-        "DC not observed"
+        "DC not observed",
     ]
 )
 
@@ -219,7 +184,7 @@ scenario_c = DataFrame(
         "Direct viral suppression",
         "Direct viral suppression",
         "Immune enhancement in ALT",
-        "DC affects immune → ALT"
+        "DC affects immune → ALT",
     ]
 )
 
@@ -252,23 +217,29 @@ matrix[:, 2] = ident_to_num.(scenario_b.identifiable)
 matrix[:, 3] = ident_to_num.(scenario_c.identifiable)
 
 fig = Figure(size = (700, 500))
-ax = Axis(fig[1, 1],
+ax = Axis(
+    fig[1, 1],
     title = "HBV Parameter Identifiability by Measurement Scenario",
     xlabel = "Measurement Scenario",
     ylabel = "Parameter",
     xticks = (1:3, scenarios_list),
-    yticks = (1:9, params))
+    yticks = (1:9, params)
+)
 
-hm = heatmap!(ax, 1:3, 1:9, matrix',
-    colormap = cgrad([:indianred, :gold, :seagreen], 3, categorical=true),
-    colorrange = (0, 2))
+hm = heatmap!(
+    ax, 1:3, 1:9, matrix',
+    colormap = cgrad([:indianred, :gold, :seagreen], 3, categorical = true),
+    colorrange = (0, 2)
+)
 
 # Add legend
-Legend(fig[1, 2],
+Legend(
+    fig[1, 2],
     [PolyElement(color = c) for c in [:seagreen, :gold, :indianred]],
     ["Identifiable", "Partially", "Non-identifiable"],
     "Status",
-    framevisible = false)
+    framevisible = false
+)
 
 fig
 ```
@@ -278,9 +249,9 @@ fig
 ### For Standard Clinical Trials (Scenario B)
 
 ```{julia}
-println("=" ^ 50)
+println("="^50)
 println("RECOMMENDATIONS: Standard Clinical Trial (HBsAg + HBV DNA)")
-println("=" ^ 50)
+println("="^50)
 
 println("\n✓ Parameters to estimate:")
 println("  • p_S - HBsAg production (identifiable from baseline)")
@@ -307,21 +278,21 @@ strategies = DataFrame(
         "Use informative priors",
         "Fix non-influential params",
         "Hierarchical modeling",
-        "Sequential design"
+        "Sequential design",
     ],
     parameters_affected = [
         "k_Z, m, convE",
         "beta, k_D",
         "k_Z, k_D (from GSA)",
         "All with IIV",
-        "Focus on unknowns"
+        "Focus on unknowns",
     ],
     implementation = [
         "Standard lab test, low cost",
         "From meta-analysis",
         "Simplify model",
         "Population approach",
-        "Adaptive trial design"
+        "Adaptive trial design",
     ]
 )
 
@@ -348,7 +319,7 @@ combined = DataFrame(
         "Estimate (key driver)",
         "Estimate (key driver)",
         "Use informative prior",
-        "Fix to literature"
+        "Fix to literature",
     ]
 )
 
@@ -360,7 +331,7 @@ simple_table(combined)
 #| fig-cap: "Parameter importance (GSA) vs identifiability. Ideal parameters are in the top-right (influential and identifiable)."
 
 # Create DataFrame for AoG plotting
-influence_scores = [0.05, 0.35, 0.15, 0.03, 0.12, 0.30, 0.28, 0.18, 0.04]  # From GSA
+influence_scores = [0.05, 0.35, 0.15, 0.03, 0.12, 0.3, 0.28, 0.18, 0.04]  # From GSA
 ident_scores = ident_to_num.(scenario_b.identifiable)
 
 priority_df = DataFrame(
@@ -372,11 +343,13 @@ priority_df = DataFrame(
 
 # Create figure with AoG
 fig = Figure(size = (800, 500))
-ax = Axis(fig[1, 1],
+ax = Axis(
+    fig[1, 1],
     title = "Parameter Priority Matrix",
     xlabel = "GSA Influence (Sₜ)",
     ylabel = "Identifiability Score",
-    yticks = ([0, 1, 2], ["Non-identifiable", "Partial", "Identifiable"]))
+    yticks = ([0, 1, 2], ["Non-identifiable", "Partial", "Identifiable"])
+)
 
 # AoG scatter plot
 plt = data(priority_df) * mapping(:gsa_influence, :identifiability, color = :action) * visual(Scatter, markersize = 20)
@@ -384,8 +357,10 @@ draw!(ax, plt, scales(Color = (; palette = [:green, :red, :orange])))
 
 # Add parameter labels (Makie - AoG doesn't support text annotations)
 for row in eachrow(priority_df)
-    text!(ax, row.gsa_influence + 0.01, row.identifiability + 0.1,
-          text = row.parameter, fontsize = 10)
+    text!(
+        ax, row.gsa_influence + 0.01, row.identifiability + 0.1,
+        text = row.parameter, fontsize = 10
+    )
 end
 
 # Reference lines (Makie - AoG doesn't support hlines/vlines)
@@ -398,11 +373,13 @@ text!(ax, 0.02, 1.8, text = "Use\nPriors", fontsize = 12, color = :orange)
 text!(ax, 0.02, 0.2, text = "Fix", fontsize = 12, color = :red)
 
 # Add legend outside the plot
-Legend(fig[1, 2],
+Legend(
+    fig[1, 2],
     [MarkerElement(marker = :circle, color = c, markersize = 15) for c in [:green, :orange, :red]],
     ["Estimate (key driver)", "Use informative prior", "Fix to literature"],
     "Action",
-    framevisible = false)
+    framevisible = false
+)
 
 fig
 ```
@@ -433,7 +410,8 @@ fig
 
 ### What's Next?
 
-In [Tutorial 5: MILP Calibration](hbv_05_milp_calibration_tutorial.qmd), we'll calibrate the HBV virtual population to match clinical trial baseline characteristics.
+In [Tutorial 5: MILP Calibration](hbv_05_milp_calibration_tutorial.qmd),
+we'll calibrate the HBV virtual population to match clinical trial baseline characteristics.
 
 ### References
 

@@ -11,15 +11,15 @@ using LinearAlgebra
 # HBV parameter specifications (log10 scale)
 # 9 estimated parameters with IIV
 const HBV_PARAM_SPECS = [
-    (name = :beta,     tv = -5.0,  omega = 0.5),   # Infection rate
-    (name = :p_S,      tv = 8.0,   omega = 0.4),   # HBsAg production
-    (name = :m,        tv = 2.5,   omega = 0.3),   # Immune killing
-    (name = :k_Z,      tv = -5.0,  omega = 0.4),   # ALT production
-    (name = :convE,    tv = 2.5,   omega = 0.3),   # Effector conversion
-    (name = :epsNUC,   tv = -2.0,  omega = 0.5),   # NUC efficacy
-    (name = :epsIFN,   tv = -1.5,  omega = 0.6),   # IFN efficacy
-    (name = :r_E_IFN,  tv = 0.3,   omega = 0.4),   # IFN immune boost
-    (name = :k_D,      tv = -4.0,  omega = 0.4)    # DC activation
+    (name = :beta, tv = -5.0, omega = 0.5),   # Infection rate
+    (name = :p_S, tv = 8.0, omega = 0.4),   # HBsAg production
+    (name = :m, tv = 2.5, omega = 0.3),   # Immune killing
+    (name = :k_Z, tv = -5.0, omega = 0.4),   # ALT production
+    (name = :convE, tv = 2.5, omega = 0.3),   # Effector conversion
+    (name = :epsNUC, tv = -2.0, omega = 0.5),   # NUC efficacy
+    (name = :epsIFN, tv = -1.5, omega = 0.6),   # IFN efficacy
+    (name = :r_E_IFN, tv = 0.3, omega = 0.4),   # IFN immune boost
+    (name = :k_D, tv = -4.0, omega = 0.4),    # DC activation
 ]
 
 # Correlation matrix (identity for simplicity, can be updated with clinical data)
@@ -38,9 +38,11 @@ Generate n virtual patients for the HBV model using Gaussian copula sampling.
 # Returns
 - `DataFrame` with columns: id, beta, p_S, m, k_Z, convE, epsNUC, epsIFN, r_E_IFN, k_D
 """
-function generate_hbv_vpop(n::Int;
-                          seed::Union{Int,Nothing}=nothing,
-                          correlation::Matrix{Float64}=HBV_CORRELATION)
+function generate_hbv_vpop(
+        n::Int;
+        seed::Union{Int, Nothing} = nothing,
+        correlation::Matrix{Float64} = HBV_CORRELATION
+    )
     if !isnothing(seed)
         Random.seed!(seed)
     end

@@ -63,16 +63,18 @@ struct VCTConfig
     observation_interval::Int
 
     function VCTConfig(;
-        treatment::TreatmentArm = NUC_IFN_COMBO,
-        suppressed::Bool = false,
-        untreated_duration::Int = 5 * 365,
-        nuc_background_duration::Int = 4 * 365,
-        treatment_duration::Int = 48 * 7,
-        off_treatment_duration::Int = 24 * 7,
-        observation_interval::Int = 7
-    )
-        new(treatment, suppressed, untreated_duration, nuc_background_duration,
-            treatment_duration, off_treatment_duration, observation_interval)
+            treatment::TreatmentArm = NUC_IFN_COMBO,
+            suppressed::Bool = false,
+            untreated_duration::Int = 5 * 365,
+            nuc_background_duration::Int = 4 * 365,
+            treatment_duration::Int = 48 * 7,
+            off_treatment_duration::Int = 24 * 7,
+            observation_interval::Int = 7
+        )
+        return new(
+            treatment, suppressed, untreated_duration, nuc_background_duration,
+            treatment_duration, off_treatment_duration, observation_interval
+        )
     end
 end
 
@@ -100,11 +102,11 @@ function get_phase_times(config::VCTConfig)
     t_off_end = t_off_start + config.off_treatment_duration
 
     return (
-        untreated = (start=t_untreated_start, stop=t_untreated_end),
-        nuc_background = (start=t_nuc_start, stop=t_nuc_end),
-        treatment = (start=t_tx_start, stop=t_tx_end),
-        off_treatment = (start=t_off_start, stop=t_off_end),
-        total_duration = t_off_end
+        untreated = (start = t_untreated_start, stop = t_untreated_end),
+        nuc_background = (start = t_nuc_start, stop = t_nuc_end),
+        treatment = (start = t_tx_start, stop = t_tx_end),
+        off_treatment = (start = t_off_start, stop = t_off_end),
+        total_duration = t_off_end,
     )
 end
 
@@ -168,7 +170,7 @@ const TUMOR_BURDEN_POP_PARAMS = (
     tvg = 0.0013,
     tvk = 0.0091,
     Ω = Diagonal([2.16, 1.57, 1.24]),
-    σ = 0.05
+    σ = 0.05,
 )
 
 """
@@ -183,14 +185,14 @@ The tumor burden model uses:
 
 This function inverts these relationships to find η values.
 """
-function compute_tumor_burden_randeffs(f, g, k; tvf=0.27, tvg=0.0013, tvk=0.0091)
+function compute_tumor_burden_randeffs(f, g, k; tvf = 0.27, tvg = 0.0013, tvk = 0.0091)
     # For log-normal: param = tv * exp(η) → η = log(param/tv)
     η2 = log(g / tvg)
     η3 = log(k / tvk)
 
     # For logit-normal: f = logistic(logit(tvf) + η) → η = logit(f) - logit(tvf)
     # Handle edge cases for f near 0 or 1
-    f_clamped = clamp(f, 1e-10, 1.0 - 1e-10)
+    f_clamped = clamp(f, 1.0e-10, 1.0 - 1.0e-10)
     η1 = logit(f_clamped) - logit(tvf)
 
     return (η = [η1, η2, η3],)
@@ -208,12 +210,12 @@ end
 Simulate a single tumor burden patient using population parameters and individual random effects.
 """
 function simulate_tumor_burden_patient(
-    model,
-    pop_params::NamedTuple,
-    randeffs::NamedTuple,
-    observation_times::Vector;
-    treatment::Int = 1
-)
+        model,
+        pop_params::NamedTuple,
+        randeffs::NamedTuple,
+        observation_times::Vector;
+        treatment::Int = 1
+    )
     # Create subject
     subj = Subject(
         id = 1,
@@ -266,14 +268,14 @@ With `parallel=true`, uses `EnsembleThreads()` for automatic multi-threaded simu
 Start Julia with `julia --threads=auto` for best performance.
 """
 function run_tumor_burden_vct(
-    vpop::DataFrame,
-    observation_times::Vector;
-    treatment::Int = 1,
-    seed::Union{Int,Nothing} = nothing,
-    show_progress::Bool = true,
-    pop_params::NamedTuple = TUMOR_BURDEN_POP_PARAMS,
-    parallel::Bool = true
-)
+        vpop::DataFrame,
+        observation_times::Vector;
+        treatment::Int = 1,
+        seed::Union{Int, Nothing} = nothing,
+        show_progress::Bool = true,
+        pop_params::NamedTuple = TUMOR_BURDEN_POP_PARAMS,
+        parallel::Bool = true
+    )
     if !isnothing(seed)
         Random.seed!(seed)
     end
@@ -284,23 +286,23 @@ function run_tumor_burden_vct(
     # Build population of subjects (one Subject per virtual patient)
     population = [
         Subject(
-            id = row.id,
-            covariates = (treatment = treatment,),
-            observations = (tumor_size = nothing,),
-            time = observation_times
-        )
-        for row in eachrow(vpop)
+                id = row.id,
+                covariates = (treatment = treatment,),
+                observations = (tumor_size = nothing,),
+                time = observation_times
+            )
+            for row in eachrow(vpop)
     ]
 
     # Compute all random effects from individual parameters
     vrandeffs = [
         compute_tumor_burden_randeffs(
-            row.f, row.g, row.k;
-            tvf = pop_params.tvf,
-            tvg = pop_params.tvg,
-            tvk = pop_params.tvk
-        )
-        for row in eachrow(vpop)
+                row.f, row.g, row.k;
+                tvf = pop_params.tvf,
+                tvg = pop_params.tvg,
+                tvk = pop_params.tvk
+            )
+            for row in eachrow(vpop)
     ]
 
     # Single simobs call with automatic parallelization
@@ -347,11 +349,11 @@ Run a complete tumor burden trial with treatment and control arms.
 NamedTuple with :treatment, :control, :vpop, :config
 """
 function run_tumor_burden_trial(
-    vpop::DataFrame;
-    observation_times = collect(0:1:126),
-    seed::Int = 22,
-    show_progress::Bool = true
-)
+        vpop::DataFrame;
+        observation_times = collect(0:1:126),
+        seed::Int = 22,
+        show_progress::Bool = true
+    )
     println("Running Treatment Arm...")
     treatment_results = run_tumor_burden_vct(
         vpop, observation_times;
@@ -368,7 +370,7 @@ function run_tumor_burden_trial(
         treatment = treatment_results,
         control = control_results,
         vpop = vpop,
-        observation_times = observation_times
+        observation_times = observation_times,
     )
 end
 
@@ -405,9 +407,9 @@ end
 Create time-varying covariate DataFrame for HBV simulation.
 """
 function create_hbv_time_varying_covariates(
-    config::VCTConfig,
-    observation_times::Vector{Int}
-)
+        config::VCTConfig,
+        observation_times::Vector{Int}
+    )
     phases = get_phase_times(config)
     n_times = length(observation_times)
 
@@ -451,11 +453,11 @@ Note: This is a simplified simulation that doesn't use the full ODE model.
 For production use, integrate with Pumas simobs().
 """
 function simulate_hbv_patient(
-    id::Int,
-    params::NamedTuple,
-    config::VCTConfig;
-    observation_times::Union{Nothing,Vector} = nothing
-)
+        id::Int,
+        params::NamedTuple,
+        config::VCTConfig;
+        observation_times::Union{Nothing, Vector} = nothing
+    )
     phases = get_phase_times(config)
 
     if isnothing(observation_times)
@@ -475,8 +477,8 @@ function simulate_hbv_patient(
     S_0 = 10^p_S * I_0 / d_V
 
     # HBsAg in IU/mL (log10)
-    hbsag_baseline = log10((V_0 + S_0) * (96 * 24000 * 1e9) / (6.023e23 * 0.98))
-    viral_baseline = log10(max(V_0, 1e-6))
+    hbsag_baseline = log10((V_0 + S_0) * (96 * 24000 * 1.0e9) / (6.023e23 * 0.98))
+    viral_baseline = log10(max(V_0, 1.0e-6))
 
     # Simplified dynamics simulation
     # In a full implementation, this would use ODE integration
@@ -547,11 +549,11 @@ end
 Run HBV virtual clinical trial for an entire population.
 """
 function run_hbv_vct(
-    vpop::DataFrame,
-    config::VCTConfig;
-    seed::Union{Int,Nothing} = nothing,
-    show_progress::Bool = true
-)
+        vpop::DataFrame,
+        config::VCTConfig;
+        seed::Union{Int, Nothing} = nothing,
+        show_progress::Bool = true
+    )
     if !isnothing(seed)
         Random.seed!(seed)
     end
@@ -580,7 +582,7 @@ function run_hbv_vct(
             iniV = hasproperty(vpop, :iniV) ? row.iniV : -0.481486,
             p_V = hasproperty(vpop, :p_V) ? row.p_V : 2.0,
             d_V = hasproperty(vpop, :d_V) ? row.d_V : 0.67,
-            T_max = hasproperty(vpop, :T_max) ? row.T_max : 13600000.0
+            T_max = hasproperty(vpop, :T_max) ? row.T_max : 13600000.0,
         )
 
         patient_results[i] = simulate_hbv_patient(row.id, params, config)
@@ -643,14 +645,14 @@ With `parallel=true`, uses `EnsembleThreads()` for automatic multi-threaded simu
 Start Julia with `julia --threads=auto` for best performance.
 """
 function simulate_hbv_dynamics(
-    vpop::DataFrame,
-    config::VCTConfig;
-    model = nothing,
-    params::NamedTuple = HBV_FIXED_PARAMS,
-    observation_interval::Int = 7,
-    seed::Union{Int,Nothing} = nothing,
-    parallel::Bool = true
-)
+        vpop::DataFrame,
+        config::VCTConfig;
+        model = nothing,
+        params::NamedTuple = HBV_FIXED_PARAMS,
+        observation_interval::Int = 7,
+        seed::Union{Int, Nothing} = nothing,
+        parallel::Bool = true
+    )
     if !isnothing(seed)
         Random.seed!(seed)
     end
@@ -696,33 +698,35 @@ function simulate_hbv_dynamics(
     # Build population of subjects with time-varying covariates
     population = [
         Subject(
-            id = row.id,
-            covariates = (
-                dNUC = cov_df.dNUC,
-                dIFN = cov_df.dIFN,
-                treatment = Int(config.treatment)
-            ),
-            observations = (HBsAg_obs = nothing, V_obs = nothing),
-            time = Float64.(observation_times)
-        )
-        for row in eachrow(vpop)
+                id = row.id,
+                covariates = (
+                    dNUC = cov_df.dNUC,
+                    dIFN = cov_df.dIFN,
+                    treatment = Int(config.treatment),
+                ),
+                observations = (HBsAg_obs = nothing, V_obs = nothing),
+                time = Float64.(observation_times)
+            )
+            for row in eachrow(vpop)
     ]
 
     # Compute all random effects from individual parameters
     # Parameters are on log10 scale, so η represents deviation in log10 space
     vrandeffs = [
-        (η = [
-            row.beta - params.tvbeta,
-            row.p_S - params.tvp_S,
-            row.m - params.tvm,
-            row.k_Z - params.tvk_Z,
-            row.convE - params.tvconvE,
-            row.epsNUC - params.tvepsNUC,
-            row.epsIFN - params.tvepsIFN,
-            row.r_E_IFN - params.tvr_E_IFN,
-            row.k_D - params.tvk_D
-        ],)
-        for row in eachrow(vpop)
+        (
+                η = [
+                    row.beta - params.tvbeta,
+                    row.p_S - params.tvp_S,
+                    row.m - params.tvm,
+                    row.k_Z - params.tvk_Z,
+                    row.convE - params.tvconvE,
+                    row.epsNUC - params.tvepsNUC,
+                    row.epsIFN - params.tvepsIFN,
+                    row.r_E_IFN - params.tvr_E_IFN,
+                    row.k_D - params.tvk_D,
+                ],
+            )
+            for row in eachrow(vpop)
     ]
 
     # Parallel population simulation with error handling
@@ -777,13 +781,13 @@ Internal fallback function for sequential simulation with per-patient error hand
 Called when population-level simulation fails.
 """
 function _simulate_hbv_dynamics_sequential(
-    vpop::DataFrame,
-    config::VCTConfig,
-    model,
-    params::NamedTuple,
-    observation_times::Vector,
-    phases::NamedTuple
-)
+        vpop::DataFrame,
+        config::VCTConfig,
+        model,
+        params::NamedTuple,
+        observation_times::Vector,
+        phases::NamedTuple
+    )
     cov_df = create_hbv_time_varying_covariates(config, observation_times)
     all_results = DataFrame()
     n_errors = 0
@@ -794,7 +798,7 @@ function _simulate_hbv_dynamics_sequential(
             covariates = (
                 dNUC = cov_df.dNUC,
                 dIFN = cov_df.dIFN,
-                treatment = Int(config.treatment)
+                treatment = Int(config.treatment),
             ),
             observations = (HBsAg_obs = nothing, V_obs = nothing),
             time = Float64.(observation_times)
@@ -809,12 +813,12 @@ function _simulate_hbv_dynamics_sequential(
             row.epsNUC - params.tvepsNUC,
             row.epsIFN - params.tvepsIFN,
             row.r_E_IFN - params.tvr_E_IFN,
-            row.k_D - params.tvk_D
+            row.k_D - params.tvk_D,
         ]
         randeffs = (η = η,)
 
         try
-            sim = simobs(model, subj, params, randeffs; simulate_error=false)
+            sim = simobs(model, subj, params, randeffs; simulate_error = false)
             sim_df = DataFrame(sim)
 
             patient_df = DataFrame(
@@ -875,11 +879,11 @@ without treatment intervention.
 DataFrame with time series of all biomarkers
 """
 function simulate_hbv_natural_history(
-    vpop::DataFrame;
-    duration_days::Int = 300,
-    observation_interval::Int = 1,
-    seed::Union{Int,Nothing} = nothing
-)
+        vpop::DataFrame;
+        duration_days::Int = 300,
+        observation_interval::Int = 1,
+        seed::Union{Int, Nothing} = nothing
+    )
     # Create config for untreated natural history
     config = VCTConfig(
         treatment = CONTROL,
@@ -891,7 +895,7 @@ function simulate_hbv_natural_history(
         observation_interval = observation_interval
     )
 
-    return simulate_hbv_dynamics(vpop, config; seed=seed)
+    return simulate_hbv_dynamics(vpop, config; seed = seed)
 end
 
 """
@@ -919,11 +923,11 @@ Chronic infection: Infection persists beyond clearance_time.
 Input DataFrame with added :outcome column (:acute or :chronic)
 """
 function classify_hbv_outcome(
-    dynamics_df::DataFrame;
-    clearance_time::Int = 300,
-    hbsag_threshold::Float64 = log10(0.05),
-    viral_threshold::Float64 = log10(25.0)
-)
+        dynamics_df::DataFrame;
+        clearance_time::Int = 300,
+        hbsag_threshold::Float64 = log10(0.05),
+        viral_threshold::Float64 = log10(25.0)
+    )
     # Determine outcome for each patient based on minimum values during untreated phase
     outcome_df = @chain dynamics_df begin
         @subset(:time .<= clearance_time)
@@ -943,7 +947,7 @@ function classify_hbv_outcome(
     end
 
     # Join outcome back to dynamics
-    result = leftjoin(dynamics_df, outcome_df[:, [:id, :outcome]], on=:id)
+    result = leftjoin(dynamics_df, outcome_df[:, [:id, :outcome]], on = :id)
 
     return result
 end
@@ -966,10 +970,10 @@ Compute population statistics (median, quantiles) at each time point.
 DataFrame with columns: time, group (if applicable), median, q05, q25, q75, q95
 """
 function summarize_hbv_dynamics_by_time(
-    dynamics_df::DataFrame,
-    value_col::Symbol;
-    group_col::Union{Symbol,Nothing} = :outcome
-)
+        dynamics_df::DataFrame,
+        value_col::Symbol;
+        group_col::Union{Symbol, Nothing} = :outcome
+    )
     if isnothing(group_col) || !hasproperty(dynamics_df, group_col)
         # No grouping
         summary = combine(
@@ -1014,17 +1018,17 @@ end
 Run multiple treatment arms for comparison.
 """
 function run_hbv_trial_comparison(
-    vpop::DataFrame;
-    treatments::Vector{TreatmentArm} = [CONTROL, NUC_ONLY, IFN_ONLY, NUC_IFN_COMBO],
-    suppressed::Bool = false,
-    seed::Int = 42
-)
+        vpop::DataFrame;
+        treatments::Vector{TreatmentArm} = [CONTROL, NUC_ONLY, IFN_ONLY, NUC_IFN_COMBO],
+        suppressed::Bool = false,
+        seed::Int = 42
+    )
     results = Dict{TreatmentArm, VCTResults}()
 
     for treatment in treatments
         println("Running $(treatment) arm...")
-        config = VCTConfig(treatment=treatment, suppressed=suppressed)
-        results[treatment] = run_hbv_vct(vpop, config; seed=seed)
+        config = VCTConfig(treatment = treatment, suppressed = suppressed)
+        results[treatment] = run_hbv_vct(vpop, config; seed = seed)
     end
 
     return results
@@ -1044,10 +1048,10 @@ end
 Calculate endpoint rates with bootstrap confidence intervals.
 """
 function calculate_endpoint_rates(
-    results::VCTResults;
-    n_bootstrap::Int = 100,
-    bootstrap_size::Int = 1000
-)
+        results::VCTResults;
+        n_bootstrap::Int = 100,
+        bootstrap_size::Int = 1000
+    )
     summary = results.summary
     n_total = nrow(summary)
 
@@ -1075,14 +1079,16 @@ function calculate_endpoint_rates(
             push!(rates, rate)
         end
 
-        push!(rates_df, (
-            endpoint = label,
-            rate = median(rates),
-            ci_lower = quantile(rates, 0.025),
-            ci_upper = quantile(rates, 0.975),
-            n_responders = sum(endpoint_values),
-            n_total = n_total
-        ))
+        push!(
+            rates_df, (
+                endpoint = label,
+                rate = median(rates),
+                ci_lower = quantile(rates, 0.025),
+                ci_upper = quantile(rates, 0.975),
+                n_responders = sum(endpoint_values),
+                n_total = n_total,
+            )
+        )
     end
 
     return rates_df
@@ -1096,8 +1102,8 @@ end
 Compare endpoint rates across treatment arms.
 """
 function compare_treatment_arms(
-    trial_results::Dict{TreatmentArm, VCTResults}
-)
+        trial_results::Dict{TreatmentArm, VCTResults}
+    )
     comparison = DataFrame()
 
     for (treatment, results) in trial_results

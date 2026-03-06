@@ -38,10 +38,10 @@ struct GSAParameterRange
     upper::Float64
     scale::Symbol
 
-    function GSAParameterRange(name::Symbol, lower::Float64, upper::Float64; scale::Symbol=:linear)
+    function GSAParameterRange(name::Symbol, lower::Float64, upper::Float64; scale::Symbol = :linear)
         @assert lower < upper "Lower bound must be less than upper bound"
         @assert scale in (:linear, :log) "Scale must be :linear or :log"
-        new(name, lower, upper, scale)
+        return new(name, lower, upper, scale)
     end
 end
 
@@ -188,13 +188,13 @@ println(result.first_order)
 ```
 """
 function run_tumor_burden_gsa(;
-    method::Symbol = :sobol,
-    n_samples::Int = 1000,
-    observation_times = 0:7:126,
-    treatment::Int = 1,
-    param_ranges::Vector{GSAParameterRange} = TUMOR_BURDEN_GSA_PARAMS,
-    outputs::Vector{Symbol} = [:final_tumor, :auc_tumor]
-)
+        method::Symbol = :sobol,
+        n_samples::Int = 1000,
+        observation_times = 0:7:126,
+        treatment::Int = 1,
+        param_ranges::Vector{GSAParameterRange} = TUMOR_BURDEN_GSA_PARAMS,
+        outputs::Vector{Symbol} = [:final_tumor, :auc_tumor]
+    )
     # Create subject
     subject = Subject(
         id = 1,
@@ -208,8 +208,8 @@ function run_tumor_burden_gsa(;
         tvf = 0.27,
         tvg = 0.0013,
         tvk = 0.0091,
-        Ω = Diagonal([1e-10, 1e-10, 1e-10]),  # Tiny random effect variance
-        σ = 1e-10                              # Tiny residual error
+        Ω = Diagonal([1.0e-10, 1.0e-10, 1.0e-10]),  # Tiny random effect variance
+        σ = 1.0e-10,                              # Tiny residual error
     )
 
     # Create parameter ranges for typical values (GSA varies these)
@@ -278,11 +278,11 @@ Convert GSA result matrix to tidy DataFrame format.
 - `display_names`: Optional alternative names for display (same order as param_names)
 """
 function _gsa_to_dataframe(
-    gsa_result,
-    param_names::Vector{Symbol},
-    output_names::Vector{Symbol},
-    display_names::Union{Vector{Symbol}, Nothing} = nothing
-)
+        gsa_result,
+        param_names::Vector{Symbol},
+        output_names::Vector{Symbol},
+        display_names::Union{Vector{Symbol}, Nothing} = nothing
+    )
     rows = NamedTuple[]
     names_to_use = isnothing(display_names) ? param_names : display_names
 
@@ -290,11 +290,13 @@ function _gsa_to_dataframe(
         for (j, param) in enumerate(param_names)
             idx = gsa_result[i, :]
             value = haskey(idx, param) ? idx[param] : NaN
-            push!(rows, (
-                output = output,
-                parameter = names_to_use[j],
-                index = value
-            ))
+            push!(
+                rows, (
+                    output = output,
+                    parameter = names_to_use[j],
+                    index = value,
+                )
+            )
         end
     end
 
@@ -335,13 +337,13 @@ println(result.first_order)
 ```
 """
 function run_hbv_gsa(;
-    method::Symbol = :efast,
-    n_samples::Int = 500,
-    treatment::Symbol = :NUC_IFN,
-    observation_times = 0:7:336,
-    param_ranges::Vector{GSAParameterRange} = HBV_GSA_PARAMS,
-    outputs::Vector{Symbol} = [:final_hbsag, :final_viral, :hbsag_nadir]
-)
+        method::Symbol = :efast,
+        n_samples::Int = 500,
+        treatment::Symbol = :NUC_IFN,
+        observation_times = 0:7:336,
+        param_ranges::Vector{GSAParameterRange} = HBV_GSA_PARAMS,
+        outputs::Vector{Symbol} = [:final_hbsag, :final_viral, :hbsag_nadir]
+    )
     # Set treatment covariates
     dNUC = treatment in (:NUC, :NUC_IFN) ? 1.0 : 0.0
     dIFN = treatment in (:IFN, :NUC_IFN) ? 1.0 : 0.0
@@ -388,7 +390,7 @@ function run_hbv_gsa(;
         epsNUC = -2.0,
         epsIFN = -1.5,
         r_E_IFN = 0.3,
-        k_D = -4.0
+        k_D = -4.0,
     )
 
     # Create parameter ranges
@@ -462,21 +464,23 @@ function summarize_gsa(result::GSAResult)
         to = filter(row -> row.output == output, result.total_order)
 
         # Sort by total order (most important first)
-        sorted_to = sort(to, :index, rev=true)
+        sorted_to = sort(to, :index, rev = true)
 
         for (rank, row) in enumerate(eachrow(sorted_to))
             param = row.parameter
             fo_idx = filter(r -> r.parameter == param, fo)
             fo_val = nrow(fo_idx) > 0 ? fo_idx[1, :index] : NaN
 
-            push!(summary_rows, (
-                output = output,
-                rank = rank,
-                parameter = param,
-                first_order = round(fo_val, digits=4),
-                total_order = round(row.index, digits=4),
-                interaction = round(row.index - fo_val, digits=4)
-            ))
+            push!(
+                summary_rows, (
+                    output = output,
+                    rank = rank,
+                    parameter = param,
+                    first_order = round(fo_val, digits = 4),
+                    total_order = round(row.index, digits = 4),
+                    interaction = round(row.index - fo_val, digits = 4),
+                )
+            )
         end
     end
 
@@ -495,7 +499,7 @@ Identify parameters with total-order index above threshold.
 # Returns
 Vector of influential parameter names
 """
-function get_influential_params(result::GSAResult; threshold::Float64=0.1)
+function get_influential_params(result::GSAResult; threshold::Float64 = 0.1)
     influential = Set{Symbol}()
 
     for row in eachrow(result.total_order)
@@ -513,9 +517,9 @@ end
 Print formatted summary of GSA results.
 """
 function print_gsa_summary(result::GSAResult)
-    println("=" ^ 60)
+    println("="^60)
     println("Global Sensitivity Analysis Results")
-    println("=" ^ 60)
+    println("="^60)
     println("Method: $(result.method)")
     println("Samples: $(result.n_samples)")
     println("Parameters: " * join(string.(result.parameters), ", "))
@@ -525,25 +529,29 @@ function print_gsa_summary(result::GSAResult)
     summary = summarize_gsa(result)
 
     for output in result.outputs
-        println("-" ^ 40)
+        println("-"^40)
         println("Output: $output")
-        println("-" ^ 40)
+        println("-"^40)
 
         output_data = filter(row -> row.output == output, summary)
 
         println("Rank | Parameter     | First Order | Total Order | Interaction")
-        println("-" ^ 60)
+        println("-"^60)
 
         for row in eachrow(output_data)
-            println(@sprintf("  %d  | %-12s |   %6.4f    |   %6.4f    |   %6.4f",
-                row.rank, row.parameter, row.first_order, row.total_order, row.interaction))
+            println(
+                @sprintf(
+                    "  %d  | %-12s |   %6.4f    |   %6.4f    |   %6.4f",
+                    row.rank, row.parameter, row.first_order, row.total_order, row.interaction
+                )
+            )
         end
         println()
     end
 
     # Highlight influential parameters
     influential = get_influential_params(result)
-    if !isempty(influential)
+    return if !isempty(influential)
         println("Most influential parameters (total order ≥ 0.1):")
         for p in influential
             println("  - $p")

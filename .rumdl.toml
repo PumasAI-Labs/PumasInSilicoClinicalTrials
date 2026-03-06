@@ -1,0 +1,17 @@
+[MD013]
+line-length = 100
+reflow = true
+reflow-mode = "semantic-line-breaks"
+
+[code-block-tools]
+enabled = true
+on-error = "warn"
+
+[code-block-tools.tools.runic]
+command = ["runic"]
+stdin = true
+stdout = true
+
+[code-block-tools.languages]
+julia = { format = ["runic"] }
+"{julia}" = { format = ["runic"] }

@@ -52,12 +52,12 @@ struct MeasurementScenario
     clinically_relevant::Bool
 
     function MeasurementScenario(
-        name::Symbol,
-        description::String,
-        measured_quantities::Vector;
-        clinically_relevant::Bool = true
-    )
-        new(name, description, measured_quantities, clinically_relevant)
+            name::Symbol,
+            description::String,
+            measured_quantities::Vector;
+            clinically_relevant::Bool = true
+        )
+        return new(name, description, measured_quantities, clinically_relevant)
     end
 end
 
@@ -100,8 +100,10 @@ struct IdentifiabilityResult
 
         all_global = all(v == :globally for v in values(identifiability))
 
-        new(scenario, identifiability, globally_identifiable, locally_identifiable,
-            nonidentifiable, all_global)
+        return new(
+            scenario, identifiability, globally_identifiable, locally_identifiable,
+            nonidentifiable, all_global
+        )
     end
 end
 
@@ -127,11 +129,11 @@ struct LocalIdentifiabilityResult
     num_experiments::Int
 
     function LocalIdentifiabilityResult(
-        scenario::MeasurementScenario,
-        identifiability::OrderedDict;
-        type::Symbol = :SE,
-        num_experiments::Int = 1
-    )
+            scenario::MeasurementScenario,
+            identifiability::OrderedDict;
+            type::Symbol = :SE,
+            num_experiments::Int = 1
+        )
         identifiable = Symbol[]
         nonidentifiable = Symbol[]
 
@@ -144,7 +146,7 @@ struct LocalIdentifiabilityResult
             end
         end
 
-        new(scenario, identifiability, identifiable, nonidentifiable, type, num_experiments)
+        return new(scenario, identifiability, identifiable, nonidentifiable, type, num_experiments)
     end
 end
 
@@ -167,16 +169,16 @@ struct IdentifiableFunctionsResult
 end
 
 """
-    ReparametrizationResult
+    ReparameterizationResult
 
-Container for reparametrization analysis results.
+Container for reparameterization analysis results.
 
 # Fields
 - `scenario::MeasurementScenario`: The measurement scenario used
 - `new_vars::Dict`: Mapping from new variables to original expressions
 - `recommendations::Vector{String}`: Human-readable recommendations
 """
-struct ReparametrizationResult
+struct ReparameterizationResult
     scenario::MeasurementScenario
     new_vars::Dict
     recommendations::Vector{String}
@@ -192,7 +194,7 @@ Container for multi-scenario identifiability analysis.
 - `global_results::Dict{Symbol, IdentifiabilityResult}`: Global results by scenario
 - `local_results::Dict{Symbol, LocalIdentifiabilityResult}`: Local results by scenario
 - `functions_results::Dict{Symbol, IdentifiableFunctionsResult}`: Identifiable functions by scenario
-- `reparametrization_results::Dict{Symbol, ReparametrizationResult}`: Reparametrization by scenario
+- `reparameterization_results::Dict{Symbol, ReparameterizationResult}`: Reparameterization by scenario
 - `summary::DataFrame`: Summary comparison across scenarios
 """
 struct ComprehensiveIdentifiabilityReport
@@ -200,7 +202,7 @@ struct ComprehensiveIdentifiabilityReport
     global_results::Dict{Symbol, IdentifiabilityResult}
     local_results::Dict{Symbol, LocalIdentifiabilityResult}
     functions_results::Dict{Symbol, IdentifiableFunctionsResult}
-    reparametrization_results::Dict{Symbol, ReparametrizationResult}
+    reparameterization_results::Dict{Symbol, ReparameterizationResult}
     summary::DataFrame
 end
 
@@ -237,7 +239,7 @@ function create_tumor_burden_scenarios(ode_system)
     # Create symbolic variables for outputs
     @variables Nt(t_nounits) N_sens_out(t_nounits) N_res_out(t_nounits)
 
-    Dict(
+    return Dict(
         :tumor_size_only => MeasurementScenario(
             :tumor_size_only,
             "Total tumor size only (clinical standard - CT/MRI measurement)",
@@ -259,7 +261,7 @@ end
 Names of the 9 estimated parameters in the HBV model.
 """
 const HBV_ESTIMATED_PARAM_NAMES = [
-    :beta, :p_S, :m, :k_Z, :convE, :epsNUC, :epsIFN, :r_E_IFN, :k_D
+    :beta, :p_S, :m, :k_Z, :convE, :epsNUC, :epsIFN, :r_E_IFN, :k_D,
 ]
 
 """
@@ -278,7 +280,7 @@ function create_hbv_scenarios(ode_system)
     # Create symbolic variables for outputs
     @variables log_HBsAg(t_nounits) log_V(t_nounits) log_ALT(t_nounits)
 
-    Dict(
+    return Dict(
         :hbsag_only => MeasurementScenario(
             :hbsag_only,
             "HBsAg measurement only (surface antigen ELISA)",
@@ -300,15 +302,19 @@ function create_hbv_scenarios(ode_system)
         :hbsag_viral_alt => MeasurementScenario(
             :hbsag_viral_alt,
             "HBsAg, viral load, and ALT (comprehensive liver panel)",
-            [log_HBsAg ~ log10(ode_system.S), log_V ~ log10(ode_system.V),
-             log_ALT ~ log10(ode_system.Z)],
+            [
+                log_HBsAg ~ log10(ode_system.S), log_V ~ log10(ode_system.V),
+                log_ALT ~ log10(ode_system.Z),
+            ],
             clinically_relevant = true
         ),
         :all_observables => MeasurementScenario(
             :all_observables,
             "All measurable outputs (theoretical maximum observability)",
-            [log_HBsAg ~ log10(ode_system.S), log_V ~ log10(ode_system.V),
-             log_ALT ~ log10(ode_system.Z)],
+            [
+                log_HBsAg ~ log10(ode_system.S), log_V ~ log10(ode_system.V),
+                log_ALT ~ log10(ode_system.Z),
+            ],
             clinically_relevant = false
         )
     )
@@ -396,12 +402,12 @@ result = assess_scenario_identifiability(ode_sys, scenarios[:tumor_size_only])
 ```
 """
 function assess_scenario_identifiability(
-    ode_system,
-    scenario::MeasurementScenario;
-    funcs_to_check::Vector = [],
-    prob_threshold::Float64 = 0.99,
-    verbose::Bool = true
-)
+        ode_system,
+        scenario::MeasurementScenario;
+        funcs_to_check::Vector = [],
+        prob_threshold::Float64 = 0.99,
+        verbose::Bool = true
+    )
     if verbose
         println("\n" * "="^60)
         println("Scenario: $(scenario.name)")
@@ -421,9 +427,9 @@ function assess_scenario_identifiability(
     if verbose
         println("\nIdentifiability Results:")
         println("-"^40)
-        for (param, status) in sort(collect(ident_result), by=x->string(x[1]))
+        for (param, status) in sort(collect(ident_result), by = x -> string(x[1]))
             status_str = status == :globally ? "globally identifiable" :
-                        (status == :locally ? "locally identifiable" : "non-identifiable")
+                (status == :locally ? "locally identifiable" : "non-identifiable")
             println("  $(param) => $(status_str)")
         end
     end
@@ -431,9 +437,11 @@ function assess_scenario_identifiability(
     result = IdentifiabilityResult(scenario, ident_result)
 
     if verbose
-        println("\nSummary: ", result.all_globally_identifiable ?
-            "All parameters are GLOBALLY IDENTIFIABLE" :
-            "Some parameters are NOT globally identifiable")
+        println(
+            "\nSummary: ", result.all_globally_identifiable ?
+                "All parameters are GLOBALLY IDENTIFIABLE" :
+                "Some parameters are NOT globally identifiable"
+        )
     end
 
     return result
@@ -465,13 +473,13 @@ for complex models like HBV.
 LocalIdentifiabilityResult with local identifiability classifications
 """
 function assess_local_scenario_identifiability(
-    ode_system,
-    scenario::MeasurementScenario;
-    funcs_to_check::Vector = [],
-    type::Symbol = :SE,
-    prob_threshold::Float64 = 0.99,
-    verbose::Bool = true
-)
+        ode_system,
+        scenario::MeasurementScenario;
+        funcs_to_check::Vector = [],
+        type::Symbol = :SE,
+        prob_threshold::Float64 = 0.99,
+        verbose::Bool = true
+    )
     if verbose
         println("\n" * "="^60)
         println("Local Identifiability Analysis")
@@ -492,7 +500,7 @@ function assess_local_scenario_identifiability(
     if verbose
         println("\nLocal Identifiability Results:")
         println("-"^40)
-        for (param, is_id) in sort(collect(ident_result), by=x->string(x[1]))
+        for (param, is_id) in sort(collect(ident_result), by = x -> string(x[1]))
             status_str = is_id ? "locally identifiable" : "non-identifiable"
             println("  $(param) => $(status_str)")
         end
@@ -538,12 +546,12 @@ what combinations of parameters ARE identifiable.
 IdentifiableFunctionsResult with identifiable parameter combinations
 """
 function find_scenario_identifiable_functions(
-    ode_system,
-    scenario::MeasurementScenario;
-    with_states::Bool = false,
-    simplify::Symbol = :standard,
-    verbose::Bool = true
-)
+        ode_system,
+        scenario::MeasurementScenario;
+        with_states::Bool = false,
+        simplify::Symbol = :standard,
+        verbose::Bool = true
+    )
     if verbose
         println("\n" * "="^60)
         println("Finding Identifiable Functions")
@@ -575,13 +583,13 @@ function find_scenario_identifiable_functions(
 end
 
 """
-    compute_scenario_reparametrization(
+    compute_scenario_reparameterization(
         ode_system,
         scenario::MeasurementScenario;
         verbose::Bool = true
-    ) -> ReparametrizationResult
+    ) -> ReparameterizationResult
 
-Compute a globally identifiable reparametrization of the model.
+Compute a globally identifiable reparameterization of the model.
 
 This suggests how to rewrite the model with identifiable parameter combinations.
 
@@ -591,16 +599,16 @@ This suggests how to rewrite the model with identifiable parameter combinations.
 - `verbose`: Print progress information
 
 # Returns
-ReparametrizationResult with new variable mappings and recommendations
+ReparameterizationResult with new variable mappings and recommendations
 """
-function compute_scenario_reparametrization(
-    ode_system,
-    scenario::MeasurementScenario;
-    verbose::Bool = true
-)
+function compute_scenario_reparameterization(
+        ode_system,
+        scenario::MeasurementScenario;
+        verbose::Bool = true
+    )
     if verbose
         println("\n" * "="^60)
-        println("Computing Reparametrization")
+        println("Computing Reparameterization")
         println("Scenario: $(scenario.name)")
         println("="^60)
     end
@@ -610,18 +618,18 @@ function compute_scenario_reparametrization(
         ode_system, scenario.measured_quantities
     )
 
-    # Compute reparametrization
-    reparam = reparametrize_global(si_ode)
+    # Compute reparameterization
+    reparam = reparameterize_global(si_ode)
 
     # Generate recommendations
     recommendations = String[]
 
     if verbose
-        println("\nReparametrization (identifiable parameter combinations):")
+        println("\nReparameterization (identifiable parameter combinations):")
         println("-"^40)
 
         println("  New -> Original mapping:")
-        for (new_var, orig_expr) in sort(collect(reparam[:new_vars]), by=x->string(x[1]))
+        for (new_var, orig_expr) in sort(collect(reparam[:new_vars]), by = x -> string(x[1]))
             var_str = string(new_var)
             if startswith(var_str, "a")  # Parameters are named a1, a2, etc.
                 println("    $new_var = $orig_expr")
@@ -630,7 +638,7 @@ function compute_scenario_reparametrization(
         end
     end
 
-    return ReparametrizationResult(scenario, reparam[:new_vars], recommendations)
+    return ReparameterizationResult(scenario, reparam[:new_vars], recommendations)
 end
 
 #=============================================================================
@@ -643,7 +651,7 @@ end
         include_global::Bool = true,
         include_local::Bool = true,
         find_functions::Bool = true,
-        compute_reparametrization::Bool = true,
+        compute_reparameterization::Bool = true,
         prob_threshold::Float64 = 0.99,
         verbose::Bool = true
     ) -> ComprehensiveIdentifiabilityReport
@@ -655,7 +663,7 @@ Perform comprehensive identifiability analysis on the tumor burden model.
 - `include_global`: Run global identifiability analysis
 - `include_local`: Run local identifiability analysis
 - `find_functions`: Find identifiable parameter combinations
-- `compute_reparametrization`: Compute identifiable reparametrization
+- `compute_reparameterization`: Compute identifiable reparameterization
 - `prob_threshold`: Probability threshold for correctness
 - `verbose`: Print progress information
 
@@ -669,14 +677,14 @@ print_identifiability_report(report)
 ```
 """
 function analyze_tumor_burden_identifiability(;
-    scenarios::Vector{Symbol} = [:tumor_size_only, :both_populations],
-    include_global::Bool = true,
-    include_local::Bool = true,
-    find_functions::Bool = true,
-    compute_reparametrization::Bool = true,
-    prob_threshold::Float64 = 0.99,
-    verbose::Bool = true
-)
+        scenarios::Vector{Symbol} = [:tumor_size_only, :both_populations],
+        include_global::Bool = true,
+        include_local::Bool = true,
+        find_functions::Bool = true,
+        compute_reparameterization::Bool = true,
+        prob_threshold::Float64 = 0.99,
+        verbose::Bool = true
+    )
     if verbose
         println("\n" * "="^70)
         println("  TUMOR BURDEN MODEL STRUCTURAL IDENTIFIABILITY ANALYSIS")
@@ -693,7 +701,7 @@ function analyze_tumor_burden_identifiability(;
     global_results = Dict{Symbol, IdentifiabilityResult}()
     local_results = Dict{Symbol, LocalIdentifiabilityResult}()
     functions_results = Dict{Symbol, IdentifiableFunctionsResult}()
-    reparametrization_results = Dict{Symbol, ReparametrizationResult}()
+    reparameterization_results = Dict{Symbol, ReparameterizationResult}()
 
     for scenario_name in scenarios
         if !haskey(available_scenarios, scenario_name)
@@ -729,9 +737,9 @@ function analyze_tumor_burden_identifiability(;
             )
         end
 
-        # Compute reparametrization
-        if compute_reparametrization
-            reparametrization_results[scenario_name] = compute_scenario_reparametrization(
+        # Compute reparameterization
+        if compute_reparameterization
+            reparameterization_results[scenario_name] = compute_scenario_reparameterization(
                 ode_system, scenario;
                 verbose = verbose
             )
@@ -746,7 +754,7 @@ function analyze_tumor_burden_identifiability(;
         global_results,
         local_results,
         functions_results,
-        reparametrization_results,
+        reparameterization_results,
         summary
     )
 end
@@ -759,7 +767,7 @@ end
         include_global::Bool = false,
         include_local::Bool = true,
         find_functions::Bool = false,
-        compute_reparametrization::Bool = false,
+        compute_reparameterization::Bool = false,
         prob_threshold::Float64 = 0.99,
         verbose::Bool = true
     ) -> ComprehensiveIdentifiabilityReport
@@ -777,7 +785,7 @@ may take significant time.
 - `include_global`: Run global identifiability (slow for HBV model)
 - `include_local`: Run local identifiability (faster)
 - `find_functions`: Find identifiable parameter combinations
-- `compute_reparametrization`: Compute identifiable reparametrization
+- `compute_reparameterization`: Compute identifiable reparameterization
 - `prob_threshold`: Probability threshold for correctness
 - `verbose`: Print progress information
 
@@ -797,16 +805,16 @@ report = analyze_hbv_identifiability(
 ```
 """
 function analyze_hbv_identifiability(;
-    scenarios::Vector{Symbol} = [:hbsag_and_viral],
-    params_to_check::Vector{Symbol} = HBV_ESTIMATED_PARAM_NAMES,
-    local_type::Symbol = :SE,
-    include_global::Bool = false,
-    include_local::Bool = true,
-    find_functions::Bool = false,
-    compute_reparametrization::Bool = false,
-    prob_threshold::Float64 = 0.99,
-    verbose::Bool = true
-)
+        scenarios::Vector{Symbol} = [:hbsag_and_viral],
+        params_to_check::Vector{Symbol} = HBV_ESTIMATED_PARAM_NAMES,
+        local_type::Symbol = :SE,
+        include_global::Bool = false,
+        include_local::Bool = true,
+        find_functions::Bool = false,
+        compute_reparameterization::Bool = false,
+        prob_threshold::Float64 = 0.99,
+        verbose::Bool = true
+    )
     if verbose
         println("\n" * "="^70)
         println("  HBV QSP MODEL STRUCTURAL IDENTIFIABILITY ANALYSIS")
@@ -825,7 +833,7 @@ function analyze_hbv_identifiability(;
     global_results = Dict{Symbol, IdentifiabilityResult}()
     local_results = Dict{Symbol, LocalIdentifiabilityResult}()
     functions_results = Dict{Symbol, IdentifiableFunctionsResult}()
-    reparametrization_results = Dict{Symbol, ReparametrizationResult}()
+    reparameterization_results = Dict{Symbol, ReparameterizationResult}()
 
     for scenario_name in scenarios
         if !haskey(available_scenarios, scenario_name)
@@ -865,9 +873,9 @@ function analyze_hbv_identifiability(;
             )
         end
 
-        # Compute reparametrization
-        if compute_reparametrization
-            reparametrization_results[scenario_name] = compute_scenario_reparametrization(
+        # Compute reparameterization
+        if compute_reparameterization
+            reparameterization_results[scenario_name] = compute_scenario_reparameterization(
                 ode_system, scenario;
                 verbose = verbose
             )
@@ -886,7 +894,7 @@ function analyze_hbv_identifiability(;
         global_results,
         local_results,
         functions_results,
-        reparametrization_results,
+        reparameterization_results,
         summary
     )
 end
@@ -906,15 +914,17 @@ DataFrame with columns: scenario, all_global, n_global, n_local, n_nonid, clinic
 function compare_scenarios(results::Dict{Symbol, IdentifiabilityResult})
     rows = NamedTuple[]
 
-    for (name, result) in sort(collect(results), by=x->string(x[1]))
-        push!(rows, (
-            scenario = name,
-            all_global = result.all_globally_identifiable,
-            n_global = length(result.globally_identifiable),
-            n_local = length(result.locally_identifiable),
-            n_nonid = length(result.nonidentifiable),
-            clinical = result.scenario.clinically_relevant
-        ))
+    for (name, result) in sort(collect(results), by = x -> string(x[1]))
+        push!(
+            rows, (
+                scenario = name,
+                all_global = result.all_globally_identifiable,
+                n_global = length(result.globally_identifiable),
+                n_local = length(result.locally_identifiable),
+                n_nonid = length(result.nonidentifiable),
+                clinical = result.scenario.clinically_relevant,
+            )
+        )
     end
 
     return DataFrame(rows)
@@ -931,14 +941,16 @@ DataFrame with columns: scenario, n_identifiable, n_nonid, type, clinical
 function compare_local_scenarios(results::Dict{Symbol, LocalIdentifiabilityResult})
     rows = NamedTuple[]
 
-    for (name, result) in sort(collect(results), by=x->string(x[1]))
-        push!(rows, (
-            scenario = name,
-            n_identifiable = length(result.identifiable),
-            n_nonid = length(result.nonidentifiable),
-            type = result.type,
-            clinical = result.scenario.clinically_relevant
-        ))
+    for (name, result) in sort(collect(results), by = x -> string(x[1]))
+        push!(
+            rows, (
+                scenario = name,
+                n_identifiable = length(result.identifiable),
+                n_nonid = length(result.nonidentifiable),
+                type = result.type,
+                clinical = result.scenario.clinically_relevant,
+            )
+        )
     end
 
     return DataFrame(rows)
@@ -986,22 +998,22 @@ end
 """
     generate_recommendations(
         results::Dict{Symbol, IdentifiabilityResult},
-        reparam::Union{ReparametrizationResult, Nothing} = nothing
+        reparam::Union{ReparameterizationResult, Nothing} = nothing
     ) -> Vector{String}
 
 Generate practical recommendations based on identifiability analysis.
 
 # Arguments
 - `results`: Global identifiability results
-- `reparam`: Optional reparametrization results
+- `reparam`: Optional reparameterization results
 
 # Returns
 Vector of recommendation strings
 """
 function generate_recommendations(
-    results::Dict{Symbol, IdentifiabilityResult};
-    reparam::Union{ReparametrizationResult, Nothing} = nothing
-)
+        results::Dict{Symbol, IdentifiabilityResult};
+        reparam::Union{ReparameterizationResult, Nothing} = nothing
+    )
     recommendations = String[]
 
     # Find best clinically relevant scenario
@@ -1020,24 +1032,32 @@ function generate_recommendations(
 
     if !isnothing(best_clinical)
         if best_clinical.all_globally_identifiable
-            push!(recommendations,
-                "GOOD NEWS: All parameters are globally identifiable with $(best_clinical.scenario.name) measurements")
+            push!(
+                recommendations,
+                "GOOD NEWS: All parameters are globally identifiable with $(best_clinical.scenario.name) measurements"
+            )
         else
-            push!(recommendations,
-                "RECOMMENDATION: Use $(best_clinical.scenario.name) scenario for best clinical identifiability")
+            push!(
+                recommendations,
+                "RECOMMENDATION: Use $(best_clinical.scenario.name) scenario for best clinical identifiability"
+            )
 
             if !isempty(best_clinical.nonidentifiable)
-                push!(recommendations,
-                    "WARNING: Parameters $(join(best_clinical.nonidentifiable, ", ")) are non-identifiable")
-                push!(recommendations,
-                    "Consider: (1) Adding measurements, (2) Fixing to literature values, or (3) Using informative priors")
+                push!(
+                    recommendations,
+                    "WARNING: Parameters $(join(best_clinical.nonidentifiable, ", ")) are non-identifiable"
+                )
+                push!(
+                    recommendations,
+                    "Consider: (1) Adding measurements, (2) Fixing to literature values, or (3) Using informative priors"
+                )
             end
         end
     end
 
-    # Add reparametrization recommendations
+    # Add reparameterization recommendations
     if !isnothing(reparam) && !isempty(reparam.recommendations)
-        push!(recommendations, "REPARAMETRIZATION SUGGESTIONS:")
+        push!(recommendations, "REPARAMETERIZATION SUGGESTIONS:")
         append!(recommendations, reparam.recommendations)
     end
 
@@ -1080,7 +1100,7 @@ function print_identifiability_result(result::IdentifiabilityResult; verbose::Bo
 
     status = result.all_globally_identifiable ?
         "ALL GLOBALLY IDENTIFIABLE" : "SOME PARAMETERS NOT IDENTIFIABLE"
-    println("\nStatus: $status")
+    return println("\nStatus: $status")
 end
 
 """
@@ -1122,7 +1142,7 @@ function print_identifiability_report(report::ComprehensiveIdentifiabilityReport
     end
 
     # Print recommendations
-    if !isempty(report.global_results)
+    return if !isempty(report.global_results)
         recommendations = generate_recommendations(report.global_results)
         if !isempty(recommendations)
             println("\n\nRECOMMENDATIONS:")
@@ -1139,7 +1159,7 @@ end
 =============================================================================#
 
 export MeasurementScenario, IdentifiabilityResult, LocalIdentifiabilityResult
-export IdentifiableFunctionsResult, ReparametrizationResult, ComprehensiveIdentifiabilityReport
+export IdentifiableFunctionsResult, ReparameterizationResult, ComprehensiveIdentifiabilityReport
 
 export HBV_ESTIMATED_PARAM_NAMES
 export create_tumor_burden_scenarios, create_hbv_scenarios
@@ -1147,7 +1167,7 @@ export create_tumor_burden_scenarios, create_hbv_scenarios
 export extract_ode_system, get_ode_parameters, get_ode_states
 
 export assess_scenario_identifiability, assess_local_scenario_identifiability
-export find_scenario_identifiable_functions, compute_scenario_reparametrization
+export find_scenario_identifiable_functions, compute_scenario_reparameterization
 
 export analyze_tumor_burden_identifiability, analyze_hbv_identifiability
 

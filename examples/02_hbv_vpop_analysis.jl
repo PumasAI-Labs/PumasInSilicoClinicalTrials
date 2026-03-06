@@ -25,9 +25,9 @@ using CairoMakie
 # Step 1: Load Pre-Sampled Virtual Population
 =============================================================================#
 
-println("=" ^ 60)
+println("="^60)
 println("Step 1: Loading Pre-Sampled Virtual Population")
-println("=" ^ 60)
+println("="^60)
 
 # Path to parameter CSV (adjust as needed)
 param_csv = joinpath(@__DIR__, "..", "..", "ISCT SoC and MBMA comparison", "Parameters_Naive.csv")
@@ -55,13 +55,13 @@ else
         HBVParameterSpec(:epsNUC, -2.0, 1.0),
         HBVParameterSpec(:epsIFN, -1.5, 1.0),
         HBVParameterSpec(:r_E_IFN, 0.3, 0.2),
-        HBVParameterSpec(:k_D, -4.0, 0.5)
+        HBVParameterSpec(:k_D, -4.0, 0.5),
     ]
 
     # Identity correlation for demo
     demo_corr = Matrix{Float64}(I, 9, 9)
 
-    vpop_full = generate_hbv_vpop(10000, demo_specs, demo_corr; seed=42)
+    vpop_full = generate_hbv_vpop(10000, demo_specs, demo_corr; seed = 42)
     println("Generated $(nrow(vpop_full)) synthetic virtual patients")
 end
 
@@ -69,9 +69,9 @@ end
 # Step 2: Compute Parameter Statistics
 =============================================================================#
 
-println("\n" * "=" ^ 60)
+println("\n" * "="^60)
 println("Step 2: Computing Parameter Statistics")
-println("=" ^ 60)
+println("="^60)
 
 # Compute statistics
 stats = compute_hbv_stats(vpop_full)
@@ -86,9 +86,9 @@ display(summary_stats)
 # Step 3: Generate New Virtual Population Using Copulas
 =============================================================================#
 
-println("\n" * "=" ^ 60)
+println("\n" * "="^60)
 println("Step 3: Generating New VP Using Copulas")
-println("=" ^ 60)
+println("="^60)
 
 # Create parameter specs from computed statistics
 param_specs = create_hbv_param_specs(stats)
@@ -111,26 +111,26 @@ for name in HBV_ESTIMATED_PARAMS
     orig_mean = mean(vpop_full[!, name])
     new_mean = mean(vpop_new[!, name])
     diff_pct = 100 * abs(new_mean - orig_mean) / abs(orig_mean)
-    println("  $(name): Original=$(round(orig_mean, digits=3)), New=$(round(new_mean, digits=3)), Diff=$(round(diff_pct, digits=1))%")
+    println("  $(name): Original=$(round(orig_mean, digits = 3)), New=$(round(new_mean, digits = 3)), Diff=$(round(diff_pct, digits = 1))%")
 end
 
 # Verify correlations preserved
 new_stats = compute_hbv_stats(vpop_new)
 println("\nCorrelation Preservation Check:")
 max_corr_diff = maximum(abs.(stats.correlation - new_stats.correlation))
-println("  Max correlation difference: $(round(max_corr_diff, digits=4))")
+println("  Max correlation difference: $(round(max_corr_diff, digits = 4))")
 println("  Correlations preserved: $(max_corr_diff < 0.05 ? "YES" : "NO")")
 
 #=============================================================================
 # Step 4: Subsampling for VCT
 =============================================================================#
 
-println("\n" * "=" ^ 60)
+println("\n" * "="^60)
 println("Step 4: Subsampling for Faster VCT")
-println("=" ^ 60)
+println("="^60)
 
 # Subsample for computational efficiency
-vpop_subsample = subsample_hbv_vpop(vpop_full, 1000; seed=42)
+vpop_subsample = subsample_hbv_vpop(vpop_full, 1000; seed = 42)
 println("Subsampled $(nrow(vpop_subsample)) patients for VCT")
 
 # Show subsample statistics
@@ -142,9 +142,9 @@ display(first(subsample_summary, 5))
 # Step 5: Visualization
 =============================================================================#
 
-println("\n" * "=" ^ 60)
+println("\n" * "="^60)
 println("Step 5: Creating Visualizations")
-println("=" ^ 60)
+println("="^60)
 
 # Plot 1: Parameter Distributions
 fig1 = Figure(size = (1000, 600))
@@ -177,7 +177,7 @@ ax2 = Axis(
     ylabel = "Parameter",
     xticks = (1:9, string.(HBV_ESTIMATED_PARAMS)),
     yticks = (1:9, string.(HBV_ESTIMATED_PARAMS)),
-    xticklabelrotation = π/4
+    xticklabelrotation = π / 4
 )
 
 hm = heatmap!(ax2, stats.correlation, colormap = :RdBu, colorrange = (-1, 1))
@@ -206,7 +206,7 @@ scatter!(
 )
 
 # Add correlation annotation
-r = round(cor(vpop_full.beta, vpop_full.p_S), digits=2)
+r = round(cor(vpop_full.beta, vpop_full.p_S), digits = 2)
 text!(ax3, "r = $r", position = (minimum(vpop_full.beta[1:n_plot]) + 1, maximum(vpop_full.p_S[1:n_plot]) - 0.2))
 fig3
 save(joinpath(@__DIR__, "..", "outputs", "hbv_beta_ps_scatter.png"), fig3)
@@ -231,9 +231,9 @@ println("Saved: outputs/hbv_treatment_params.png")
 # Step 6: Demonstrate Model and Dosing Schedule
 =============================================================================#
 
-println("\n" * "=" ^ 60)
+println("\n" * "="^60)
 println("Step 6: HBV Model and Dosing Schedule Demo")
-println("=" ^ 60)
+println("="^60)
 
 # Show available models
 println("Available HBV models:")
@@ -255,20 +255,20 @@ println("  2: IFN only")
 println("  3: NUC + IFN combination")
 
 # Show example dosing schedule
-schedule_combo = create_hbv_dosing_schedule(HBV_TREATMENT.combo; suppressed=true)
+schedule_combo = create_hbv_dosing_schedule(HBV_TREATMENT.combo; suppressed = true)
 println("\nExample: Combo treatment (suppressed patient)")
 println("  Total time points: $(length(schedule_combo.times))")
 println("  First treatment time: $(findfirst(x -> x > 0, schedule_combo.dNUC)) days")
 
 # Show clinical endpoints
 println("\nClinical Endpoints:")
-println("  HBsAg LOQ: $(LOQ_HBsAg) IU/mL (log10 = $(round(log10(LOQ_HBsAg), digits=2)))")
-println("  Viral LOQ: $(LOQ_V) copies/mL (log10 = $(round(LOG_LOQ_V, digits=2)))")
+println("  HBsAg LOQ: $(LOQ_HBsAg) IU/mL (log10 = $(round(log10(LOQ_HBsAg), digits = 2)))")
+println("  Viral LOQ: $(LOQ_V) copies/mL (log10 = $(round(LOG_LOQ_V, digits = 2)))")
 println("  Functional Cure: HBsAg < LOQ AND Viral Load < LOQ for ≥24 weeks")
 
-println("\n" * "=" ^ 60)
+println("\n" * "="^60)
 println("HBV Virtual Population Analysis Complete!")
-println("=" ^ 60)
+println("="^60)
 println("\nKey Outputs:")
 println("  - Parameter statistics computed from Vpop")
 println("  - New population generated using Gaussian copulas")

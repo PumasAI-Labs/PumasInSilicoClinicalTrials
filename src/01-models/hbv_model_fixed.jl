@@ -66,7 +66,7 @@ const HBV_FIXED_PARAMS_V2 = (
     phiS = 0.147,          # HBsAg suppression saturation
     nS = 0.486,            # HBsAg suppression Hill coefficient
     d_D = -0.62157,        # D clearance rate (log10)
-    iniZ = 1.25            # Initial Z value (log10)
+    iniZ = 1.25,            # Initial Z value (log10)
 )
 
 #=============================================================================
@@ -100,47 +100,47 @@ Covariates:
 hbv_model_v2 = @model begin
     @param begin
         # Fixed parameters (population values)
-        iniV ∈ RealDomain(init=-0.481486)
-        p_V ∈ RealDomain(init=2.0)
-        r_T ∈ RealDomain(lower=0.0, init=1.0)
-        r_E ∈ RealDomain(lower=0.0, init=0.1)
-        T_max ∈ RealDomain(lower=0.0, init=13600000.0)
-        n ∈ RealDomain(lower=0.0, init=2.0)
-        phiE ∈ RealDomain(init=2.0)
-        dEtoX ∈ RealDomain(lower=0.0, init=0.3)
-        phiQ ∈ RealDomain(lower=0.0, init=0.8)
-        d_V ∈ RealDomain(lower=0.0, init=0.67)
-        d_TI ∈ RealDomain(lower=0.0, init=0.0039)
-        d_E ∈ RealDomain(init=-2.0)
-        d_Z ∈ RealDomain(init=-0.328)
-        d_Q ∈ RealDomain(init=-2.414)
-        rho ∈ RealDomain(init=-3.0)
-        r_X ∈ RealDomain(lower=0.0, init=1.0)
-        d_X ∈ RealDomain(lower=0.0, init=0.2)
-        d_Y ∈ RealDomain(lower=0.0, init=0.22)
-        Smax ∈ RealDomain(lower=0.0, upper=1.0, init=0.5)
-        phiS ∈ RealDomain(lower=0.0, init=0.147)
-        nS ∈ RealDomain(lower=0.0, init=0.486)
-        d_D ∈ RealDomain(init=-0.62157)
-        iniZ ∈ RealDomain(init=1.25)
+        iniV ∈ RealDomain(init = -0.481486)
+        p_V ∈ RealDomain(init = 2.0)
+        r_T ∈ RealDomain(lower = 0.0, init = 1.0)
+        r_E ∈ RealDomain(lower = 0.0, init = 0.1)
+        T_max ∈ RealDomain(lower = 0.0, init = 13600000.0)
+        n ∈ RealDomain(lower = 0.0, init = 2.0)
+        phiE ∈ RealDomain(init = 2.0)
+        dEtoX ∈ RealDomain(lower = 0.0, init = 0.3)
+        phiQ ∈ RealDomain(lower = 0.0, init = 0.8)
+        d_V ∈ RealDomain(lower = 0.0, init = 0.67)
+        d_TI ∈ RealDomain(lower = 0.0, init = 0.0039)
+        d_E ∈ RealDomain(init = -2.0)
+        d_Z ∈ RealDomain(init = -0.328)
+        d_Q ∈ RealDomain(init = -2.414)
+        rho ∈ RealDomain(init = -3.0)
+        r_X ∈ RealDomain(lower = 0.0, init = 1.0)
+        d_X ∈ RealDomain(lower = 0.0, init = 0.2)
+        d_Y ∈ RealDomain(lower = 0.0, init = 0.22)
+        Smax ∈ RealDomain(lower = 0.0, upper = 1.0, init = 0.5)
+        phiS ∈ RealDomain(lower = 0.0, init = 0.147)
+        nS ∈ RealDomain(lower = 0.0, init = 0.486)
+        d_D ∈ RealDomain(init = -0.62157)
+        iniZ ∈ RealDomain(init = 1.25)
 
         # Estimated parameters (with IIV)
-        tvbeta ∈ RealDomain(init=-5.0)
-        tvp_S ∈ RealDomain(init=8.0)
-        tvm ∈ RealDomain(init=2.5)
-        tvk_Z ∈ RealDomain(init=-5.0)
-        tvconvE ∈ RealDomain(init=2.5)
-        tvepsNUC ∈ RealDomain(init=-2.0)
-        tvepsIFN ∈ RealDomain(init=-1.5)
-        tvr_E_IFN ∈ RealDomain(init=0.3)
-        tvk_D ∈ RealDomain(init=-4.0)
+        tvbeta ∈ RealDomain(init = -5.0)
+        tvp_S ∈ RealDomain(init = 8.0)
+        tvm ∈ RealDomain(init = 2.5)
+        tvk_Z ∈ RealDomain(init = -5.0)
+        tvconvE ∈ RealDomain(init = 2.5)
+        tvepsNUC ∈ RealDomain(init = -2.0)
+        tvepsIFN ∈ RealDomain(init = -1.5)
+        tvr_E_IFN ∈ RealDomain(init = 0.3)
+        tvk_D ∈ RealDomain(init = -4.0)
 
         # Inter-individual variability
         Ω ∈ PDiagDomain(9)
 
         # Residual error
-        σ_HBsAg ∈ RealDomain(lower=0.0, init=0.1)
-        σ_V ∈ RealDomain(lower=0.0, init=0.1)
+        σ_HBsAg ∈ RealDomain(lower = 0.0, init = 0.1)
+        σ_V ∈ RealDomain(lower = 0.0, init = 0.1)
     end
 
     @random begin
@@ -200,22 +200,22 @@ hbv_model_v2 = @model begin
         # Using continuous approximation to avoid discontinuity
         infection_active = I / (I + 0.0001)
         # HBsAg level for X dynamics (μg/mL)
-        SAg_ug_per_ml = (V + S) * (96 * 24000 * 1e6) / (6.023e23)
+        SAg_ug_per_ml = (V + S) * (96 * 24000 * 1.0e6) / (6.023e23)
     end
 
     @dynamics begin
         # Infected hepatocytes
         # Note: This equation is the same in both MATLAB branches
         I' = (10^beta) * T * V + r_T * I * (1 - (T + I + R) / T_max) -
-             (10^m) * rr_E_IFN * E * I - (10^rho) * X * I - d_TI * I
+            (10^m) * rr_E_IFN * E * I - (10^rho) * X * I - d_TI * I
 
         # Target hepatocytes
         T' = -(10^beta) * T * V + r_T * T * (1 - (T + I * infection_active + R) / T_max) -
-             d_TI * T + (10^rho) * R / 100 - (10^(m - n)) * rr_E_IFN * E * T
+            d_TI * T + (10^rho) * R / 100 - (10^(m - n)) * rr_E_IFN * E * T
 
         # Resistant hepatocytes
         R' = (10^rho) * X * I * infection_active + r_T * R * (1 - (T + I * infection_active + R) / T_max) -
-             (10^rho) * R / 100 - d_TI * R - (10^(m - n)) * rr_E_IFN * E * R
+            (10^rho) * R / 100 - d_TI * R - (10^(m - n)) * rr_E_IFN * E * R
 
         # Virus dynamics
         V' = (10^p_V) * 10^(eps_NUC + eps_IFN) * I * infection_active - d_V * V
@@ -225,7 +225,7 @@ hbv_model_v2 = @model begin
 
         # Dead cell marker
         Y' = (10^m) * rr_E_IFN * E * I * infection_active +
-             (10^(m - n)) * rr_E_IFN * E * (T + R) - d_Y * Y
+            (10^(m - n)) * rr_E_IFN * E * (T + R) - d_Y * Y
 
         # Immune response (ALT proxy)
         Z' = lambda_Z + (10^k_Z) * Y - (10^d_Z) * Z
@@ -245,23 +245,23 @@ hbv_model_v2 = @model begin
 
         # Cytotoxic effect
         X' = r_X * (1 - X) * (I / (10^phiE + I)) * infection_active *
-             (1 - Smax * SAg_ug_per_ml^nS / (phiS^nS + SAg_ug_per_ml^nS)) - d_X * X
+            (1 - Smax * SAg_ug_per_ml^nS / (phiS^nS + SAg_ug_per_ml^nS)) - d_X * X
     end
 
     @derived begin
         # HBsAg in IU/mL (log10 scale)
         # Conversion: (V + S) * (96 * 24000 * 1e9) / (6.023e23 * 0.98)
-        HBsAg_IU = @. (V + S) * (96 * 24000 * 1e9) / (6.023e23 * 0.98)
+        HBsAg_IU = @. (V + S) * (96 * 24000 * 1.0e9) / (6.023e23 * 0.98)
         log_HBsAg = @. log10(max(HBsAg_IU, 0.04))  # LOQ = 0.05 IU/mL
 
         # Viral load (log10 copies/mL)
-        log_V = @. log10(max(V, 1e-6))
+        log_V = @. log10(max(V, 1.0e-6))
 
         # ALT proxy
-        log_ALT = @. log10(max(Z, 1e-6))
+        log_ALT = @. log10(max(Z, 1.0e-6))
 
         # Effector T cells (log10 scale for plotting)
-        log_E = @. log10(max(E, 1e-6))
+        log_E = @. log10(max(E, 1.0e-6))
 
         # Observations with residual error
         HBsAg_obs ~ @. Normal(log_HBsAg, σ_HBsAg)
@@ -270,19 +270,21 @@ hbv_model_v2 = @model begin
 end
 
 ##
-sims_steadystate_v2 = simobs(                                                                                                                        
-      hbv_model_v2, s_no_treatment, init_params(hbv_model_v2),                                                                                            
-      zero_randeffs(hbv_model_v2, s_no_treatment, init_params(hbv_model_v2)),                                                                             
-      obstimes = 0:1:1825  # 5 years                                                                                                                
-  )    
-sim_plot(sims_steadystate_v2, 
+sims_steadystate_v2 = simobs(
+    hbv_model_v2, s_no_treatment, init_params(hbv_model_v2),
+    zero_randeffs(hbv_model_v2, s_no_treatment, init_params(hbv_model_v2)),
+    obstimes = 0:1:1825  # 5 years
+)
+sim_plot(
+    sims_steadystate_v2,
     observations = [:log_V],
-    figure = (; fontsize = 18,),
-    axis = (; 
-    xlabel = "Time (days)", 
-    ylabel = "Simulated V (No treatment)",
-    xticks = 0:180:1825,
-    ),)
+    figure = (; fontsize = 18),
+    axis = (;
+        xlabel = "Time (days)",
+        ylabel = "Simulated V (No treatment)",
+        xticks = 0:180:1825,
+    ),
+)
 #
 sims_no_treatment_v2 = simobs(
     hbv_model_v2,
@@ -294,11 +296,13 @@ sims_no_treatment_v2 = simobs(
     obstimes = 0:0.5:365,
     simulate_error = false
 )
-sim_plot(sims_no_treatment_v2, 
+sim_plot(
+    sims_no_treatment_v2,
     observations = [:log_V],
-    figure = (; fontsize = 18,),
-    axis = (; 
-    xlabel = "Time (days)", 
-    ylabel = "Simulated V (No treatment)",
-    xticks = 0:50:365,
-    ),)
+    figure = (; fontsize = 18),
+    axis = (;
+        xlabel = "Time (days)",
+        ylabel = "Simulated V (No treatment)",
+        xticks = 0:50:365,
+    ),
+)

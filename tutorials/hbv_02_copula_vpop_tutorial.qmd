@@ -3,47 +3,6 @@ title: "HBV Series: Virtual Population Generation with Copulas"
 subtitle: "Generating Realistic HBV Virtual Patients"
 author:
   - Vijay Ivaturi
-execute:
-  cache: true
-  error: false
-julia: 
-  exeflags: ["+Pumas@2.7.1"]
-format:
-  html:
-    include-in-header:
-      text: |
-        <style>
-          .header-container {
-            width: 100%;
-          }
-          .logo {
-            display: block;
-            width: 150px;
-            margin-left: -2.5%;
-          }
-        </style>
-        <link rel = "shortcut icon" href = "https://pumas.ai/favicon.ico" />
-    include-before-body:
-      text: |
-        <div class="header-container">
-          <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
-        </div>
-    self-contained-math: true
-    anchor-sections: true
-    theme: default
-    toc: true
-    toc-depth: 4
-    toc-expand: 2
-    toc-location: left
-    toc-title: Contents
-    number-sections: true
-    code-summary: Show/Hide Code
-embed-resources: true
-fig-format: svg
-fig-width: 8
-fig-height: 6
-bibliography: references.bib
-csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
 ---
 
 :::{.callout-note}
@@ -59,11 +18,14 @@ This is **Tutorial 2 of 6** in the HBV series.
 | 4 | [Structural Identifiability](hbv_04_structural_identifiability_tutorial.qmd) | |
 | 5 | [MILP Calibration](hbv_05_milp_calibration_tutorial.qmd) | |
 | 6 | [VCT Simulation](hbv_06_vct_simulation_tutorial.qmd) | |
+
 :::
 
 ## Learning Outcomes
 
-In this tutorial, you will learn how to generate a virtual population for the HBV model using Gaussian copula sampling, adapting the techniques from [TB-02](tb_02_copula_vpop_tutorial.qmd).
+In this tutorial, you will learn how to generate a virtual population
+for the HBV model using Gaussian copula sampling,
+adapting the techniques from [TB-02](tb_02_copula_vpop_tutorial.qmd).
 
 In this tutorial, you will learn:
 
@@ -77,8 +39,10 @@ In this tutorial, you will learn:
 
 This tutorial builds on:
 
-- **[HBV-01](hbv_01_model_introduction_tutorial.qmd)**: HBV model structure and parameters
-- **[TB-02](tb_02_copula_vpop_tutorial.qmd)**: Detailed copula theory (we'll reference, not repeat)
+- **[HBV-01](hbv_01_model_introduction_tutorial.qmd)**:
+  HBV model structure and parameters
+- **[TB-02](tb_02_copula_vpop_tutorial.qmd)**:
+  Detailed copula theory (we'll reference, not repeat)
 :::
 
 ## Libraries
@@ -104,20 +68,21 @@ using CategoricalArrays
 
 ### The 9 Estimated Parameters
 
-From [HBV-01](hbv_01_model_introduction_tutorial.qmd), the HBV model has 9 parameters with inter-individual variability:
+From [HBV-01](hbv_01_model_introduction_tutorial.qmd),
+the HBV model has 9 parameters with inter-individual variability:
 
 ```{julia}
 # HBV parameter specifications (log10 scale)
 const HBV_PARAM_SPECS = [
-    (name = :beta,     tv = -5.0,  omega = 0.5,  desc = "Infection rate"),
-    (name = :p_S,      tv = 8.0,   omega = 0.4,  desc = "HBsAg production"),
-    (name = :m,        tv = 2.5,   omega = 0.3,  desc = "Immune killing rate"),
-    (name = :k_Z,      tv = -5.0,  omega = 0.4,  desc = "ALT production"),
-    (name = :convE,    tv = 2.5,   omega = 0.3,  desc = "Effector conversion"),
-    (name = :epsNUC,   tv = -2.0,  omega = 0.5,  desc = "NUC efficacy"),
-    (name = :epsIFN,   tv = -1.5,  omega = 0.6,  desc = "IFN efficacy"),
-    (name = :r_E_IFN,  tv = 0.3,   omega = 0.4,  desc = "IFN immune boost"),
-    (name = :k_D,      tv = -4.0,  omega = 0.4,  desc = "DC activation")
+    (name = :beta, tv = -5.0, omega = 0.5, desc = "Infection rate"),
+    (name = :p_S, tv = 8.0, omega = 0.4, desc = "HBsAg production"),
+    (name = :m, tv = 2.5, omega = 0.3, desc = "Immune killing rate"),
+    (name = :k_Z, tv = -5.0, omega = 0.4, desc = "ALT production"),
+    (name = :convE, tv = 2.5, omega = 0.3, desc = "Effector conversion"),
+    (name = :epsNUC, tv = -2.0, omega = 0.5, desc = "NUC efficacy"),
+    (name = :epsIFN, tv = -1.5, omega = 0.6, desc = "IFN efficacy"),
+    (name = :r_E_IFN, tv = 0.3, omega = 0.4, desc = "IFN immune boost"),
+    (name = :k_D, tv = -4.0, omega = 0.4, desc = "DC activation"),
 ]
 
 println("HBV Estimated Parameters (log10 scale):")
@@ -128,7 +93,8 @@ end
 
 ### Correlation Matrix
 
-Based on clinical data analysis, some parameters are correlated. For example:
+Based on clinical data analysis, some parameters are correlated.
+For example:
 
 - HBsAg production (p_S) may correlate with viral suppression efficacy
 - Treatment efficacies (epsNUC, epsIFN) may be correlated
@@ -155,10 +121,10 @@ const HBV_CORRELATION = [
 
 println("\nCorrelation matrix verified: symmetric and positive definite")
 println("Notable correlations:")
-println("  p_S ↔ m: $(HBV_CORRELATION[2,3])")
-println("  m ↔ convE: $(HBV_CORRELATION[3,5])")
-println("  epsNUC ↔ epsIFN: $(HBV_CORRELATION[6,7])")
-println("  epsIFN ↔ r_E_IFN: $(HBV_CORRELATION[7,8])")
+println("  p_S ↔ m: $(HBV_CORRELATION[2, 3])")
+println("  m ↔ convE: $(HBV_CORRELATION[3, 5])")
+println("  epsNUC ↔ epsIFN: $(HBV_CORRELATION[6, 7])")
+println("  epsIFN ↔ r_E_IFN: $(HBV_CORRELATION[7, 8])")
 ```
 
 ## Part 2: Generating the Virtual Population
@@ -176,7 +142,7 @@ Parameters are sampled on log10 scale with additive random effects:
 
 Returns DataFrame with columns: id, beta, p_S, m, k_Z, convE, epsNUC, epsIFN, r_E_IFN, k_D
 """
-function generate_hbv_vpop(n::Int; seed::Union{Int,Nothing}=nothing)
+function generate_hbv_vpop(n::Int; seed::Union{Int, Nothing} = nothing)
     if !isnothing(seed)
         Random.seed!(seed)
     end
@@ -226,7 +192,7 @@ end
 ```{julia}
 # Generate virtual population
 n_vps = 5000
-vpop = generate_hbv_vpop(n_vps; seed=42)
+vpop = generate_hbv_vpop(n_vps; seed = 42)
 
 println("Generated $(nrow(vpop)) virtual patients")
 println("\nFirst 5 patients:")
@@ -266,11 +232,11 @@ sampled_corr = cor(param_matrix)
 println("Correlation Validation:")
 println("  Parameter pair     | Target | Sampled")
 println("  -------------------|--------|--------")
-pairs = [(2,3), (3,5), (6,7), (7,8)]  # Notable correlations
+pairs = [(2, 3), (3, 5), (6, 7), (7, 8)]  # Notable correlations
 for (i, j) in pairs
     target = HBV_CORRELATION[i, j]
     sampled = sampled_corr[i, j]
-    println("  $(param_names[i]) ↔ $(param_names[j]) | $(round(target, digits=2)) | $(round(sampled, digits=2))")
+    println("  $(param_names[i]) ↔ $(param_names[j]) | $(round(target, digits = 2)) | $(round(sampled, digits = 2))")
 end
 ```
 
@@ -345,7 +311,7 @@ Colorbar(fig[1, 2], colormap = :RdBu, colorrange = (-1, 1), label = "Correlation
 
 # Rotate x-axis labels
 ax = current_axis()
-ax.xticklabelrotation = π/4
+ax.xticklabelrotation = π / 4
 
 fig
 ```
@@ -376,7 +342,7 @@ end
 test_randeffs = compute_hbv_randeffs(vpop[1, :])
 println("Random effects for patient 1:")
 for (i, spec) in enumerate(HBV_PARAM_SPECS)
-    println("  η[$(spec.name)] = $(round(test_randeffs.η[i], digits=3))")
+    println("  η[$(spec.name)] = $(round(test_randeffs.η[i], digits = 3))")
 end
 ```
 
@@ -414,7 +380,8 @@ end
 
 ### What's Next?
 
-In [Tutorial 3: Global Sensitivity Analysis](hbv_03_gsa_tutorial.qmd), we'll analyze which parameters most influence HBV treatment outcomes.
+In [Tutorial 3: Global Sensitivity Analysis](hbv_03_gsa_tutorial.qmd),
+we'll analyze which parameters most influence HBV treatment outcomes.
 
 ### References
 

@@ -3,47 +3,6 @@ title: "Global Sensitivity Analysis for Pharmacometric Models"
 author:
   - Narsimhan Sriram
   - Vijay Ivaturi
-execute:
-  cache: true
-  error: false
-julia: 
-  exeflags: ["+Pumas@2.7.1"]
-format:
-  html:
-    include-in-header:
-      text: |
-        <style>
-          .header-container {
-            width: 100%;
-          }
-          .logo {
-            display: block;
-            width: 150px;
-            margin-left: -2.5%;
-          }
-        </style>
-        <link rel = "shortcut icon" href = "https://pumas.ai/favicon.ico" />
-    include-before-body:
-      text: |
-        <div class="header-container">
-          <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
-        </div>
-    self-contained-math: true
-    anchor-sections: true
-    theme: default
-    toc: true
-    toc-depth: 4
-    toc-expand: 2
-    toc-location: left
-    toc-title: Contents
-    number-sections: true
-    code-summary: Show/Hide Code
-embed-resources: true
-fig-format: svg
-fig-width: 8
-fig-height: 6
-bibliography: references.bib
-csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
 ---
 
 :::{.callout-note}
@@ -59,11 +18,15 @@ This is **Tutorial 3 of 6** in the Tumor Burden series.
 | 4 | [Structural Identifiability](tb_04_structural_identifiability_tutorial.qmd) | |
 | 5 | [MILP Calibration](tb_05_milp_calibration_tutorial.qmd) | |
 | 6 | [VCT Simulation](tb_06_vct_simulation_tutorial.qmd) | |
+
 :::
 
 ## Learning Outcomes
 
-Global Sensitivity Analysis (GSA) is a powerful technique for understanding how model outputs depend on input parameters. In the context of In Silico Clinical Trials (ISCTs), GSA helps identify which parameters most influence treatment outcomes [@cortes2025].
+Global Sensitivity Analysis (GSA) is a powerful technique
+for understanding how model outputs depend on input parameters.
+In the context of In Silico Clinical Trials (ISCTs),
+GSA helps identify which parameters most influence treatment outcomes [@cortes2025].
 
 In this tutorial, you will learn:
 
@@ -78,16 +41,24 @@ In this tutorial, you will learn:
 
 By the end of this tutorial, we'll find that for the tumor burden model:
 
-- **The sensitive fraction (f)** dominates at all timepoints, but especially at week 18 (Sₜ ≈ 0.84)
-- **The death rate (k)** — despite controlling treatment efficacy — has minimal impact on *final* outcomes (Sₜ ≈ 0.07)
+- **The sensitive fraction (f)** dominates at all timepoints,
+  but especially at week 18 (Sₜ ≈ 0.84)
+- **The death rate (k)** — despite controlling treatment efficacy —
+  has minimal impact on *final* outcomes (Sₜ ≈ 0.07)
 - **Parameter interactions are minimal** — the model behaves nearly additively
 
-But here's the key insight: when we compare GSA across different timepoints, we'll discover that **k's influence is 5× stronger at week 4 (Sₜ ≈ 0.37) than at week 18**. Meanwhile, **g emerges from negligible (0.01) to influential (0.12)** as resistant cells drive late-stage tumor growth. The parameters that matter depend entirely on when you measure — a critical lesson for clinical trial design!
+But here's the key insight: when we compare GSA across different timepoints,
+we'll discover that **k's influence is 5× stronger at week 4 (Sₜ ≈ 0.37) than at week 18**.
+Meanwhile, **g emerges from negligible (0.01) to influential (0.12)**
+as resistant cells drive late-stage tumor growth.
+The parameters that matter depend entirely on when you measure —
+a critical lesson for clinical trial design!
 :::
 
 ## Prerequisites
 
-This tutorial uses the Tumor Burden Model from [Tutorial 1](tb_01_model_introduction_tutorial.qmd). The model describes tumor dynamics with parameters:
+This tutorial uses the Tumor Burden Model from [Tutorial 1](tb_01_model_introduction_tutorial.qmd).
+The model describes tumor dynamics with parameters:
 
 - **f** (sensitive fraction): What fraction of tumor cells respond to treatment
 - **g** (growth rate): How fast resistant cells proliferate
@@ -99,36 +70,47 @@ For model details, see Tutorial 1.
 
 ### What is Sensitivity Analysis?
 
-**Sensitivity analysis** quantifies how variation in model outputs can be attributed to variation in model inputs. It answers two fundamental questions:
+**Sensitivity analysis** quantifies how variation in model outputs can be attributed to variation in
+model inputs.
+It answers two fundamental questions:
 
-1. **Which parameters most affect the output?** — Identify the key drivers of model behavior
-2. **Do parameters interact?** — Understand if combined parameter effects differ from individual effects
+1. **Which parameters most affect the output?**
+   — Identify the key drivers of model behavior
+2. **Do parameters interact?**
+   — Understand if combined parameter effects differ from individual effects
 
 :::{.callout-note}
 ## Local vs Global Sensitivity Analysis
 
 | Aspect | Local Sensitivity | Global Sensitivity |
 |:-------|:------------------|:-------------------|
-| **Approach** | Perturb one parameter slightly around a base value | Explore entire parameter space simultaneously |
+| **Approach** | Infinitesimal perturbation of one parameter around a base value | Exploration of entire parameter space simultaneously |
 | **Information** | Derivative (slope) at one point | Variance decomposition across full range |
-| **Interactions** | Cannot detect | Explicitly quantified |
-| **Computational cost** | Low (n evaluations) | High (thousands of evaluations) |
+| **Interactions** | Not detectable | Explicitly quantified |
+| **Computational cost** | Low | High |
 | **Robustness** | Depends on base point | Comprehensive |
 
-**Local sensitivity** tells you what happens if you slightly change one parameter while holding others fixed. **Global sensitivity** tells you what happens across the entire plausible parameter space.
+**Local sensitivity** tells you what happens if you slightly change one parameter
+while holding others fixed.
+**Global sensitivity** tells you what happens across the entire plausible parameter space.
 :::
 
 ### Why GSA in the ISCT Workflow?
 
 In the ISCT workflow [@cortes2025], GSA serves several important purposes:
 
-1. **Model understanding:** Identify which biological mechanisms drive treatment response
-2. **Parameter prioritization:** Focus estimation efforts on influential parameters
+1. **Model understanding:** Identify
+   which biological mechanisms drive treatment response
+2. **Parameter prioritization:** Focus estimation efforts on influential
+   parameters
 3. **Experimental design:** Guide what to measure in clinical studies
-4. **Model simplification:** Identify parameters that can be fixed without affecting predictions
-5. **Uncertainty propagation:** Understand which parameter uncertainties matter most
+4. **Model simplification:** Identify parameters
+   that can be fixed without affecting predictions
+5. **Uncertainty propagation:** Understand
+   which parameter uncertainties matter most
 
 ```{mermaid}
+#| echo: false
 flowchart LR
     A["Build Model"] --> B["Run GSA"]
     B --> C{"Parameter\nInfluential?"}
@@ -143,152 +125,183 @@ flowchart LR
 
 ### Variance-Based Sensitivity Indices
 
-The most common GSA approach is **variance-based sensitivity analysis** [@sobol2001]. It decomposes the total output variance into contributions from each input parameter.
+The most common GSA approach is **variance-based sensitivity analysis** [@sobol2001].
+It decomposes the total variance $V[Y]$ of output $Y$ into contributions $V[\mathbb{E}[Y|X_i]]$ from each input parameter $X_i$.
 
 #### First-Order Sensitivity Index (S₁)
 
-The **first-order index** measures the direct (main) effect of a single parameter:
+The **first-order index** $S_i$ measures the direct (main) effect of a single parameter $X_i$ on
+output $Y$:
 
 $$S_i = \frac{V[\mathbb{E}[Y|X_i]]}{V[Y]}$$
 
-**Interpretation:** The fraction of output variance explained by varying parameter $X_i$ alone, averaging over all other parameters.
+**Interpretation:** The fraction of output variance explained by varying parameter $X_i$ alone,
+averaging over all other parameters.
 
 - $S_i = 0$: Parameter has no direct effect
 - $S_i = 1$: Parameter alone explains all output variance
 
 #### Total-Order Sensitivity Index (Sₜ)
 
-The **total-order index** measures the total effect including all interactions [@saltelli2010]:
+The **total-order index** $S_{ti}$ measures the total effect of a parameter $X_i$,
+including all interactions with other parameters [@saltelli2010]:
 
-$$S_{Ti} = 1 - \frac{V[\mathbb{E}[Y|X_{\sim i}]]}{V[Y]}$$
+$$S_{ti} = 1 - \frac{V[\mathbb{E}[Y|X_{\sim i}]]}{V[Y]}$$
 
 where $X_{\sim i}$ represents all parameters except $X_i$.
 
-**Interpretation:** The fraction of output variance that would remain unexplained if we fixed parameter $X_i$.
+**Interpretation:** The fraction of output variance explained by varying parameter $X_i$,
+including all its interactions with other parameters.
 
 :::{.callout-tip}
 ## Key Insight: Detecting Interactions
 
 The difference between total-order and first-order indices reveals **parameter interactions**:
 
-$$\text{Interaction effect} = S_{Ti} - S_i$$
+$$\text{Interaction effect} = S_{ti} - S_i$$
 
 | Situation | Meaning |
 |:----------|:--------|
-| $S_{Ti} \approx S_i$ | Parameter acts independently |
-| $S_{Ti} > S_i$ | Parameter has important interactions with others |
+| $S_{ti} \approx S_i$ | Parameter acts independently |
+| $S_{ti} > S_i$ | Parameter has important interactions with others |
 | $\sum S_i \approx 1$ | Model is approximately additive |
 | $\sum S_i < 1$ | Significant interactions present |
+
 :::
 
 ### GSA Methods: Sobol vs eFAST
 
 Two popular methods for computing sensitivity indices:
 
-| Method | Full Name | Approach | Samples Required | Reference |
-|:-------|:----------|:---------|:-----------------|:----------|
-| **Sobol** | Sobol indices | Monte Carlo sampling | N(2k+2) | @sobol2001 |
-| **eFAST** | Extended Fourier Amplitude Sensitivity Test | Fourier analysis | ~500-1000 | @saltelli1999 |
+| Method | Full Name | Approach | Reference |
+|:-------|:----------|:---------|:----------|
+| **Sobol** | Sobol indices | Monte Carlo sampling | @sobol2001 |
+| **eFAST** | Extended Fourier Amplitude Sensitivity Test | Fourier analysis | @saltelli1999 |
 
 **Practical guidance:**
 
-- **Sobol:** More accurate, especially for total-order indices. Use for final analysis.
-- **eFAST:** Faster, good for initial exploration. Use for screening.
+- **Sobol:** More accurate, especially for total-order indices.
+  Use for final analysis.
+- **eFAST:** Faster, good for initial exploration.
+  Use for screening.
 
 ## Libraries
 
 ```{julia}
 #| output: false
 using Pumas
-using GlobalSensitivity    # GSA methods (Sobol, eFAST)
-using DataFrames
+using GlobalSensitivity
 using AlgebraOfGraphics
 using CairoMakie
-using SummaryTables        # Nice table rendering
+using DataFramesMeta
+using SummaryTables
+
 using Statistics
-using LinearAlgebra: Diagonal
-using Random
 ```
 
 **What each package does:**
 
 - `Pumas`: Pharmacometric modeling with `Pumas.gsa()` for sensitivity analysis
 - `GlobalSensitivity`: Provides Sobol and eFAST methods (Sobol, eFAST)
-- `DataFrames`: Organize and manipulate results
 - `AlgebraOfGraphics` + `CairoMakie`: Publication-quality visualizations
-- `SummaryTables`: Clean rendering of DataFrames in documents
+- `DataFramesMeta`: Organize and manipulate data frames
+- `SummaryTables`: Clean rendering of data frames in documents
+- `Statistics`: Julia standard library for statistics
 
 ## Part 1: Model Setup for GSA
 
 ### Tumor Burden Model with GSA Endpoints
 
-For GSA, we need to define **scalar output endpoints** that summarize the model behavior. We do this using the `@observed` block:
+For GSA, we need to define **output endpoints** that summarize the model behavior.
+We do this using the `@observed` block:
 
 ```{julia}
-tumor_model_gsa = @model begin
+tumor_burden_model_gsa = @model begin
     @metadata begin
-        desc = "Tumor Burden Model for GSA"
-        timeu = u"d"
+        desc = "Tumor Burden Model for NSCLC Chemotherapy"
+        timeu = u"d"  # Time unit is days
+    end
+
+    @options begin
+        checklinear = false
     end
 
     @param begin
         # Typical values (population parameters)
-        tvf ∈ RealDomain(lower = 0.0, upper = 1.0, init = 0.27)
-        tvg ∈ RealDomain(lower = 0.0, init = 0.0013)
-        tvk ∈ RealDomain(lower = 0.0, init = 0.0091)
+        tvf ∈ RealDomain(lower = 0.0, upper = 1.0)
+        tvg ∈ RealDomain(lower = 0.0)
+        tvk ∈ RealDomain(lower = 0.0)
 
-        # Random effect variance (will be fixed to tiny values for GSA)
-        Ω ∈ PDiagDomain(init = [1e-10, 1e-10, 1e-10])
-        σ ∈ RealDomain(lower = 0.0, init = 1e-10)
+        # Inter-individual variability (diagonal covariance matrix)
+        # Values on the transformed scale (logit for f, log for g and k)
+        Ω ∈ PDiagDomain(3)
+
+        # Residual error (standard deviation)
+        σ ∈ RealDomain(lower = 0.0)
     end
 
     @random begin
+        # Random effects vector (one per parameter)
         η ~ MvNormal(Ω)
     end
 
     @covariates treatment
 
     @pre begin
-        # For GSA, we effectively use tvf, tvg, tvk directly
-        # because η is negligible (Ω is tiny)
-        # f uses logit-normal: logit(f) = logit(tvf) + η
+        # Transform random effects to individual parameters
+        # f: logit-normal transformation (bounded 0-1)
         f = logistic(logit(tvf) + η[1])
+        # g: log-normal transformation (positive value)
         g = tvg * exp(η[2])
-        k = tvk * exp(η[3])
-        k_eff = treatment * k
+        # k: log-normal transformation (positive value)
+        # Additionally, treatment affects death rate:
+        # treatment = 0 → control arm (no killing)
+        # treatment = 1 → treatment arm (killing at rate tvk * exp(η[3]))
+        k = treatment * tvk * exp(η[3])
     end
 
+    # Initial conditions (normalized tumor = 1)
     @init begin
-        N_sens = f
-        N_res = 1.0 - f
+        N_sens = f           # Sensitive cells
+        N_res = 1 - f        # Resistant cells
     end
 
     @dynamics begin
-        N_sens' = -k_eff * N_sens
+        # Sensitive cells: die at rate k (0 if control)
+        N_sens' = -k * N_sens
+
+        # Resistant cells: grow at rate g
         N_res' = g * N_res
     end
 
     @derived begin
-        Nt = @. N_sens + N_res
+        # Total normalized tumor size
+        Nt := @. N_sens + N_res
+
+        # Observation with residual error
         tumor_size ~ @. Normal(Nt, σ)
     end
 
     @observed begin
-        # Scalar endpoints for GSA - clinically meaningful outputs
-        # Tumor size at end of treatment (week 18 = day 126)
-        final_tumor = last(Nt)
+        # Endpoint for GSA: Total normalized tumor size at the final time point
+        final_tumor = last(tumor_size)
     end
 end
 ```
 
 :::{.callout-note}
-## Understanding the @observed Block
+## Understanding the `@observed` Block
 
-The `@observed` block defines **scalar outputs** for GSA:
+The `@observed` block defines **outputs** for GSA.
 
-1. **Scalar values** (single number per simulation) - required for sensitivity analysis
-2. **Derived from the time course** using functions like `last()`, indexing, or summary statistics
-3. **Not used for fitting** (unlike `@derived`)
+1. Often these outputs are scalar values (single number per simulation),
+   derived from the time course using functions such as `last()`, indexing,
+   or summary statistics.
+2. If these outputs are vectors,
+   every vector element is treated as a separate output
+   and sensitivity analysis is performed for all of them.
+3. Unlike distributions in `@derived`,
+   values in `@observed` are not used for model fitting.
 
 For the tumor model:
 
@@ -309,38 +322,31 @@ Common scalar endpoints for GSA:
 GSA requires a "subject" to provide time points and covariates:
 
 ```{julia}
-# Define observation times (18 weeks of treatment)
-observation_times = 0:7:126  # Weekly for 18 weeks
-
-# Create a subject (treatment arm)
 subject = Subject(
     id = 1,
     covariates = (treatment = 1,),  # Treatment arm (drug active)
-    time = collect(observation_times)
+    time = [0, 18 * 7], # 18 weeks of treatment
 )
-
-println("Subject created:")
-println("  Observation times: $(collect(observation_times))")
-println("  Treatment: active (k_eff = k)")
 ```
 
 ### Define Parameter Ranges
 
-GSA explores parameters within specified bounds. These should cover the plausible physiological range:
+GSA explores parameters within specified bounds.
+These should cover the plausible physiological range:
 
 ```{julia}
 # Lower bounds for typical values
 p_range_low = (
     tvf = 0.05,    # At least 5% sensitive
     tvg = 0.0005,  # Minimum growth rate
-    tvk = 0.002    # Minimum death rate
+    tvk = 0.002,    # Minimum death rate
 )
 
 # Upper bounds for typical values
 p_range_high = (
     tvf = 0.95,   # At most 95% sensitive
     tvg = 0.005,  # Maximum growth rate
-    tvk = 0.05    # Maximum death rate
+    tvk = 0.05,    # Maximum death rate
 )
 
 println("Parameter ranges for GSA:")
@@ -351,7 +357,8 @@ end
 
 ### Base Parameters and Constant Coefficients
 
-We need base parameter values and must fix the random effect variance to make simulations deterministic:
+We need base parameter values and must fix the random effect variance to make simulations
+deterministic:
 
 ```{julia}
 # Base parameters (center of ranges)
@@ -359,179 +366,182 @@ base_params = (
     tvf = 0.27,
     tvg = 0.0013,
     tvk = 0.0091,
-    Ω = Diagonal([1e-10, 1e-10, 1e-10]),  # Tiny variance → deterministic
-    σ = 1e-10                               # No residual noise
+    Ω = Diagonal(zeros(3)),  # No variance → deterministic
+    σ = 0.0,                  # No residual noise
 )
-
-# Fix Ω and σ so they are NOT varied by GSA
-# constantcoef takes a TUPLE OF SYMBOLS (parameter names to hold constant)
-# The actual values come from base_params
-constant_coef = (:Ω, :σ)
-
-println("Constant coefficients (not varied):")
-println("  Ω: diagonal with 1e-10 (effectively zero)")
-println("  σ: 1e-10 (no observation noise)")
 ```
 
 :::{.callout-important}
 ## Why Fix Ω and σ?
 
-For GSA, we want to understand how **population-level parameters** (tvf, tvg, tvk) affect outputs. If we allowed Ω to be large:
+For GSA, we want to understand how **population-level parameters** (tvf, tvg, tvk) affect outputs.
+If we allowed Ω to be large:
 
 1. Random effects η would vary between simulations
 2. This would add noise unrelated to parameter sensitivity
 3. Sensitivity indices would be contaminated
 
-By specifying `constantcoef = (:Ω, :σ)` (a **tuple of symbols**), we tell GSA to hold these parameters constant at their `base_params` values. This gives deterministic simulations where only the parameters of interest vary.
+By specifying `constantcoef = (:Ω, :σ)` (a **tuple of symbols**),
+we tell GSA to hold these parameters constant at their `base_params` values.
+This gives deterministic simulations where only the parameters of interest vary.
 
-**Note:** `constantcoef` expects a tuple of parameter names (symbols), not a NamedTuple with values. The actual values come from `base_params`.
+**Note:** `constantcoef` expects a tuple of parameter names (symbols), not a NamedTuple with values.
+The actual values come from `base_params`.
 :::
 
 ### Run eFAST (Fast Initial Analysis)
 
-```{julia}
-# Run eFAST sensitivity analysis
-# eFAST is faster than Sobol, good for initial exploration
-Random.seed!(123)
+eFAST is faster than Sobol, and hence good for initial exploration:
 
-gsa_efast = Pumas.gsa(
-    tumor_model_gsa,              # Model
+```{julia}
+#| output: false
+gsa_efast = gsa(
+    tumor_burden_model_gsa,        # Model
     subject,                       # Subject with time points
     base_params,                   # Base parameter values
     eFAST(),                       # Method (from GlobalSensitivity)
-    [:final_tumor],    # Outputs to analyze
+    [:final_tumor],                # Outputs to analyze
     p_range_low,                   # Lower bounds
     p_range_high;                  # Upper bounds
-    constantcoef = constant_coef,  # Parameters NOT to vary (tuple of symbols)
-    samples = 500                  # Number of samples
+    constantcoef = (:Ω, :σ),       # Parameters NOT to vary (tuple of symbols)
+    samples = 1_000                # Number of samples
 )
-
-println("eFAST analysis complete!")
-println("Method: eFAST with 500 samples")
 ```
 
 ### Extract Results
 
-```{julia}
-# First-order indices
-println("First-Order Sensitivity Indices (S₁):")
-println("-" ^ 50)
-for (output_idx, output) in enumerate([:final_tumor])
-    println("\n$output:")
-    row = gsa_efast.first_order[output_idx, :]
-    for param in [:tvf, :tvg, :tvk]
-        println("  $param: $(round(row[param], digits=4))")
-    end
-end
+First-order indices:
 
-# Total-order indices
-println("\n" * "=" ^ 50)
-println("Total-Order Sensitivity Indices (Sₜ):")
-println("-" ^ 50)
-for (output_idx, output) in enumerate([:final_tumor])
-    println("\n$output:")
-    row = gsa_efast.total_order[output_idx, :]
-    for param in [:tvf, :tvg, :tvk]
-        println("  $param: $(round(row[param], digits=4))")
-    end
-end
+```{julia}
+gsa_efast.first_order
+```
+
+Total-order indices:
+
+```{julia}
+gsa_efast.total_order
 ```
 
 ### Run Sobol (More Accurate)
 
-For publication-quality results, use the Sobol method:
+For publication-quality results, use the Sobol method.
 
 ```{julia}
-Random.seed!(456)
-
-gsa_sobol = Pumas.gsa(
-    tumor_model_gsa,
+gsa_sobol = gsa(
+    tumor_burden_model_gsa,
     subject,
     base_params,
-    Sobol(nboot = 100),            # Method with bootstrap for confidence intervals
+    Sobol(; nboot = 100),          # Method with bootstrap for confidence intervals
     [:final_tumor],
     p_range_low,
     p_range_high;
-    constantcoef = constant_coef,  # Parameters NOT to vary (tuple of symbols)
-    samples = 1000                 # Number of samples
+    constantcoef = (:Ω, :σ),       # Parameters NOT to vary (tuple of symbols)
+    samples = 2^10                 # Number of samples
 )
-
-println("Sobol analysis complete!")
-println("Method: Sobol with 1000 samples and 100 bootstrap replicates")
 ```
+
+First-order indices:
+
+```{julia}
+gsa_sobol.first_order
+```
+
+Total-order indices:
+
+```{julia}
+gsa_sobol.total_order
+```
+
+::: {.callout-warning}
+
+## Why 2^n Samples?
+
+Sobol's method uses [Sobol sequences](https://en.wikipedia.org/wiki/Sobol_sequence) (quasi-random
+low-discrepancy sequences) in the unit hypercube rather than pseudo-random numbers to fill the
+parameter space.
+
+When you use exactly $2^n$ points, the Sobol sequence guarantees perfect stratification:
+the unit hypercube is partitioned into $2^n$ equal sub-intervals along each dimension,
+and exactly one point falls in each interval (in 1D; in higher dimensions,
+the balance is maintained across projections).
+This ensures uniform, gap-free coverage of the parameter space.
+
+If you use a non-power-of-2 number (e.g., 1000 instead of 1024):
+
+   - The first 512 (= 2^9) points are perfectly stratified
+   - The remaining 488 points partially fill the next stratification level
+   - This creates uneven coverage —
+     some regions get extra samples while others remain sparse
+
+Optimal convergence rate of quasi-Monte Carlo integral approximations based on Sobol sequences is
+only achieved with even coverage, i.e., with $2^n$ samples.
+
+Thus using non-power-of-2 number of samples in Sobol's method means:
+
+   - Sensitivity indices estimates have higher error than necessary
+     for the computational cost
+   - Sensitivity index estimates may be biased or unstable
+   - Confidence intervals from bootstrapping become less reliable
+
+:::
 
 ## Part 3: Interpreting Results
 
-### Compile Results into DataFrame
+### Compile Results into a Single DataFrame
+
+For easier downstream analysis,
+we combine the first-order and total-order indices in a single data frame.
 
 ```{julia}
-# Helper function to extract GSA results
-function extract_gsa_results(gsa_result, param_names, output_names)
-    rows = NamedTuple[]
+gsa_sobol_first_order = stack(
+    gsa_sobol.first_order,
+    Not(:dv_name);
+    variable_name = :parameter,
+    value_name = :first_order,
+)
+gsa_sobol_total_order = stack(
+    gsa_sobol.total_order,
+    Not(:dv_name);
+    variable_name = :parameter,
+    value_name = :total_order,
+)
+gsa_sobol_df = outerjoin(
+    gsa_sobol_first_order,
+    gsa_sobol_total_order; on = [:dv_name, :parameter],
+)
 
-    for (i, output) in enumerate(output_names)
-        fo_row = gsa_result.first_order[i, :]
-        to_row = gsa_result.total_order[i, :]
+# Compute interaction (difference between total- and first-order indices)
+@rtransform! gsa_sobol_df :interaction = :total_order - :first_order
 
-        for param in param_names
-            push!(rows, (
-                output = output,
-                parameter = param,
-                first_order = round(fo_row[param], digits=4),
-                total_order = round(to_row[param], digits=4),
-                interaction = round(to_row[param] - fo_row[param], digits=4)
-            ))
-        end
-    end
-
-    return DataFrame(rows)
-end
-
-# Extract results
-param_names = [:tvf, :tvg, :tvk]
-output_names = [:final_tumor]
-
-results_df = extract_gsa_results(gsa_sobol, param_names, output_names)
-simple_table(results_df)
+simple_table(gsa_sobol_df)
 ```
 
 ### Rank Parameters by Importance
 
-```{julia}
-# For each output, rank parameters by total-order index
-ranked_results = DataFrame()
+For each output, we rank parameters by total-order index:
 
-for output in output_names
-    output_data = filter(row -> row.output == output, results_df)
-    sorted_data = sort(output_data, :total_order, rev=true)
-    sorted_data.rank = 1:nrow(sorted_data)
-    append!(ranked_results, sorted_data)
+```{julia}
+ranked_gsa_sobol_df = @chain gsa_sobol_df begin
+    @groupby [:dv_name]
+    @transform :rank = sortperm(:total_order; rev = true)
+    sort!(_, [:dv_name, :rank])
 end
 
-println("Parameters ranked by importance:")
-simple_table(ranked_results)
+simple_table(ranked_gsa_sobol_df)
 ```
 
 ### Identify Influential Parameters
 
+We consider parameters with total-order index ≥ 0.1 as influential:
+
 ```{julia}
-# Parameters with total-order index ≥ 0.1 are considered influential
 threshold = 0.1
-
-influential = filter(row -> row.total_order >= threshold, results_df)
-influential_params = unique(influential.parameter)
-
-println("Influential parameters (Sₜ ≥ $threshold):")
-for p in influential_params
-    println("  - $p")
+influential_gsa_sobol_df = @chain gsa_sobol_df begin
+    @rtransform :interpretation = :total_order >= threshold ? "INFLUENTIAL" : "minor"
+    sort!(_, [:dv_name, order(:total_order; rev = true)])
 end
 
-println("\nFor final_tumor:")
-final_data = filter(row -> row.output == :final_tumor, ranked_results)
-for row in eachrow(final_data)
-    status = row.total_order >= threshold ? "INFLUENTIAL" : "minor"
-    println("  $(row.rank). $(row.parameter): Sₜ = $(row.total_order) [$status]")
-end
+simple_table(influential_gsa_sobol_df)
 ```
 
 :::{.callout-note}
@@ -539,22 +549,30 @@ end
 
 Looking at the **final_tumor** output:
 
-1. **tvf (sensitive fraction)** has the highest total-order index (~0.84) — the dominant driver of final tumor size
+1. **tvf (sensitive fraction)** has the highest total-order index (~0.84) —
+   the dominant driver of final tumor size
 2. **tvg (growth rate)** is second (~0.12) — influences resistant cell regrowth
-3. **tvk (death rate)** is minor (~0.07) — less influential for the final outcome
+3. **tvk (death rate)** is minor (~0.07) —
+   less influential for the final outcome
 
 **Biological interpretation:**
 
-- The fraction of treatment-sensitive cells (f) is the primary determinant of long-term outcome
-- Patients with high f have more cells killed by treatment → smaller final tumors
+- The fraction of treatment-sensitive cells (f) is the primary determinant of
+  long-term outcome
+- Patients with high f have more cells killed by treatment → smaller final
+  tumors
 - Growth rate (g) matters because resistant cells eventually dominate the tumor
-- Death rate (k) has less impact on final size because it only affects the sensitive population, which is eventually eliminated regardless of k
+- Death rate (k) has less impact on final size
+  because it only affects the sensitive population,
+  which is eventually eliminated regardless of k
 
 **Why is f dominant?**
 
 The model: $N(t) = N_0 \cdot f \cdot e^{-kt} + N_0 \cdot (1-f) \cdot e^{gt}$
 
-At late times, the first term (sensitive cells) → 0 regardless of k, so final tumor ≈ $N_0 \cdot (1-f) \cdot e^{gT}$. This depends strongly on f and g, but not k.
+At late times, the first term (sensitive cells) → 0 regardless of k,
+so final tumor ≈ $N_0 \cdot (1-f) \cdot e^{gT}$.
+This depends strongly on f and g, but not k.
 :::
 
 ## Part 4: Visualization
@@ -562,45 +580,18 @@ At late times, the first term (sensitive cells) → 0 regardless of k, so final 
 ### Bar Chart: First-Order vs Total-Order
 
 ```{julia}
-#| fig-cap: "Sensitivity indices for final tumor size. Dark bars show first-order (direct) effects; light extensions show interaction contributions. The red dashed line indicates the importance threshold (Sₜ > 0.1)."
+#| fig-cap: "Sensitivity indices for final tumor size. Dark bars show first-order (direct) effects; light extensions show contributions of interactions. The red line indicates the importance threshold (Sₜᵢ > 0.1)."
 
-# Filter for final_tumor and reshape for AoG
-final_data = filter(row -> row.output == :final_tumor, results_df)
-
-# Sort by total order for better visualization
-final_data = sort(final_data, :total_order, rev = true)
-
-# Create long-form DataFrame for stacked bar visualization
-bar_df = vcat(
-    DataFrame(
-        parameter = string.(final_data.parameter),
-        value = final_data.first_order,
-        index_type = fill("First-order (S₁)", nrow(final_data))
-    ),
-    DataFrame(
-        parameter = string.(final_data.parameter),
-        value = final_data.interaction,
-        index_type = fill("Interaction (Sₜ - S₁)", nrow(final_data))
-    )
+# Create long data frame for AlgebraOfGraphics
+long_df = stack(
+    ranked_gsa_sobol_df[:, [:parameter, :first_order, :interaction]], [:first_order, :interaction];
+    variable_name = :type, value_name = :index,
 )
 
-# Create plot with AoG - use sorter to preserve order
-plt = data(bar_df) *
-    mapping( :parameter => sorter(string.(final_data.parameter)),:value,
-            color = :index_type => "Index Type", dodge = :index_type) *
-    visual(BarPlot)
-plt_hlines = mapping([0.1]) * visual(HLines, color = :red, linestyle = :dash, linewidth = 2); 
-plt_text = mapping(2.8, 0.12) * visual(Makie.Text, text = "Importance\nThreshold = 0.1", color = :red, fontsize = 10)   
-draw(plt + plt_hlines + plt_text, 
-    axis = (title = "Sensitivity Analysis: Final Tumor Size",
-            xlabel = "Parameter",
-            ylabel = "Sensitivity Index",
-            xticks = (1:3, ["f (sensitive fraction)", "g (growth rate)", "k (death rate)"]),
-            limits = (nothing, nothing, 0.0, 1.0)
-            ),
-    legend = (position = :bottom, framevisible = false, nbanks = 1, titleposition = :left),
-    figure = (size = (800, 600),)
-)
+specs_gsa = data(long_df) * mapping(:parameter => renamer(["tvf" => "f (sensitive fraction)", "tvg" => "g (growth rate)", "tvk" => "k (death rate)"]) => "Parameter", :index => "Sensitivity", stack = :parameter, color = :type => renamer(["first_order" => "First-order (Sᵢ)", "interaction" => "Interaction (Sₜᵢ - Sᵢ)"]) => "Type") * visual(BarPlot)
+specs_threshold = mapping([threshold], color = "Sₜᵢ = 0.1" => "Importance Threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
+
+draw(specs_gsa + specs_threshold, AlgebraOfGraphics.scales(; ColorLine = (; palette = [:red])), legend = (; position = :bottom))
 ```
 
 :::{.callout-note}
@@ -608,221 +599,224 @@ draw(plt + plt_hlines + plt_text,
 
 **How to read this plot:**
 
-- **Bar length** = total sensitivity (Sₜ) of each parameter
-- **Dark blue** = first-order effect (S₁) — direct influence of the parameter alone
-- **Light blue** = interaction contribution (Sₜ - S₁) — influence through parameter interactions
+- **Bar length** = total sensitivity (Sₜᵢ) of each parameter
+- **Blue Bar** = first-order effect (Sᵢ) —
+  direct influence of the parameter alone
+- **Yellow Bar** = interaction contribution (Sₜᵢ - Sᵢ) —
+  influence through parameter interactions
 
 **Key findings:**
 
-1. **f (sensitive fraction)** has the highest sensitivity (Sₜ ≈ 0.85), meaning it explains ~85% of the variance in final tumor size. This makes biological sense: the fraction of treatment-sensitive cells directly determines how much the tumor can shrink.
+1. **f (sensitive fraction)** has the highest sensitivity (Sₜᵢ ≈ 0.84),
+   meaning it explains ~84% of the variance in final tumor size.
+   This makes biological sense: the fraction of treatment-sensitive cells directly determines how
+   much the tumor can shrink.
 
-2. **g (growth rate)** has moderate sensitivity (Sₜ ≈ 0.15). The resistant cell growth rate matters, but less than the sensitive fraction.
+2. **g (growth rate)** has moderate sensitivity (Sₜᵢ ≈ 0.12).
+   The resistant cell growth rate matters, but less than the sensitive fraction.
 
-3. **k (death rate)** has very low sensitivity (Sₜ < 0.1). This is because at the final timepoint (126 days), most sensitive cells have already died regardless of the exact death rate.
+3. **k (death rate)** has low sensitivity (Sₜᵢ < 0.1).
+   This is because at the final timepoint (126 days),
+   most sensitive cells have already died regardless of the exact death rate.
 
-**The red dashed line** marks Sₜ = 0.1, a common threshold for identifying "influential" parameters. Parameters above this line warrant careful estimation; those below can potentially be fixed to literature values.
+**The red line** marks Sₜᵢ = 0.1, a common threshold for identifying "influential" parameters.
+Parameters above this line warrant careful estimation;
+those below can potentially be fixed to literature values.
 :::
 
 ### Ranked Parameter Importance
 
 ```{julia}
 #| fig-cap: "Parameters ranked by total-order sensitivity index for final tumor size."
-
-# Sort parameters by total-order index (descending) and create DataFrame for AoG
-sorted_data = sort(results_df, :total_order, rev = true)
-
-# Create DataFrame with rank for ordering
-rank_df = DataFrame(
-    parameter = string.(sorted_data.parameter),
-    total_order = sorted_data.total_order,
-    rank = 1:nrow(sorted_data)
-)
-# Assign colors based on rank (most important = firebrick)
-rank_df.color_group = ["Rank $i" for i in rank_df.rank]
-
-# Create plot with AoG - use sorter to control order
-plt = data(rank_df) *
-    mapping(:parameter => sorter(rank_df.parameter) => "Parameter",
-            :total_order => "Total-Order Sensitivity Index (Sₜ)",
-            color = :color_group => "") *
+specs_gsa = data(ranked_gsa_sobol_df) *
+    mapping(
+    :parameter => renamer(["tvf" => "f (sensitive fraction)", "tvg" => "g (growth rate)", "tvk" => "k (death rate)"]) => "Parameter",
+    :total_order => "Total-Order Sensitivity Index (Sₜᵢ)",
+    color = :rank => nonnumeric => "Rank"
+) *
     visual(BarPlot)
-plt_hlines = mapping([0.1]) * visual(HLines, color = :red, linestyle = :dash, linewidth = 2);   
-draw(plt + plt_hlines,
-    axis = (title = "Parameter Importance Ranking for Final Tumor Size",
-            xlabel = "Parameter",
-            ylabel = "Total Order Sensitivity Index",
-            xticks = (1:3, ["f (sensitive fraction)", "g (growth rate)", "k (death rate)"]),
-            limits = (nothing, nothing, 0.0, 1.0)
-            ),
-    legend = (position = :bottom, framevisible = false, nbanks = 1, titleposition = :left),
-    figure = (size = (800, 600),)
-)
+specs_threshold = mapping([threshold], color = "Sₜᵢ = 0.1" => "Importance Threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
+
+draw(specs_gsa + specs_threshold, AlgebraOfGraphics.scales(; ColorLine = (; palette = [:red])), legend = (; position = :bottom))
 ```
 
 ### Comparison: First-Order vs Total-Order
 
 ```{julia}
-#| fig-cap: "Scatter plot comparing first-order and total-order indices. Points above the diagonal indicate parameters with significant interactions."
-
-# Create DataFrame for AoG scatter plot
-scatter_df = DataFrame(
-    first_order = results_df.first_order,
-    total_order = results_df.total_order,
-    parameter = [string(p)[3:end] for p in results_df.parameter],  # Remove "tv" prefix
-    param_label = ["f (sensitive fraction)", "g (growth rate)", "k (death rate)"]
-)
+#| fig-cap: "Scatter plot comparing first-order and total-order sensitivity indices. Points above the diagonal indicate parameters with significant interactions."
 
 # Create scatter plot with AoG
-plt = data(scatter_df) *
-    mapping(:first_order => "First-Order Index (S₁)",
-            :total_order => "Total-Order Index (Sₜ)",
-            color = :param_label => "Parameter") *
-    visual(Scatter, markersize = 20)
-plt_abline = mapping([0], [1]) * visual(ABLines)
-plt_text = mapping(0.6, 0.55) * visual(Makie.Text, text = "No interactions", color = :gray, fontsize = 10, rotation = atan(1))        
-draw(plt + plt_abline + plt_text,
-    axis = (title = "Detecting Parameter Interactions",
-             xlabel = "First-Order Sensitivity Index (S₁)",
-             ylabel = "Total-Order Sensitivity Index (Sₜ)",
-             limits = (0, 1, 0, 1),
-             aspect = 1
-            ),
-    legend = (position = :bottom, framevisible = false, nbanks = 1, titleposition = :left),
-    figure = (size = (650, 500),)
-)
+specs_gsa = data(gsa_sobol_df) *
+    mapping(
+    :first_order => "First-Order Index (S₁)",
+    :total_order => "Total-Order Index (Sₜ)",
+    color = :parameter => renamer(["tvf" => "f (sensitive fraction)", "tvg" => "g (growth rate)", "tvk" => "k (death rate)"]) => "Parameter"
+) *
+    visual(Scatter)
+specs_reference = mapping([0], [1]) * visual(ABLines)
+
+draw(specs_gsa + specs_reference; axis = (; aspect = 1, limits = ((0, 1), (0, 1))))
 ```
 
 ## Part 5: GSA Across Timepoints
 
 ### Why Timepoint Matters
 
-Our analysis used final tumor size (week 18) as the endpoint. But what if we chose a different timepoint? This section demonstrates how **parameter importance changes depending on when you measure the outcome**.
+Our analysis used final tumor size (week 18) as the endpoint.
+But what if we chose a different timepoint?
+This section demonstrates how
+**parameter importance changes depending on when you measure the outcome**.
 
 ### Model with Multiple Timepoint Outputs
 
 ```{julia}
-# Define a model that outputs tumor size at specific timepoints
-tumor_model_timepoints = @model begin
+tumor_burden_model_gsa_multiple = @model begin
     @metadata begin
-        desc = "Tumor Burden Model - Multiple Timepoints"
-        timeu = u"d"
+        desc = "Tumor Burden Model for NSCLC Chemotherapy"
+        timeu = u"d"  # Time unit is days
+    end
+
+    @options begin
+        checklinear = false
     end
 
     @param begin
-        tvf ∈ RealDomain(lower = 0.0, upper = 1.0, init = 0.27)
-        tvg ∈ RealDomain(lower = 0.0, init = 0.0013)
-        tvk ∈ RealDomain(lower = 0.0, init = 0.0091)
-        Ω ∈ PDiagDomain(init = [1e-10, 1e-10, 1e-10])
-        σ ∈ RealDomain(lower = 0.0, init = 1e-10)
+        # Typical values (population parameters)
+        tvf ∈ RealDomain(lower = 0.0, upper = 1.0)
+        tvg ∈ RealDomain(lower = 0.0)
+        tvk ∈ RealDomain(lower = 0.0)
+
+        # Inter-individual variability (diagonal covariance matrix)
+        # Values on the transformed scale (logit for f, log for g and k)
+        Ω ∈ PDiagDomain(3)
+
+        # Residual error (standard deviation)
+        σ ∈ RealDomain(lower = 0.0)
     end
 
     @random begin
+        # Random effects vector (one per parameter)
         η ~ MvNormal(Ω)
     end
 
     @covariates treatment
 
     @pre begin
-        # f uses logit-normal: logit(f) = logit(tvf) + η
+        # Transform random effects to individual parameters
+        # f: logit-normal transformation (bounded 0-1)
         f = logistic(logit(tvf) + η[1])
+        # g: log-normal transformation (positive value)
         g = tvg * exp(η[2])
-        k = tvk * exp(η[3])
-        k_eff = treatment * k
+        # k: log-normal transformation (positive value)
+        # Additionally, treatment affects death rate:
+        # treatment = 0 → control arm (no killing)
+        # treatment = 1 → treatment arm (killing at rate tvk * exp(η[3]))
+        k = treatment * tvk * exp(η[3])
     end
 
+    # Initial conditions (normalized tumor = 1)
     @init begin
-        N_sens = f
-        N_res = 1.0 - f
+        N_sens = f           # Sensitive cells
+        N_res = 1 - f        # Resistant cells
     end
 
     @dynamics begin
-        N_sens' = -k_eff * N_sens
+        # Sensitive cells: die at rate k (0 if control)
+        N_sens' = -k * N_sens
+
+        # Resistant cells: grow at rate g
         N_res' = g * N_res
     end
 
     @derived begin
-        Nt = @. N_sens + N_res
+        # Total normalized tumor size
+        Nt := @. N_sens + N_res
+
+        # Observation with residual error
         tumor_size ~ @. Normal(Nt, σ)
     end
 
     @observed begin
-        # Tumor size at different timepoints
-        # Week 4 = day 28, Week 8 = day 56, Week 18 = day 126
-        tumor_week4 = Nt[5]     # Index 5 corresponds to day 28 (weekly observations starting at day 0)
-        tumor_week8 = Nt[9]     # Index 9 corresponds to day 56
-        tumor_week18 = Nt[19]   # Index 19 corresponds to day 126
+        # Endpoints for GSA: Total normalized tumor size at different time points
+        tumor_size_t = tumor_size
     end
 end
-
-println("Model defined with outputs at weeks 4, 8, and 18")
 ```
 
 ### Run Comparative GSA
 
 ```{julia}
-# Create subject with weekly observations for 18 weeks
-obs_times_weekly = 0:7:126  # Days 0, 7, 14, ..., 126
-
-subject_timepoints = Subject(
+subject = Subject(
     id = 1,
-    covariates = (treatment = 1,),
-    time = collect(obs_times_weekly)
+    covariates = (treatment = 1,),  # Treatment arm (drug active)
+    time = [4 * 7, 8 * 7, 18 * 7],
 )
-
-# Run Sobol GSA for all three timepoints
-Random.seed!(789)
-
-gsa_timepoints = Pumas.gsa(
-    tumor_model_timepoints,
-    subject_timepoints,
+gsa_sobol = gsa(
+    tumor_burden_model_gsa_multiple,
+    subject,
     base_params,
     Sobol(nboot = 100),
-    [:tumor_week4, :tumor_week8, :tumor_week18],
+    [:tumor_size_t],
     p_range_low,
     p_range_high;
-    constantcoef = constant_coef,
-    samples = 1000
+    constantcoef = (:Ω, :σ),
+    samples = 2^10
 )
-
-println("Comparative GSA complete!")
 ```
 
 ### Extract and Compare Results
 
+For easier downstream analysis,
+we combine the first-order and total-order indices in a single data frame.
+
 ```{julia}
-# Extract results for each timepoint
-timepoint_results = DataFrame()
+gsa_sobol_first_order = stack(
+    gsa_sobol.first_order,
+    Not(:dv_name);
+    variable_name = :parameter,
+    value_name = :first_order,
+)
+gsa_sobol_total_order = stack(
+    gsa_sobol.total_order,
+    Not(:dv_name);
+    variable_name = :parameter,
+    value_name = :total_order,
+)
+gsa_sobol_df = outerjoin(
+    gsa_sobol_first_order,
+    gsa_sobol_total_order; on = [:dv_name, :parameter],
+)
 
-timepoints = [:tumor_week4, :tumor_week8, :tumor_week18]
-timepoint_labels = ["Week 4", "Week 8", "Week 18"]
+# Compute interaction (difference between total- and first-order indices)
+@rtransform! gsa_sobol_df :interaction = :total_order - :first_order
 
-for (i, (tp, label)) in enumerate(zip(timepoints, timepoint_labels))
-    fo_row = gsa_timepoints.first_order[i, :]
-    to_row = gsa_timepoints.total_order[i, :]
+# Parse time
+@rtransform! gsa_sobol_df :time = subject.time[parse(Int, match(r"tumor_size_t\[(\d+)\]", :dv_name).captures[1])]
 
-    for param in [:tvf, :tvg, :tvk]
-        push!(timepoint_results, (
-            timepoint = label,
-            parameter = param,
-            first_order = round(fo_row[param], digits=4),
-            total_order = round(to_row[param], digits=4)
-        ))
-    end
+# "Nicer" parameter names
+@rtransform! gsa_sobol_df :parameter = :parameter[3:end]
+
+simple_table(gsa_sobol_df)
+```
+
+```{julia}
+ranked_gsa_sobol_df = @chain gsa_sobol_df begin
+    @groupby [:dv_name]
+    @transform :rank = sortperm(:total_order; rev = true)
+    sort!(_, [:dv_name, :rank])
 end
 
-# Pivot for easier comparison
-println("Sensitivity Indices by Timepoint:")
-println("=" ^ 60)
+simple_table(ranked_gsa_sobol_df)
+```
 
-for tp in timepoint_labels
-    println("\n$tp:")
-    tp_data = filter(row -> row.timepoint == tp, timepoint_results)
-    tp_sorted = sort(tp_data, :total_order, rev=true)
-    for row in eachrow(tp_sorted)
-        status = row.total_order >= 0.1 ? "INFLUENTIAL" : "minor"
-        println("  $(row.parameter): Sₜ = $(row.total_order) [$status]")
-    end
+```{julia}
+threshold = 0.1
+influential_gsa_sobol_df = @chain gsa_sobol_df begin
+    @rtransform :interpretation = :total_order >= threshold ? "INFLUENTIAL" : "minor"
+    sort!(_, [:dv_name, order(:total_order; rev = true)])
 end
+
+simple_table(influential_gsa_sobol_df)
 ```
 
 ### Visualize Parameter Importance Over Time
@@ -830,54 +824,34 @@ end
 ```{julia}
 #| fig-cap: "How parameter importance changes across treatment timepoints. Early: k matters for active killing. Late: f dominates as resistant cells determine outcome."
 
-# Create DataFrame for AoG with clean parameter names
-timepoint_plot_df = DataFrame(
-    timepoint = timepoint_results.timepoint,
-    parameter = [string(p)[3:end] for p in timepoint_results.parameter],  # Remove "tv" prefix
-    total_order = timepoint_results.total_order
-)
-
-# Create faceted bar plot with AoG
-plt = data(timepoint_plot_df) *
-    mapping(:parameter => sorter(["f", "g", "k"]) => "Parameter",
-            :total_order => "Total-Order Sensitivity Index (Sₜ)",
-            color = :parameter => "Parameter",
-            layout = :timepoint => sorter(["Week 4", "Week 8", "Week 18"])) *
+parameter_mapping = :parameter => sorter(["f", "g", "k"]) => "Parameter"
+specs_gsa = data(gsa_sobol_df) *
+    mapping(
+    parameter_mapping,
+    :total_order => "Total-Order Sensitivity Index (Sₜᵢ)",
+    color = parameter_mapping,
+    col = :time => (t -> string("Week ", t ÷ 7))
+) *
     visual(BarPlot)
-draw(plt,
-    axis = (xlabel = "Parameter",
-            ylabel = "Total-Order Sensitivity Index (Sₜ)",
-            xticks = (1:3, ["f", "g", "k"]),
-            limits = (nothing, nothing, 0.0, 1.0)
-            ),
-    legend = (position = :bottom, framevisible = false, nbanks = 1, titleposition = :left),
-    figure = (size = (900, 800), title = "Parameter Sensitivity Across Timepoints",)
-)
+specs_threshold = mapping([threshold], color = "Sₜᵢ = 0.1" => "Importance Threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
+
+draw(specs_gsa + specs_threshold, scales(ColorLine = (; palette = [:red])); legend = (; position = :bottom))
 ```
 
 ### Summary Table: Parameter Rankings Over Time
 
+Create a summary table of total-order sensitivity indices for each parameter:
+
 ```{julia}
-# Create summary comparison table by extracting values for each parameter
-function get_st(param, timepoint)
-    row = filter(r -> r.timepoint == timepoint && r.parameter == param, timepoint_results)
-    return round(row[1, :total_order], digits=2)
-end
-
-summary_comparison = DataFrame(
-    Parameter = ["f (sensitive fraction)", "g (growth rate)", "k (death rate)"],
-    Week_4 = [get_st(:tvf, "Week 4"), get_st(:tvg, "Week 4"), get_st(:tvk, "Week 4")],
-    Week_8 = [get_st(:tvf, "Week 8"), get_st(:tvg, "Week 8"), get_st(:tvk, "Week 8")],
-    Week_18 = [get_st(:tvf, "Week 18"), get_st(:tvg, "Week 18"), get_st(:tvk, "Week 18")]
-)
-
-simple_table(summary_comparison)
+gsa_sobol_total_order_wide = unstack(gsa_sobol_df, [:parameter], :time, :total_order; renamecols = (t -> string("Week ", t ÷ 7)))
+simple_table(gsa_sobol_total_order_wide)
 ```
 
 :::{.callout-important}
-## Key Insight: Endpoint Choice Matters!
+## Key Insight: Endpoint Choice Matters
 
-This comparative analysis demonstrates a critical point: **parameter rankings shift depending on when you measure**.
+This comparative analysis demonstrates a critical point:
+**parameter rankings shift depending on when you measure**.
 
 | If Your Question Is... | Most Sensitive To | Why |
 |:-----------------------|:------------------|:----|
@@ -887,85 +861,19 @@ This comparative analysis demonstrates a critical point: **parameter rankings sh
 
 **Practical implications:**
 
-1. **For drug development (efficacy):** Measure tumor response at week 4-8 to capture k's influence (Sₜ = 0.24-0.37)
-2. **For survival prediction:** f dominates at all timepoints, but g becomes relevant late
-3. **For clinical trial design:** k appears "unimportant" at week 18 (Sₜ = 0.07) but is clearly influential at week 4 (Sₜ = 0.37) — choosing only late endpoints would miss this
+1. **For drug development (efficacy):** Measure tumor response at week 4-8 to
+   capture k's influence (Sₜ = 0.24-0.37)
+2. **For survival prediction:** f dominates at all timepoints,
+   but g becomes relevant late
+3. **For clinical trial design:** k appears "unimportant" at week 18 (Sₜ = 0.07)
+   but is clearly influential at week 4 (Sₜ = 0.37) —
+   choosing only late endpoints would miss this
 
-**The key lesson:** f is always dominant in this model, but k's influence is **5× stronger at week 4 than week 18** (0.37 vs 0.07). A GSA run only at the final timepoint would incorrectly suggest k doesn't matter for treatment efficacy.
+**The key lesson:** f is always dominant in this model,
+but k's influence is **5× stronger at week 4 than week 18** (0.37 vs 0.07).
+A GSA run only at the final timepoint would incorrectly suggest k doesn't matter
+for treatment efficacy.
 :::
-
-## Part 6: Practical Workflow
-
-### Complete GSA Function
-
-Here's a reusable function for running GSA:
-
-```{julia}
-"""
-    run_tumor_gsa(;method=:efast, n_samples=500, observation_times=0:7:126)
-
-Run GSA on the tumor burden model.
-
-# Arguments
-- `method`: :efast or :sobol
-- `n_samples`: Number of samples (500-1000 for eFAST, N for Sobol)
-- `observation_times`: Time points for simulation
-
-# Returns
-DataFrame with sensitivity indices
-"""
-function run_tumor_gsa(;
-    method::Symbol = :efast,
-    n_samples::Int = 500,
-    observation_times = 0:7:126
-)
-    # Create subject
-    subject = Subject(
-        id = 1,
-        covariates = (treatment = 1,),
-        time = collect(observation_times)
-    )
-
-    # Parameters
-    base_params = (
-        tvf = 0.27, tvg = 0.0013, tvk = 0.0091,
-        Ω = Diagonal([1e-10, 1e-10, 1e-10]),
-        σ = 1e-10
-    )
-
-    p_low = (tvf = 0.05, tvg = 0.0005, tvk = 0.002)
-    p_high = (tvf = 0.95, tvg = 0.005, tvk = 0.05)
-    const_coef = (:Ω, :σ)  # Tuple of symbols - parameters NOT to vary
-
-    # Run GSA
-    # Sobol with bootstrap for confidence intervals; eFAST for quick screening
-    gsa_method = method == :sobol ? Sobol(nboot = 100) : eFAST()
-
-    result = Pumas.gsa(
-        tumor_model_gsa, subject, base_params, gsa_method,
-        [:final_tumor], p_low, p_high;
-        constantcoef = const_coef,
-        samples = n_samples
-    )
-
-    # Extract results
-    return extract_gsa_results(result, [:tvf, :tvg, :tvk], [:final_tumor])
-end
-```
-
-### Example Usage
-
-```{julia}
-# Quick screening with eFAST
-quick_results = run_tumor_gsa(method = :efast, n_samples = 300)
-
-# Identify influential parameters
-influential = filter(row -> row.total_order >= 0.1, quick_results)
-println("Influential parameters from quick screening:")
-for row in eachrow(influential)
-    println("  $(row.parameter) for $(row.output): Sₜ = $(row.total_order)")
-end
-```
 
 ## Practical Recommendations
 
@@ -998,16 +906,21 @@ For more accurate Sobol indices, use `nboot = 100` for bootstrap confidence inte
 | 0.01 < Sₜ < 0.1 | Parameter can be fixed to literature value |
 | Sₜ > 0.1 | Parameter should be estimated from data |
 | Sₜ - S₁ > 0.1 | Important interactions; consider interaction terms |
+
 :::
 
 :::{.callout-warning}
 ## 4. Common Pitfalls
 
-1. **Forgetting to fix Ω:** Random effects add noise that contaminates sensitivity indices. Use `constantcoef = (:Ω, :σ)` to hold them constant.
-2. **Wrong constantcoef type:** `constantcoef` expects a tuple of symbols like `(:Ω, :σ)`, NOT a NamedTuple with values.
+1. **Forgetting to fix Ω:** Random effects add noise that contaminates sensitivity indices.
+   Use `constantcoef = (:Ω, :σ)` to hold them constant.
+2. **Wrong constantcoef type:** `constantcoef` expects a tuple of symbols like
+   `(:Ω, :σ)`, NOT a NamedTuple with values.
 3. **Too narrow parameter ranges:** May miss important nonlinear effects
-4. **Too few samples:** Indices may be unstable; increase N if results vary between runs
-5. **Ignoring outputs:** Different outputs may have different influential parameters
+4. **Too few samples:** Indices may be unstable;
+   increase N if results vary between runs
+5. **Ignoring outputs:** Different outputs may have different influential
+   parameters
 :::
 
 ## Summary
@@ -1022,7 +935,8 @@ For more accurate Sobol indices, use `nboot = 100` for bootstrap confidence inte
 | **tvg** (growth rate) | 0.121 | Influential | Should estimate from data |
 | **tvk** (death rate) | 0.074 | Minor | Can fix to literature value |
 
-**Key insight:** The fraction of treatment-sensitive cells (f) explains ~84% of the variance in final tumor size.
+**Key insight:** The fraction of treatment-sensitive cells (f) explains ~84% of the variance in
+final tumor size.
 
 **Timepoint comparison reveals the full story:**
 
@@ -1034,17 +948,23 @@ For more accurate Sobol indices, use `nboot = 100` for bootstrap confidence inte
 
 ### Key Takeaways
 
-1. **GSA quantifies how outputs depend on inputs** across the entire parameter space, not just at a single point
+1. **GSA quantifies how outputs depend on inputs** across the entire parameter
+   space, not just at a single point
 
-2. **First-order indices (S₁)** measure direct effects; **total-order indices (Sₜ)** include interactions
+2. **First-order indices (S₁)** measure direct effects;
+   **total-order indices (Sₜ)** include interactions
 
-3. **eFAST is faster**, good for screening; **Sobol is more accurate**, use for final analysis
+3. **eFAST is faster**, good for screening; **Sobol is more accurate**,
+   use for final analysis
 
-4. **Fix Ω and σ** via `constantcoef = (:Ω, :σ)` (tuple of symbols) to ensure deterministic simulations
+4. **Fix Ω and σ** via `constantcoef = (:Ω, :σ)` (tuple of symbols) to ensure
+   deterministic simulations
 
-5. **Parameters with Sₜ < 0.1** can often be fixed to literature values without affecting predictions
+5. **Parameters with Sₜ < 0.1** can often be fixed to literature values without
+   affecting predictions
 
-6. **Endpoint choice critically affects results:** k dropped from Sₜ = 0.37 (week 4) to 0.07 (week 18)
+6. **Endpoint choice critically affects results:** k dropped from Sₜ = 0.37
+   (week 4) to 0.07 (week 18)
 
 ### What's Next
 
@@ -1058,10 +978,9 @@ In **Tutorial 4: Structural Identifiability**, we will:
 
 | Function | Package | Purpose |
 |:---------|:--------|:--------|
-| `Pumas.gsa(model, subject, params, method, outputs, p_low, p_high; constantcoef, samples)` | Pumas | Run GSA |
+| `gsa(model, subject, params, method, outputs, p_low, p_high; constantcoef, samples)` | Pumas | Run GSA |
 | `Sobol(nboot = 100)` | GlobalSensitivity | Sobol method with bootstrap CI |
 | `eFAST()` | GlobalSensitivity | eFAST method (faster screening) |
-| `last(variable)` | Base Julia | Get value at final timepoint (for `@observed`) |
 
 ### References
 

@@ -14,7 +14,7 @@ This corresponds to Step 3 of the ISCT workflow paper:
 Sections:
 1. Tumor Burden - Single scenario analysis
 2. Tumor Burden - Multi-scenario comparison
-3. Tumor Burden - Identifiable functions & reparametrization
+3. Tumor Burden - Identifiable functions & reparameterization
 4. HBV - Local identifiability (faster)
 5. HBV - Progressive measurement scenarios
 6. HBV - Multi-experiment identifiability
@@ -75,7 +75,7 @@ report_tb = analyze_tumor_burden_identifiability(
     include_global = true,
     include_local = true,
     find_functions = true,
-    compute_reparametrization = true,
+    compute_reparameterization = true,
     verbose = true
 )
 
@@ -91,11 +91,11 @@ for rec in recommendations
 end
 
 #=============================================================================
-# 3. Tumor Burden: Identifiable Functions & Reparametrization
+# 3. Tumor Burden: Identifiable Functions & Reparameterization
 =============================================================================#
 
 println("\n" * "="^70)
-println("  SECTION 3: IDENTIFIABLE FUNCTIONS & REPARAMETRIZATION")
+println("  SECTION 3: IDENTIFIABLE FUNCTIONS & REPARAMETERIZATION")
 println("="^70)
 
 # Find what parameter combinations ARE identifiable
@@ -110,14 +110,14 @@ funcs_result = find_scenario_identifiable_functions(
 
 println("\nIdentifiable functions found: $(length(funcs_result.identifiable_functions))")
 
-# Compute reparametrization
-reparam_result = compute_scenario_reparametrization(
+# Compute reparameterization
+reparam_result = compute_scenario_reparameterization(
     ode_sys,
     tb_scenarios[:tumor_size_only];
     verbose = true
 )
 
-println("\nReparametrization recommendations:")
+println("\nReparameterization recommendations:")
 for rec in reparam_result.recommendations
     println("  - $rec")
 end
@@ -243,7 +243,7 @@ report_hbv = analyze_hbv_identifiability(
     include_global = false,  # Skip global (slow)
     include_local = true,
     find_functions = false,  # Skip for speed
-    compute_reparametrization = false,
+    compute_reparameterization = false,
     verbose = true
 )
 
@@ -279,30 +279,32 @@ println("\n" * "="^70)
 println("  SUMMARY: PRACTICAL GUIDANCE FOR ISCT WORKFLOW")
 println("="^70)
 
-println("""
+println(
+    """
 
-TUMOR BURDEN MODEL:
-- All 3 parameters (f, g, k) should be structurally identifiable
-- Clinical measurement (total tumor size) is sufficient
-- Can proceed with parameter estimation in Step 4
+    TUMOR BURDEN MODEL:
+    - All 3 parameters (f, g, k) should be structurally identifiable
+    - Clinical measurement (total tumor size) is sufficient
+    - Can proceed with parameter estimation in Step 4
 
-HBV QSP MODEL:
-- Complex model requires careful measurement planning
-- Standard clinical monitoring (HBsAg + viral load) provides good identifiability
-- Some parameters may require:
-  * Additional measurements (ALT, etc.)
-  * Informative priors from literature
-  * Fixed values from mechanistic studies
+    HBV QSP MODEL:
+    - Complex model requires careful measurement planning
+    - Standard clinical monitoring (HBsAg + viral load) provides good identifiability
+    - Some parameters may require:
+      * Additional measurements (ALT, etc.)
+      * Informative priors from literature
+      * Fixed values from mechanistic studies
 
-NEXT STEPS:
-1. If all parameters are globally identifiable -> Proceed to Step 4 (sampling)
-2. If some parameters are non-identifiable:
-   a. Consider reparametrization (identifiable combinations)
-   b. Fix parameters to literature values
-   c. Use informative priors in Bayesian estimation
-   d. Add additional measurements if feasible
+    NEXT STEPS:
+    1. If all parameters are globally identifiable -> Proceed to Step 4 (sampling)
+    2. If some parameters are non-identifiable:
+       a. Consider reparameterization (identifiable combinations)
+       b. Fix parameters to literature values
+       c. Use informative priors in Bayesian estimation
+       d. Add additional measurements if feasible
 
-For more details, see Section 2, Step 3 of the ISCT workflow paper.
-""")
+    For more details, see Section 2, Step 3 of the ISCT workflow paper.
+    """
+)
 
 println("\n--- Example Complete ---")

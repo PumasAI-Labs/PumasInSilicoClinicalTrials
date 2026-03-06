@@ -61,14 +61,14 @@ const HBV_FIXED_PARAMS = (
     phiS = 0.147,          # HBsAg suppression saturation
     nS = 0.486,            # HBsAg suppression Hill coefficient
     d_D = -0.62157,        # D clearance rate (log10)
-    iniZ = 1.25            # Initial Z value (log10)
+    iniZ = 1.25,            # Initial Z value (log10)
 )
 
 #=============================================================================
 # HBV Model Definition
 =============================================================================#
 
-    """
+"""
     hbv_model
 
 Pumas model for HBV viral dynamics with immune response and treatment effects.
@@ -94,47 +94,47 @@ Covariates:
 hbv_model = @model begin
     @param begin
         # Fixed parameters (population values)
-        iniV ∈ RealDomain(init=-0.481486)
-        p_V ∈ RealDomain(init=2.0)
-        r_T ∈ RealDomain(lower=0.0, init=1.0)
-        r_E ∈ RealDomain(lower=0.0, init=0.1)
-        T_max ∈ RealDomain(lower=0.0, init=13600000.0)
-        n ∈ RealDomain(lower=0.0, init=2.0)
-        phiE ∈ RealDomain(init=2.0)
-        dEtoX ∈ RealDomain(lower=0.0, init=0.3)
-        phiQ ∈ RealDomain(lower=0.0, init=0.8)
-        d_V ∈ RealDomain(lower=0.0, init=0.67)
-        d_TI ∈ RealDomain(lower=0.0, init=0.0039)
-        d_E ∈ RealDomain(init=-2.0)
-        d_Z ∈ RealDomain(init=-0.328)
-        d_Q ∈ RealDomain(init=-2.414)
-        rho ∈ RealDomain(init=-3.0)
-        r_X ∈ RealDomain(lower=0.0, init=1.0)
-        d_X ∈ RealDomain(lower=0.0, init=0.2)
-        d_Y ∈ RealDomain(lower=0.0, init=0.22)
-        Smax ∈ RealDomain(lower=0.0, upper=1.0, init=0.5)
-        phiS ∈ RealDomain(lower=0.0, init=0.147)
-        nS ∈ RealDomain(lower=0.0, init=0.486)
-        d_D ∈ RealDomain(init=-0.62157)
-        iniZ ∈ RealDomain(init=1.25)
+        iniV ∈ RealDomain(init = -0.481486)
+        p_V ∈ RealDomain(init = 2.0)
+        r_T ∈ RealDomain(lower = 0.0, init = 1.0)
+        r_E ∈ RealDomain(lower = 0.0, init = 0.1)
+        T_max ∈ RealDomain(lower = 0.0, init = 13600000.0)
+        n ∈ RealDomain(lower = 0.0, init = 2.0)
+        phiE ∈ RealDomain(init = 2.0)
+        dEtoX ∈ RealDomain(lower = 0.0, init = 0.3)
+        phiQ ∈ RealDomain(lower = 0.0, init = 0.8)
+        d_V ∈ RealDomain(lower = 0.0, init = 0.67)
+        d_TI ∈ RealDomain(lower = 0.0, init = 0.0039)
+        d_E ∈ RealDomain(init = -2.0)
+        d_Z ∈ RealDomain(init = -0.328)
+        d_Q ∈ RealDomain(init = -2.414)
+        rho ∈ RealDomain(init = -3.0)
+        r_X ∈ RealDomain(lower = 0.0, init = 1.0)
+        d_X ∈ RealDomain(lower = 0.0, init = 0.2)
+        d_Y ∈ RealDomain(lower = 0.0, init = 0.22)
+        Smax ∈ RealDomain(lower = 0.0, upper = 1.0, init = 0.5)
+        phiS ∈ RealDomain(lower = 0.0, init = 0.147)
+        nS ∈ RealDomain(lower = 0.0, init = 0.486)
+        d_D ∈ RealDomain(init = -0.62157)
+        iniZ ∈ RealDomain(init = 1.25)
 
         # Estimated parameters (with IIV)
-        tvbeta ∈ RealDomain(init=-5.0)
-        tvp_S ∈ RealDomain(init=8.0)
-        tvm ∈ RealDomain(init=2.5)
-        tvk_Z ∈ RealDomain(init=-5.0)
-        tvconvE ∈ RealDomain(init=2.5)
-        tvepsNUC ∈ RealDomain(init=-2.0)
-        tvepsIFN ∈ RealDomain(init=-1.5)
-        tvr_E_IFN ∈ RealDomain(init=0.3)
-        tvk_D ∈ RealDomain(init=-4.0)
+        tvbeta ∈ RealDomain(init = -5.0)
+        tvp_S ∈ RealDomain(init = 8.0)
+        tvm ∈ RealDomain(init = 2.5)
+        tvk_Z ∈ RealDomain(init = -5.0)
+        tvconvE ∈ RealDomain(init = 2.5)
+        tvepsNUC ∈ RealDomain(init = -2.0)
+        tvepsIFN ∈ RealDomain(init = -1.5)
+        tvr_E_IFN ∈ RealDomain(init = 0.3)
+        tvk_D ∈ RealDomain(init = -4.0)
 
         # Inter-individual variability
         Ω ∈ PDiagDomain(9)
 
         # Residual error
-        σ_HBsAg ∈ RealDomain(lower=0.0, init=0.1)
-        σ_V ∈ RealDomain(lower=0.0, init=0.1)
+        σ_HBsAg ∈ RealDomain(lower = 0.0, init = 0.1)
+        σ_V ∈ RealDomain(lower = 0.0, init = 0.1)
     end
 
     @random begin
@@ -194,21 +194,21 @@ hbv_model = @model begin
         # Using continuous approximation to avoid discontinuity
         infection_active = I / (I + 0.0001)
         # HBsAg level for X dynamics (μg/mL)
-        SAg_ug_per_ml = (V + S) * (96 * 24000 * 1e6) / (6.023e23)
+        SAg_ug_per_ml = (V + S) * (96 * 24000 * 1.0e6) / (6.023e23)
     end
 
     @dynamics begin
         # Infected hepatocytes
         I' = (10^beta) * T * V + r_T * I * (1 - (T + I + R) / T_max) -
-             (10^m) * rr_E_IFN * E * I - (10^rho) * X * I - d_TI * I
+            (10^m) * rr_E_IFN * E * I - (10^rho) * X * I - d_TI * I
 
         # Target hepatocytes
         T' = -(10^beta) * T * V + r_T * T * (1 - (T + I * infection_active + R) / T_max) -
-             d_TI * T + (10^rho) * R / 100 - (10^(m - n)) * rr_E_IFN * E * T
+            d_TI * T + (10^rho) * R / 100 - (10^(m - n)) * rr_E_IFN * E * T
 
         # Resistant hepatocytes
         R' = (10^rho) * X * I * infection_active + r_T * R * (1 - (T + I * infection_active + R) / T_max) -
-             (10^rho) * R / 100 - d_TI * R - (10^(m - n)) * rr_E_IFN * E * R
+            (10^rho) * R / 100 - d_TI * R - (10^(m - n)) * rr_E_IFN * E * R
 
         # Virus dynamics
         V' = (10^p_V) * 10^(eps_NUC + eps_IFN) * I * infection_active - d_V * V
@@ -218,7 +218,7 @@ hbv_model = @model begin
 
         # Dead cell marker
         Y' = (10^m) * rr_E_IFN * E * I * infection_active +
-             (10^(m - n)) * rr_E_IFN * E * (T + R) - d_Y * Y
+            (10^(m - n)) * rr_E_IFN * E * (T + R) - d_Y * Y
 
         # Immune response (ALT proxy)
         Z' = lambda_Z + (10^k_Z) * Y - (10^d_Z) * Z
@@ -234,23 +234,23 @@ hbv_model = @model begin
 
         # Cytotoxic effect
         X' = r_X * (1 - X) * (I / (10^phiE + I)) * infection_active *
-             (1 - Smax * SAg_ug_per_ml^nS / (phiS^nS + SAg_ug_per_ml^nS)) - d_X * X
+            (1 - Smax * SAg_ug_per_ml^nS / (phiS^nS + SAg_ug_per_ml^nS)) - d_X * X
     end
 
     @derived begin
         # HBsAg in IU/mL (log10 scale)
         # Conversion: (V + S) * (96 * 24000 * 1e9) / (6.023e23 * 0.98)
-        HBsAg_IU = @. (V + S) * (96 * 24000 * 1e9) / (6.023e23 * 0.98)
+        HBsAg_IU = @. (V + S) * (96 * 24000 * 1.0e9) / (6.023e23 * 0.98)
         log_HBsAg = @. log10(max(HBsAg_IU, 0.04))  # LOQ = 0.05 IU/mL
 
         # Viral load (log10 copies/mL)
-        log_V = @. log10(max(V, 1e-6))
+        log_V = @. log10(max(V, 1.0e-6))
 
         # ALT proxy
-        log_ALT = @. log10(max(Z, 1e-6))
+        log_ALT = @. log10(max(Z, 1.0e-6))
 
         # Effector T cells (log10 scale for plotting)
-        log_E = @. log10(max(E, 1e-6))
+        log_E = @. log10(max(E, 1.0e-6))
 
         # Observations with residual error
         HBsAg_obs ~ @. Normal(log_HBsAg, σ_HBsAg)
@@ -322,7 +322,7 @@ export LOQ_HBsAg, LOQ_V, LOG_LOQ_V
 export is_functional_cure, is_hbsag_loss
 
 
-# s_no_treatment = 
+# s_no_treatment =
 #   Subject(
 #     id="No Treatment",
 #     events=nothing,
@@ -332,24 +332,24 @@ export is_functional_cure, is_hbsag_loss
 #     covariates_time=vcat(0, 118:7:286)
 # )
 
-s_no_treatment = 
-  Subject(
-    id="No Treatment",
-    events=nothing,
+s_no_treatment =
+    Subject(
+    id = "No Treatment",
+    events = nothing,
     # observations=(log10V=nothing, log10ALT=nothing, log10HBsAg=nothing),
-    observations=(log10V=nothing, log10HBs=nothing),
-    covariates=(; dNUC=0, dIFN=0, dBepi=0, wt = 73)
+    observations = (log10V = nothing, log10HBs = nothing),
+    covariates = (; dNUC = 0, dIFN = 0, dBepi = 0, wt = 73)
 )
 
 #----------------------------------------------------------------------
 s_treatment = Subject(
-    id="Treatment",
-    events=nothing,
+    id = "Treatment",
+    events = nothing,
     # observations=(log10V=nothing, log10ALT=nothing, log10HBsAg=nothing),
-    observations=(log10V=nothing, log10HBs=nothing),
-    covariates=(; dNUC=vcat(0, fill(1, 25)), dIFN=vcat(0, fill(0, 25)), dBepi=vcat(0, fill(0, 25)), wt = fill(73, 26) ),
-    covariates_time=vcat(0, 118:7:286)
-  )
+    observations = (log10V = nothing, log10HBs = nothing),
+    covariates = (; dNUC = vcat(0, fill(1, 25)), dIFN = vcat(0, fill(0, 25)), dBepi = vcat(0, fill(0, 25)), wt = fill(73, 26)),
+    covariates_time = vcat(0, 118:7:286)
+)
 #zfx = zero_randeffs(hbv_model, pop_no_treatment, init_params(hbv_model))
 #sim_pop4 = simobs(pk_27, pop4_sub, param, zfx, obstimes = 0.1:1:500)
 using Random
@@ -365,15 +365,16 @@ sims_no_treatment = simobs(
     obstimes = 0:0.5:365,
     simulate_error = false
 )
-sim_plot(sims_no_treatment, 
+sim_plot(
+    sims_no_treatment,
     observations = [:log_V],
-    figure = (; fontsize = 18,),
-    axis = (; 
-    xlabel = "Time (days)", 
-    ylabel = "Simulated V (No treatment)",
-    xticks = 0:50:365,
-    ),)
-
+    figure = (; fontsize = 18),
+    axis = (;
+        xlabel = "Time (days)",
+        ylabel = "Simulated V (No treatment)",
+        xticks = 0:50:365,
+    ),
+)
 
 
 sims_treatment = simobs(
@@ -386,30 +387,34 @@ sims_treatment = simobs(
     obstimes = 0:0.5:365,
     simulate_error = false
 )
-sim_plot(sims_treatment, 
+sim_plot(
+    sims_treatment,
     observations = [:log_V],
-    figure = (; fontsize = 18,),
-    axis = (; 
-    xlabel = "Time (days)", 
-    ylabel = "Simulated V (No treatment)",
-    xticks = 0:50:365,
-    ),)
+    figure = (; fontsize = 18),
+    axis = (;
+        xlabel = "Time (days)",
+        ylabel = "Simulated V (No treatment)",
+        xticks = 0:50:365,
+    ),
+)
 
 
 ##
- sims_steadystate = simobs(                                                                                                                        
-      hbv_model, s_no_treatment, init_params(hbv_model),                                                                                            
-      zero_randeffs(hbv_model, s_no_treatment, init_params(hbv_model)),                                                                             
-      obstimes = 0:1:1825  # 5 years                                                                                                                
-  )    
-sim_plot(sims_steadystate, 
+sims_steadystate = simobs(
+    hbv_model, s_no_treatment, init_params(hbv_model),
+    zero_randeffs(hbv_model, s_no_treatment, init_params(hbv_model)),
+    obstimes = 0:1:1825  # 5 years
+)
+sim_plot(
+    sims_steadystate,
     observations = [:log_V],
-    figure = (; fontsize = 18,),
-    axis = (; 
-    xlabel = "Time (days)", 
-    ylabel = "Simulated V (No treatment)",
-    xticks = 0:180:1825,
-    ),)
+    figure = (; fontsize = 18),
+    axis = (;
+        xlabel = "Time (days)",
+        ylabel = "Simulated V (No treatment)",
+        xticks = 0:180:1825,
+    ),
+)
 using AlgebraOfGraphics
 using CairoMakie
 using DataFramesMeta
@@ -431,21 +436,21 @@ Plot a single dynamic symbol vs time from a simulation DataFrame.
 - AlgebraOfGraphics Figure object
 """
 function plot_dynamic_symbol(
-    df::DataFrame, 
-    sym::Symbol;
-    group_col::Symbol = :id,
-    time_col::Symbol = :time,
-    kwargs...
-)
+        df::DataFrame,
+        sym::Symbol;
+        group_col::Symbol = :id,
+        time_col::Symbol = :time,
+        kwargs...
+    )
     sym_str = String(sym)
     if sym_str ∉ names(df)
         error("Symbol $sym not found in DataFrame. Available columns: $(names(df))")
     end
-    
-    plt = data(df) * 
-        mapping(time_col, sym => sym_str; color = group_col => nonnumeric) * 
+
+    plt = data(df) *
+        mapping(time_col, sym => sym_str; color = group_col => nonnumeric) *
         visual(Lines; alpha = 0.7)
-    
+
     fig = draw(plt; axis = (xlabel = "Time", ylabel = sym_str, title = sym_str), kwargs...)
     return fig
 end
@@ -465,27 +470,27 @@ Plot all available dynamic symbols from a model vs time.
 - Dictionary of Symbol => Figure pairs
 """
 function plot_all_dynamic_symbols(
-    df::DataFrame, 
-    model;
-    save_dir::Union{String, Nothing} = nothing,
-    kwargs...
-)
+        df::DataFrame,
+        model;
+        save_dir::Union{String, Nothing} = nothing,
+        kwargs...
+    )
     dynamic_syms = collect(model.syms.dynamic)
     available_syms = [s for s in dynamic_syms if String(s) in names(df)]
-    
+
     if isempty(available_syms)
         @warn "No dynamic symbols found in DataFrame"
         return Dict{Symbol, Any}()
     end
-    
+
     println("Plotting $(length(available_syms)) dynamic symbols: $(available_syms)")
-    
+
     figures = Dict{Symbol, Any}()
     for sym in available_syms
         try
             fig = plot_dynamic_symbol(df, sym; kwargs...)
             figures[sym] = fig
-            
+
             if !isnothing(save_dir)
                 mkpath(save_dir)
                 save(joinpath(save_dir, "$(sym)_vs_time.png"), fig)
@@ -494,7 +499,7 @@ function plot_all_dynamic_symbols(
             @warn "Failed to plot $sym: $e"
         end
     end
-    
+
     return figures
 end
 
@@ -514,38 +519,40 @@ Plot all dynamic symbols in a single figure grid layout.
 - Single Figure with all dynamic symbol plots
 """
 function plot_dynamic_symbols_grid(
-    df::DataFrame, 
-    model;
-    ncols::Int = 4,
-    figsize::Tuple{Int, Int} = (1600, 1200),
-    group_col::Symbol = :id,
-    time_col::Symbol = :time
-)
+        df::DataFrame,
+        model;
+        ncols::Int = 4,
+        figsize::Tuple{Int, Int} = (1600, 1200),
+        group_col::Symbol = :id,
+        time_col::Symbol = :time
+    )
     dynamic_syms = collect(model.syms.dynamic)
     available_syms = [s for s in dynamic_syms if String(s) in names(df)]
-    
+
     n = length(available_syms)
     nrows = ceil(Int, n / ncols)
-    
+
     fig = Figure(size = figsize)
-    
+
     for (i, sym) in enumerate(available_syms)
         row = div(i - 1, ncols) + 1
         col = mod(i - 1, ncols) + 1
-        
-        ax = Axis(fig[row, col], 
-            xlabel = "Time", 
+
+        ax = Axis(
+            fig[row, col],
+            xlabel = "Time",
             ylabel = String(sym),
-            title = String(sym))
-        
+            title = String(sym)
+        )
+
         # Group by id and plot each separately
         for gdf in groupby(df, group_col)
             lines!(ax, gdf[:, time_col], gdf[:, sym]; alpha = 0.7)
         end
     end
-    
+
     return fig
-end 
+end
 # Plot all in a grid layout
 simdf = DataFrame(sims_no_treatment)
 grid_fig = plot_dynamic_symbols_grid(simdf, hbv_model; ncols = 3, figsize = (2000, 1600))

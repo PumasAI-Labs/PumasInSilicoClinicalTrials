@@ -3,47 +3,6 @@ title: "Tumor Burden Series: Virtual Clinical Trial Simulation"
 subtitle: "Running and Analyzing In Silico Clinical Trials"
 author:
   - Vijay Ivaturi
-execute:
-  cache: true
-  error: false
-julia: 
-  exeflags: ["+Pumas@2.7.1"]
-format:
-  html:
-    include-in-header:
-      text: |
-        <style>
-          .header-container {
-            width: 100%;
-          }
-          .logo {
-            display: block;
-            width: 150px;
-            margin-left: -2.5%;
-          }
-        </style>
-        <link rel = "shortcut icon" href = "https://pumas.ai/favicon.ico" />
-    include-before-body:
-      text: |
-        <div class="header-container">
-          <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
-        </div>
-    self-contained-math: true
-    anchor-sections: true
-    theme: default
-    toc: true
-    toc-depth: 4
-    toc-expand: 2
-    toc-location: left
-    toc-title: Contents
-    number-sections: true
-    code-summary: Show/Hide Code
-embed-resources: true
-fig-format: svg
-fig-width: 8
-fig-height: 6
-bibliography: references.bib
-csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
 ---
 
 :::{.callout-note}
@@ -59,11 +18,14 @@ This is **Tutorial 6 of 6** in the Tumor Burden series.
 | 4 | [Structural Identifiability](tb_04_structural_identifiability_tutorial.qmd) | ✓ Complete |
 | 5 | [MILP Calibration](tb_05_milp_calibration_tutorial.qmd) | ✓ Complete |
 | 6 | **VCT Simulation (current)** | ← You are here |
+
 :::
 
 ## Learning Outcomes
 
-Virtual Clinical Trials (VCTs) allow us to simulate clinical studies *in silico*, testing treatment scenarios before running expensive real-world trials [@cortes2025]. This tutorial covers Step 6-7 of the ISCT workflow.
+Virtual Clinical Trials (VCTs) allow us to simulate clinical studies *in silico*,
+testing treatment scenarios before running expensive real-world trials [@cortes2025].
+This tutorial covers Step 6-7 of the ISCT workflow.
 
 In this tutorial, you will learn:
 
@@ -78,9 +40,12 @@ In this tutorial, you will learn:
 
 This tutorial builds on concepts from earlier tutorials:
 
-- **[Tutorial 1](tb_01_model_introduction_tutorial.qmd)**: Tumor burden model definition
-- **[Tutorial 2](tb_02_copula_vpop_tutorial.qmd)**: Virtual population generation
-- **[Tutorial 5](tb_05_milp_calibration_tutorial.qmd)**: MILP calibration to response distributions
+- **[Tutorial 1](tb_01_model_introduction_tutorial.qmd)**:
+  Tumor burden model definition
+- **[Tutorial 2](tb_02_copula_vpop_tutorial.qmd)**:
+  Virtual population generation
+- **[Tutorial 5](tb_05_milp_calibration_tutorial.qmd)**:
+  MILP calibration to response distributions
 
 We'll generate a calibrated vpop and use it for VCT simulation.
 :::
@@ -89,7 +54,9 @@ We'll generate a calibrated vpop and use it for VCT simulation.
 
 ### What is a Virtual Clinical Trial?
 
-A **Virtual Clinical Trial (VCT)** simulates a clinical study using a mathematical model and a virtual patient population. Instead of enrolling real patients, we:
+A **Virtual Clinical Trial (VCT)** simulates a clinical study using a mathematical model
+and a virtual patient population.
+Instead of enrolling real patients, we:
 
 1. Generate thousands of virtual patients with realistic parameter distributions
 2. Calibrate to match clinical population characteristics
@@ -110,7 +77,8 @@ A **Virtual Clinical Trial (VCT)** simulates a clinical study using a mathematic
 :::{.callout-note}
 ## VCTs Complement, Not Replace
 
-Virtual trials don't replace real clinical trials—they help design better trials, answer mechanistic questions, and explore scenarios that would be impractical to test in patients.
+Virtual trials don't replace real clinical trials— they help design better trials,
+answer mechanistic questions, and explore scenarios that would be impractical to test in patients.
 :::
 
 ## Libraries
@@ -118,13 +86,10 @@ Virtual trials don't replace real clinical trials—they help design better tria
 ```{julia}
 #| output: false
 using Pumas
-using DataFrames
 using DataFramesMeta
 using Statistics
 using StatsBase
 using Copulas
-using LogExpFunctions
-using Pumas.Distributions
 using LinearAlgebra
 using AlgebraOfGraphics
 using CairoMakie
@@ -156,11 +121,11 @@ tumor_model = @model begin
     end
 
     @param begin
-        tvf ∈ RealDomain(lower=0.0, upper=1.0, init=0.27)
-        tvg ∈ RealDomain(lower=0.0, init=0.0013)
-        tvk ∈ RealDomain(lower=0.0, init=0.0091)
-        Ω ∈ PDiagDomain(init=[2.16, 1.57, 1.24])
-        σ ∈ RealDomain(lower=0.0, init=0.05)
+        tvf ∈ RealDomain(lower = 0.0, upper = 1.0, init = 0.27)
+        tvg ∈ RealDomain(lower = 0.0, init = 0.0013)
+        tvk ∈ RealDomain(lower = 0.0, init = 0.0091)
+        Ω ∈ PDiagDomain(init = [2.16, 1.57, 1.24])
+        σ ∈ RealDomain(lower = 0.0, init = 0.05)
     end
 
     @random begin
@@ -206,7 +171,7 @@ pop_params = (
     tvg = 0.0013,
     tvk = 0.0091,
     Ω = Diagonal([2.16, 1.57, 1.24]),
-    σ = 0.05
+    σ = 0.05,
 )
 
 println("Population parameters:")
@@ -219,7 +184,8 @@ end
 
 ### The Core Challenge
 
-We have individual patient parameters (f, g, k) from copula sampling. But the Pumas model expects:
+We have individual patient parameters (f, g, k) from copula sampling.
+But the Pumas model expects:
 
 1. **Population parameters** (tvf, tvg, tvk, Ω, σ)
 2. **Random effects** (η) that modify typical values for each individual
@@ -228,7 +194,8 @@ How do we go from (f, g, k) → η?
 
 ### The Inverse Transformation
 
-The model computes individual parameters from η using these transformations. We need the **inverse**:
+The model computes individual parameters from η using these transformations.
+We need the **inverse**:
 
 **For g and k (log-normal):**
 $$g = \text{tvg} \cdot e^{\eta_2} \implies \eta_2 = \log\left(\frac{g}{\text{tvg}}\right)$$
@@ -242,13 +209,13 @@ $$f = \text{logistic}(\text{logit}(\text{tvf}) + \eta_1) \implies \eta_1 = \text
 
 Convert individual parameters to random effects (η) for simulation.
 """
-function compute_randeffs(f, g, k; tvf=0.27, tvg=0.0013, tvk=0.0091)
+function compute_randeffs(f, g, k; tvf = 0.27, tvg = 0.0013, tvk = 0.0091)
     # g and k: simple log-normal inverse
     η2 = log(g / tvg)
     η3 = log(k / tvk)
 
     # f: logit-normal inverse
-    f_clamped = clamp(f, 1e-10, 1.0 - 1e-10)
+    f_clamped = clamp(f, 1.0e-10, 1.0 - 1.0e-10)
     η1 = logit(f_clamped) - logit(tvf)
 
     return (η = [η1, η2, η3],)
@@ -266,8 +233,8 @@ k_recon = tvk * exp(randeffs.η[3])
 
 println("Round-trip verification:")
 println("  Original: f=$(f_orig), g=$(g_orig), k=$(k_orig)")
-println("  Computed η: $(round.(randeffs.η, digits=4))")
-println("  Reconstructed: f=$(round(f_recon, digits=4)), g=$(round(g_recon, digits=6)), k=$(round(k_recon, digits=5))")
+println("  Computed η: $(round.(randeffs.η, digits = 4))")
+println("  Reconstructed: f=$(round(f_recon, digits = 4)), g=$(round(g_recon, digits = 6)), k=$(round(k_recon, digits = 5))")
 ```
 
 ## Part 3: Generating the Calibrated Virtual Population
@@ -293,7 +260,7 @@ end
 
 Generate n virtual patients using Gaussian copula sampling.
 """
-function generate_vpop(n::Int; seed::Union{Int,Nothing}=nothing)
+function generate_vpop(n::Int; seed::Union{Int, Nothing} = nothing)
     if !isnothing(seed)
         Random.seed!(seed)
     end
@@ -301,12 +268,12 @@ function generate_vpop(n::Int; seed::Union{Int,Nothing}=nothing)
     param_specs = [
         (name = :f, median = 0.27, omega = 2.16, lower = 0.0, upper = 1.0),
         (name = :g, median = 0.0013, omega = 1.57, lower = 0.0, upper = 0.13),
-        (name = :k, median = 0.0091, omega = 1.24, lower = 0.0, upper = 1.6)
+        (name = :k, median = 0.0091, omega = 1.24, lower = 0.0, upper = 1.6),
     ]
 
     Rho = [
         1.0   -0.64  0.0
-       -0.64   1.0   0.0
+        -0.64   1.0   0.0
         0.0    0.0   1.0
     ]
 
@@ -342,7 +309,7 @@ end
 """
 Simulate tumor burden at time t using the analytical solution.
 """
-function simulate_tumor(f, g, k, t; N0=1.0)
+function simulate_tumor(f, g, k, t; N0 = 1.0)
     N_sens = N0 * f * exp(-k * t)
     N_res = N0 * (1 - f) * exp(g * t)
     return N_sens + N_res
@@ -354,7 +321,7 @@ Classify response based on final tumor size ratio.
 function classify_response_simple(tumor_ratio::Float64)
     if tumor_ratio < 0.14
         return :CR  # Complete Response
-    elseif tumor_ratio < 0.70
+    elseif tumor_ratio < 0.7
         return :PR  # Partial Response
     elseif tumor_ratio <= 1.0
         return :SD  # Stable Disease
@@ -369,11 +336,11 @@ end
 Calibrate vpop to match a target response distribution using MILP.
 """
 function calibrate_to_response(
-    vpop::DataFrame,
-    target_distribution::DataFrame;
-    epsilon::Float64 = 0.1,
-    t_final::Float64 = 126.0
-)
+        vpop::DataFrame,
+        target_distribution::DataFrame;
+        epsilon::Float64 = 0.1,
+        t_final::Float64 = 126.0
+    )
     # Simulate and classify
     vpop = copy(vpop)
     vpop[!, :tumor_final] = [simulate_tumor(row.f, row.g, row.k, t_final) for row in eachrow(vpop)]
@@ -420,7 +387,7 @@ function calibrate_to_response(
     status = termination_status(model)
 
     if status in [MOI.OPTIMAL, MOI.FEASIBLE_POINT] ||
-       (status == MOI.TIME_LIMIT && has_values(model))
+            (status == MOI.TIME_LIMIT && has_values(model))
         x_vals = value.(x)
         selected = findall(x_vals .> 0.5)
         calibrated = vpop[selected, :]
@@ -437,7 +404,7 @@ end
 ```{julia}
 # Generate virtual population
 n_patients = 2000
-vpop_original = generate_vpop(n_patients; seed=42)
+vpop_original = generate_vpop(n_patients; seed = 42)
 
 println("Generated $(nrow(vpop_original)) virtual patients")
 
@@ -454,8 +421,8 @@ end
 
 # Calibrate
 println("\nCalibrating...")
-vpop_calibrated = calibrate_to_response(vpop_original, target_distribution; epsilon=0.10)
-println("Selected $(nrow(vpop_calibrated)) of $(nrow(vpop_original)) VPs ($(round(100*nrow(vpop_calibrated)/nrow(vpop_original), digits=1))%)")
+vpop_calibrated = calibrate_to_response(vpop_original, target_distribution; epsilon = 0.1)
+println("Selected $(nrow(vpop_calibrated)) of $(nrow(vpop_original)) VPs ($(round(100 * nrow(vpop_calibrated) / nrow(vpop_original), digits = 1))%)")
 ```
 
 ## Part 4: Running the VCT Simulation
@@ -469,12 +436,12 @@ println("Selected $(nrow(vpop_calibrated)) of $(nrow(vpop_original)) VPs ($(roun
 Simulate tumor dynamics for all virtual patients.
 """
 function simulate_population(
-    vpop::DataFrame,
-    model,
-    pop_params::NamedTuple,
-    obs_times::Vector{Float64};
-    treatment::Int = 1
-)
+        vpop::DataFrame,
+        model,
+        pop_params::NamedTuple,
+        obs_times::Vector{Float64};
+        treatment::Int = 1
+    )
     results = DataFrame()
 
     for i in 1:nrow(vpop)
@@ -517,12 +484,12 @@ obs_times = collect(0.0:7.0:126.0)  # Weekly for 18 weeks
 
 # Simulate treatment arm
 println("Simulating treatment arm (n=$(nrow(vpop_calibrated)))...")
-treatment_results = simulate_population(vpop_calibrated, tumor_model, pop_params, obs_times; treatment=1)
+treatment_results = simulate_population(vpop_calibrated, tumor_model, pop_params, obs_times; treatment = 1)
 println("  Completed: $(length(unique(treatment_results.id))) patients")
 
 # Simulate control arm
 println("Simulating control arm (n=$(nrow(vpop_calibrated)))...")
-control_results = simulate_population(vpop_calibrated, tumor_model, pop_params, obs_times; treatment=0)
+control_results = simulate_population(vpop_calibrated, tumor_model, pop_params, obs_times; treatment = 0)
 println("  Completed: $(length(unique(control_results.id))) patients")
 ```
 
@@ -540,8 +507,8 @@ all_results = vcat(treatment_results, control_results)
 final = @subset(all_results, :time .== maximum(obs_times))
 
 println("Final tumor sizes (day $(maximum(obs_times))):")
-println("  Treatment: median = $(round(median(@subset(final, :arm .== "Treatment").Nt), digits=3))")
-println("  Control: median = $(round(median(@subset(final, :arm .== "Control").Nt), digits=3))")
+println("  Treatment: median = $(round(median(@subset(final, :arm .== "Treatment").Nt), digits = 3))")
+println("  Control: median = $(round(median(@subset(final, :arm .== "Control").Nt), digits = 3))")
 ```
 
 ### Time Course Summary
@@ -575,8 +542,10 @@ simple_table(first(time_summary, 10))
 
 # Median line layer
 median_layer = data(time_summary) *
-    mapping(:time => "Time (days)", :median => "Normalized Tumor Size",
-            color = :arm => "Arm") *
+    mapping(
+    :time => "Time (days)", :median => "Normalized Tumor Size",
+    color = :arm => "Arm"
+) *
     visual(Lines, linewidth = 3)
 
 # IQR band layer
@@ -586,10 +555,12 @@ band_layer = data(time_summary) *
 
 # Create figure with space for legend
 fig = Figure(size = (900, 500))
-ax = Axis(fig[1, 1],
+ax = Axis(
+    fig[1, 1],
     title = "Virtual Clinical Trial: Treatment vs Control",
     xlabel = "Time (days)",
-    ylabel = "Normalized Tumor Size")
+    ylabel = "Normalized Tumor Size"
+)
 
 # Draw AoG plot and capture legend
 ag = draw!(ax, (band_layer + median_layer), scales(Color = (; palette = [(:steelblue, 1.0), (:red, 1.0)])))
@@ -606,15 +577,16 @@ fig
 
 ### Calibrated vs Uncalibrated Comparison
 
-To demonstrate the impact of MILP calibration, let's compare tumor dynamics between the calibrated and uncalibrated populations.
+To demonstrate the impact of MILP calibration,
+let's compare tumor dynamics between the calibrated and uncalibrated populations.
 
 ```{julia}
 #| fig-cap: "Impact of MILP calibration on VCT results. Left: uncalibrated vpop shows different response distribution. Right: calibrated vpop matches the target clinical distribution."
 
 # Simulate the full uncalibrated population for comparison
 println("Simulating uncalibrated population (n=$(nrow(vpop_original)))...")
-uncalib_treatment = simulate_population(vpop_original, tumor_model, pop_params, obs_times; treatment=1)
-uncalib_control = simulate_population(vpop_original, tumor_model, pop_params, obs_times; treatment=0)
+uncalib_treatment = simulate_population(vpop_original, tumor_model, pop_params, obs_times; treatment = 1)
+uncalib_control = simulate_population(vpop_original, tumor_model, pop_params, obs_times; treatment = 0)
 
 # Add arm labels
 uncalib_treatment.arm .= "Treatment"
@@ -640,10 +612,12 @@ comparison_summary = vcat(time_summary_calib, uncalib_summary)
 fig = Figure(size = (1000, 450))
 
 # Uncalibrated panel
-ax1 = Axis(fig[1, 1],
+ax1 = Axis(
+    fig[1, 1],
     title = "Uncalibrated Vpop (n=$(nrow(vpop_original)))",
     xlabel = "Time (days)",
-    ylabel = "Normalized Tumor Size")
+    ylabel = "Normalized Tumor Size"
+)
 
 uncalib_data = @subset(comparison_summary, :population .== "Uncalibrated")
 uncalib_band = data(uncalib_data) *
@@ -658,10 +632,12 @@ hlines!(ax1, [1.0], color = :gray, linestyle = :dash, linewidth = 1)
 hlines!(ax1, [0.14], color = :green, linestyle = :dot, linewidth = 2)
 
 # Calibrated panel
-ax2 = Axis(fig[1, 2],
+ax2 = Axis(
+    fig[1, 2],
     title = "Calibrated Vpop (n=$(nrow(vpop_calibrated)))",
     xlabel = "Time (days)",
-    ylabel = "Normalized Tumor Size")
+    ylabel = "Normalized Tumor Size"
+)
 
 calib_data = @subset(comparison_summary, :population .== "Calibrated")
 calib_band = data(calib_data) *
@@ -689,8 +665,8 @@ fig
 uncalib_final = @subset(uncalib_treatment, :time .== maximum(obs_times))
 calib_final = @subset(treatment_results, :time .== maximum(obs_times))
 
-uncalib_cr = round(100 * mean(uncalib_final.Nt .< 0.14), digits=1)
-calib_cr = round(100 * mean(calib_final.Nt .< 0.14), digits=1)
+uncalib_cr = round(100 * mean(uncalib_final.Nt .< 0.14), digits = 1)
+calib_cr = round(100 * mean(calib_final.Nt .< 0.14), digits = 1)
 
 println("Complete Response Rates (Treatment Arm):")
 println("  Uncalibrated: $(uncalib_cr)%")
@@ -705,7 +681,7 @@ println("\nCalibration shifts the response distribution to match clinical trial 
 
 # Sample 30 random patients
 Random.seed!(123)
-sample_ids = sample(unique(treatment_results.id), 30, replace=false)
+sample_ids = sample(unique(treatment_results.id), 30, replace = false)
 
 # Classify final response for treatment arm
 final_tx = @subset(final, :arm .== "Treatment")
@@ -725,28 +701,36 @@ end
 
 # Treatment panel using AoG
 tx_layer = data(sample_tx) *
-    mapping(:time => "Time (days)", :Nt => "Normalized Tumor Size",
-            color = :response => "Response", group = :id => nonnumeric) *
+    mapping(
+    :time => "Time (days)", :Nt => "Normalized Tumor Size",
+    color = :response => "Response", group = :id => nonnumeric
+) *
     visual(Lines, linewidth = 0.8)
 
 # Control panel using AoG
 ctrl_layer = data(sample_ctrl) *
-    mapping(:time => "Time (days)", :Nt => "Normalized Tumor Size",
-            group = :id => nonnumeric) *
+    mapping(
+    :time => "Time (days)", :Nt => "Normalized Tumor Size",
+    group = :id => nonnumeric
+) *
     visual(Lines, linewidth = 0.8, color = (:gray, 0.5))
 
 # Create figure with panels
 fig = Figure(size = (1000, 400))
 
 # Treatment panel
-ax1 = Axis(fig[1, 1], title = "Treatment Arm",
-    xlabel = "Time (days)", ylabel = "Normalized Tumor Size")
+ax1 = Axis(
+    fig[1, 1], title = "Treatment Arm",
+    xlabel = "Time (days)", ylabel = "Normalized Tumor Size"
+)
 ag1 = draw!(ax1, tx_layer, scales(Color = (; palette = [:green, (:gray, 0.5)])))
 hlines!(ax1, [0.14], color = :green, linestyle = :dot, linewidth = 2)
 
 # Control panel
-ax2 = Axis(fig[1, 2], title = "Control Arm",
-    xlabel = "Time (days)", ylabel = "Normalized Tumor Size")
+ax2 = Axis(
+    fig[1, 2], title = "Control Arm",
+    xlabel = "Time (days)", ylabel = "Normalized Tumor Size"
+)
 draw!(ax2, ctrl_layer)
 hlines!(ax2, [0.14], color = :green, linestyle = :dot, linewidth = 2)
 
@@ -789,13 +773,13 @@ ctrl_response = combine(groupby(final_ctrl, :response), nrow => :count)
 
 println("Treatment Arm Response:")
 for row in eachrow(tx_response)
-    pct = round(100 * row.count / nrow(final_tx), digits=1)
+    pct = round(100 * row.count / nrow(final_tx), digits = 1)
     println("  $(row.response): $(row.count) ($(pct)%)")
 end
 
 println("\nControl Arm Response:")
 for row in eachrow(ctrl_response)
-    pct = round(100 * row.count / nrow(final_ctrl), digits=1)
+    pct = round(100 * row.count / nrow(final_ctrl), digits = 1)
     println("  $(row.response): $(row.count) ($(pct)%)")
 end
 ```
@@ -808,19 +792,21 @@ end
 
 Calculate bootstrap confidence interval for a statistic.
 """
-function bootstrap_ci(data::AbstractVector, statistic::Function;
-                      n_boot::Int=1000, alpha::Float64=0.05)
+function bootstrap_ci(
+        data::AbstractVector, statistic::Function;
+        n_boot::Int = 1000, alpha::Float64 = 0.05
+    )
     n = length(data)
     estimate = statistic(data)
 
     boot_stats = Float64[]
     for _ in 1:n_boot
-        boot_sample = sample(data, n, replace=true)
+        boot_sample = sample(data, n, replace = true)
         push!(boot_stats, statistic(boot_sample))
     end
 
-    lower = quantile(boot_stats, alpha/2)
-    upper = quantile(boot_stats, 1 - alpha/2)
+    lower = quantile(boot_stats, alpha / 2)
+    upper = quantile(boot_stats, 1 - alpha / 2)
 
     return (estimate = estimate, lower = lower, upper = upper)
 end
@@ -832,8 +818,8 @@ tx_cr = bootstrap_ci(final_tx.Nt, cr_rate)
 ctrl_cr = bootstrap_ci(final_ctrl.Nt, cr_rate)
 
 println("Complete Response Rates (95% CI):")
-println("  Treatment: $(round(tx_cr.estimate, digits=1))% ($(round(tx_cr.lower, digits=1))%-$(round(tx_cr.upper, digits=1))%)")
-println("  Control: $(round(ctrl_cr.estimate, digits=1))% ($(round(ctrl_cr.lower, digits=1))%-$(round(ctrl_cr.upper, digits=1))%)")
+println("  Treatment: $(round(tx_cr.estimate, digits = 1))% ($(round(tx_cr.lower, digits = 1))%-$(round(tx_cr.upper, digits = 1))%)")
+println("  Control: $(round(ctrl_cr.estimate, digits = 1))% ($(round(ctrl_cr.lower, digits = 1))%-$(round(ctrl_cr.upper, digits = 1))%)")
 ```
 
 ### Waterfall Plot
@@ -845,8 +831,10 @@ println("  Control: $(round(ctrl_cr.estimate, digits=1))% ($(round(ctrl_cr.lower
 waterfall_data = @chain final_tx begin
     @transform(
         :pct_change = 100 .* (:Nt .- 1.0),
-        :response_cat = ifelse.(:Nt .< 0.14, "Complete Response",
-                        ifelse.(:Nt .< 1.0, "Partial Response", "Progressive Disease"))
+        :response_cat = ifelse.(
+            :Nt .< 0.14, "Complete Response",
+            ifelse.(:Nt .< 1.0, "Partial Response", "Progressive Disease")
+        )
     )
     @orderby(:pct_change)
     @transform(:rank = 1:length(:id))
@@ -854,24 +842,32 @@ end
 
 # Create AoG waterfall plot
 waterfall_layer = data(waterfall_data) *
-    mapping(:rank => "Patient (sorted by response)",
-            :pct_change => "Change from Baseline (%)",
-            color = :response_cat => "Response") *
+    mapping(
+    :rank => "Patient (sorted by response)",
+    :pct_change => "Change from Baseline (%)",
+    color = :response_cat => "Response"
+) *
     visual(BarPlot, gap = 0)
-wf_hline = mapping([-86, 0]) * visual(HLines,  color = [:green, :black], linestyle = [:dot, :dash], linewidth = [2, 1])
-draw(waterfall_layer, # wf_hline, 
-    axis = (title = "Waterfall Plot: Treatment Arm Response",
-            xlabel = "Patient (sorted by response)",
-            ylabel = "Change from Baseline (%)"),
-            #xticks = ([1, nrow(waterfall_data)], ["1", "$(nrow(waterfall_data))"]),
-   # scales(Color = (; palette = [:green, :gray, :red])),
-    legend = (position = :bottom, framevisible = false))
+wf_hline = mapping([-86, 0]) * visual(HLines, color = [:green, :black], linestyle = [:dot, :dash], linewidth = [2, 1])
+draw(
+    waterfall_layer, # wf_hline,
+    axis = (
+        title = "Waterfall Plot: Treatment Arm Response",
+        xlabel = "Patient (sorted by response)",
+        ylabel = "Change from Baseline (%)",
+    ),
+    #xticks = ([1, nrow(waterfall_data)], ["1", "$(nrow(waterfall_data))"]),
+    # scales(Color = (; palette = [:green, :gray, :red])),
+    legend = (position = :bottom, framevisible = false)
+)
 # Create figure with legend outside
 fig = Figure(size = (1000, 400))
-ax = Axis(fig[1, 1],
+ax = Axis(
+    fig[1, 1],
     title = "Waterfall Plot: Treatment Arm Response",
     xlabel = "Patient (sorted by response)",
-    ylabel = "Change from Baseline (%)")
+    ylabel = "Change from Baseline (%)"
+)
 
 ag = draw!(ax, waterfall_layer, scales(Color = (; palette = [:green, :gray, :red])))
 
@@ -912,19 +908,23 @@ end
 
 # Create AoG grouped bar chart
 bar_layer = data(response_data) *
-    mapping(:response => "Response Category",
-            :rate => "Rate (%)",
-            color = :arm => "Arm",
-            dodge = :arm) *
+    mapping(
+    :response => "Response Category",
+    :rate => "Rate (%)",
+    color = :arm => "Arm",
+    dodge = :arm
+) *
     visual(BarPlot)
 
 # Create figure with legend outside
 fig = Figure(size = (800, 450))
-ax = Axis(fig[1, 1],
+ax = Axis(
+    fig[1, 1],
     title = "Response Rates: Treatment vs Control",
     xlabel = "Response Category",
     ylabel = "Rate (%)",
-    limits = (nothing, (0, 100)))
+    limits = (nothing, (0, 100))
+)
 
 ag = draw!(ax, bar_layer, scales(Color = (; palette = [:steelblue, :red])))
 
@@ -937,8 +937,10 @@ for (i, arm) in enumerate(["Treatment", "Control"])
     for (j, resp) in enumerate(response_cats)
         row = @subset(arm_df, :response .== resp)[1, :]
         x_pos = j + (i - 1.5) * dodge_width
-        rangebars!(ax, [x_pos], [row.ci_lower], [row.ci_upper],
-            color = :black, linewidth = 1.5, whiskerwidth = 8)
+        rangebars!(
+            ax, [x_pos], [row.ci_lower], [row.ci_upper],
+            color = :black, linewidth = 1.5, whiskerwidth = 8
+        )
     end
 end
 
@@ -961,15 +963,15 @@ Run a complete tumor burden virtual clinical trial.
 Returns a NamedTuple with vpop, treatment/control results, and summary.
 """
 function run_tumor_burden_vct(
-    n_patients::Int;
-    seed::Int = 42,
-    calibrate::Bool = true
-)
+        n_patients::Int;
+        seed::Int = 42,
+        calibrate::Bool = true
+    )
     obs_times = collect(0.0:7.0:126.0)
 
     # Step 1: Generate virtual population
     println("Step 1: Generating virtual population (n=$n_patients)...")
-    vpop_original = generate_vpop(n_patients; seed=seed)
+    vpop_original = generate_vpop(n_patients; seed = seed)
 
     # Step 2: Optional calibration
     if calibrate
@@ -986,10 +988,10 @@ function run_tumor_burden_vct(
 
     # Step 3: Simulate both arms
     println("Step 3: Simulating treatment arm...")
-    treatment = simulate_population(vpop, tumor_model, pop_params, obs_times; treatment=1)
+    treatment = simulate_population(vpop, tumor_model, pop_params, obs_times; treatment = 1)
 
     println("Step 4: Simulating control arm...")
-    control = simulate_population(vpop, tumor_model, pop_params, obs_times; treatment=0)
+    control = simulate_population(vpop, tumor_model, pop_params, obs_times; treatment = 0)
 
     # Step 5: Analyze endpoints
     println("Step 5: Analyzing endpoints...")
@@ -1009,7 +1011,7 @@ function run_tumor_burden_vct(
     )
 
     println("\nVCT Complete!")
-    println("=" ^ 50)
+    println("="^50)
     simple_table(summary)
 
     return (
@@ -1017,14 +1019,14 @@ function run_tumor_burden_vct(
         vpop = vpop,
         treatment = treatment,
         control = control,
-        summary = summary
+        summary = summary,
     )
 end
 ```
 
 ```{julia}
 # Run the complete workflow
-vct_results = run_tumor_burden_vct(1000; seed=22)
+vct_results = run_tumor_burden_vct(1000; seed = 22)
 ```
 
 ## Practical Recommendations
@@ -1038,12 +1040,14 @@ vct_results = run_tumor_burden_vct(1000; seed=22)
 | Dose-finding | 500-1,000 |
 | Pivotal VCT | 1,000-5,000 |
 | Regulatory submission | 5,000-10,000 |
+
 :::
 
 :::{.callout-warning}
 ## Handling Integration Errors
 
-Some virtual patients may have extreme parameter combinations. Always use try-catch:
+Some virtual patients may have extreme parameter combinations.
+Always use try-catch:
 
 ```julia
 try
@@ -1065,7 +1069,8 @@ Always set `Random.seed!()` at the start of VCT simulations for reproducible res
 
 ### Key Concepts
 
-1. **VCTs simulate clinical trials** using models and virtual patient populations
+1. **VCTs simulate clinical trials** using models
+   and virtual patient populations
 
 2. **The simulation loop:**
    - For each VP: Convert parameters → random effects → simulate → collect
@@ -1074,7 +1079,8 @@ Always set `Random.seed!()` at the start of VCT simulations for reproducible res
 
 4. **Endpoint analysis** uses bootstrap resampling for confidence intervals
 
-5. **Visualizations** include time courses, spaghetti plots, waterfall plots, and response comparisons
+5. **Visualizations** include time courses, spaghetti plots, waterfall plots,
+   and response comparisons
 
 ### Quick Reference
 
@@ -1089,6 +1095,7 @@ Always set `Random.seed!()` at the start of VCT simulations for reproducible res
 ### Position in ISCT Workflow
 
 ```{mermaid}
+%%| echo: false
 flowchart LR
     A["Step 1-2:<br/>Model & Fitting"] --> B["Step 3:<br/>Sensitivity"]
     B --> C["Step 4:<br/>Vpop Generation"]
@@ -1098,9 +1105,10 @@ flowchart LR
     style E fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px
 ```
 
-### Congratulations!
+### Congratulations
 
-You have completed the Tumor Burden Tutorial Series! You now have the skills to:
+You have completed the Tumor Burden Tutorial Series!
+You now have the skills to:
 
 1. Define and understand pharmacometric models
 2. Generate realistic virtual populations with copulas

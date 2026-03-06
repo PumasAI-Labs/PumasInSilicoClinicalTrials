@@ -41,10 +41,10 @@ struct TargetDistribution
     percentages::Vector{Float64}
     variable_name::Symbol
 
-    function TargetDistribution(edges, percentages, variable_name=:value)
+    function TargetDistribution(edges, percentages, variable_name = :value)
         @assert length(edges) == length(percentages) + 1 "Edges should have one more element than percentages"
         @assert all(percentages .>= 0) "Percentages must be non-negative"
-        new(edges, percentages, variable_name)
+        return new(edges, percentages, variable_name)
     end
 end
 
@@ -92,11 +92,11 @@ target = create_target_from_data(clinical_data; nbins=20)
 ```
 """
 function create_target_from_data(
-    data::AbstractVector;
-    nbins::Int = 20,
-    variable_name::Symbol = :value
-)
-    h = fit(Histogram, data, nbins=nbins)
+        data::AbstractVector;
+        nbins::Int = 20,
+        variable_name::Symbol = :value
+    )
+    h = fit(Histogram, data, nbins = nbins)
     edges = collect(h.edges[1])
     counts = h.weights
     percentages = 100.0 .* counts ./ sum(counts)
@@ -124,10 +124,10 @@ target = create_target_from_specification(edges, percentages; variable_name=:HBs
 ```
 """
 function create_target_from_specification(
-    edges::Vector{<:Real},
-    percentages::Vector{<:Real};
-    variable_name::Symbol = :value
-)
+        edges::Vector{<:Real},
+        percentages::Vector{<:Real};
+        variable_name::Symbol = :value
+    )
     return TargetDistribution(Float64.(edges), Float64.(percentages), variable_name)
 end
 
@@ -148,9 +148,9 @@ Returns:
 - `in_range`: BitVector indicating which VPs are within the distribution range
 """
 function classify_vps_to_bins(
-    vp_values::AbstractVector,
-    edges::Vector{Float64}
-)
+        vp_values::AbstractVector,
+        edges::Vector{Float64}
+    )
     n_vps = length(vp_values)
     n_bins = length(edges) - 1
 
@@ -160,7 +160,7 @@ function classify_vps_to_bins(
     for i in 1:n_vps
         val = vp_values[i]
         for b in 1:n_bins
-            if val > edges[b] && val <= edges[b+1]
+            if val > edges[b] && val <= edges[b + 1]
                 bin_assignments[i] = b
                 in_range[i] = true
                 break
@@ -186,11 +186,11 @@ Returns:
 - `original_indices`: Original indices of VPs in the filtered set
 """
 function create_bin_membership_matrix(
-    bin_assignments::Vector{Int},
-    n_bins::Int;
-    only_in_range::Bool = true,
-    in_range::BitVector = trues(length(bin_assignments))
-)
+        bin_assignments::Vector{Int},
+        n_bins::Int;
+        only_in_range::Bool = true,
+        in_range::BitVector = trues(length(bin_assignments))
+    )
     if only_in_range
         # Filter to only VPs within range
         filtered_indices = findall(in_range)
@@ -255,12 +255,12 @@ For each bin b with target fraction `p_b`:
 CalibrationResult with selected VP indices and diagnostics
 """
 function solve_milp_calibration(
-    vp_values::AbstractVector,
-    target::TargetDistribution,
-    epsilon::Float64;
-    time_limit::Float64 = 60.0,
-    silent::Bool = true
-)
+        vp_values::AbstractVector,
+        target::TargetDistribution,
+        epsilon::Float64;
+        time_limit::Float64 = 60.0,
+        silent::Bool = true
+    )
     n_vps = length(vp_values)
     n_bins = length(target.percentages)
 
@@ -272,7 +272,7 @@ function solve_milp_calibration(
 
     # Create membership matrix (only for VPs within range)
     membership, filtered_indices = create_bin_membership_matrix(
-        bin_assignments, n_bins; only_in_range=true, in_range=in_range
+        bin_assignments, n_bins; only_in_range = true, in_range = in_range
     )
 
     n_filtered = length(filtered_indices)
@@ -304,7 +304,7 @@ function solve_milp_calibration(
     eps_scaled = epsilon * 100  # Scale to match MATLAB implementation
 
     for b in 1:n_bins
-        p_b = round(target_fractions[b], digits=3)
+        p_b = round(target_fractions[b], digits = 3)
         if p_b > 0  # Only add constraints for non-empty bins
             # VP count in bin b
             bin_count = sum(membership[b, j] * x[j] for j in 1:n_filtered)
@@ -337,7 +337,7 @@ function solve_milp_calibration(
 
         # Calculate bin errors
         selected_membership = membership[:, selected_filtered]
-        actual_fractions = vec(sum(selected_membership, dims=2)) ./ n_selected
+        actual_fractions = vec(sum(selected_membership, dims = 2)) ./ n_selected
         bin_errors = 100.0 .* abs.(actual_fractions .- target_fractions)
         mean_error = mean(bin_errors)
 
@@ -383,12 +383,12 @@ Calibrate VP selection to match multiple target distributions simultaneously.
 CalibrationResult selecting VPs that match all target distributions
 """
 function solve_multivariable_calibration(
-    vp_data::DataFrame,
-    targets::Vector{TargetDistribution},
-    epsilon::Float64;
-    time_limit::Float64 = 120.0,
-    silent::Bool = true
-)
+        vp_data::DataFrame,
+        targets::Vector{TargetDistribution},
+        epsilon::Float64;
+        time_limit::Float64 = 120.0,
+        silent::Bool = true
+    )
     n_vps = nrow(vp_data)
     n_vars = length(targets)
 
@@ -461,7 +461,7 @@ function solve_multivariable_calibration(
     eps_scaled = epsilon * 100
 
     for b in 1:total_bins
-        p_b = round(target_fractions_all[b], digits=3)
+        p_b = round(target_fractions_all[b], digits = 3)
         if p_b > 0
             bin_count = sum(membership[b, j] * x[j] for j in 1:n_filtered)
             @constraint(model, p_b * n_total - bin_count <= eps_scaled * p_b * n_total / 100)
@@ -488,7 +488,7 @@ function solve_multivariable_calibration(
 
         # Calculate errors
         selected_membership = membership[:, selected_filtered]
-        actual_fractions = vec(sum(selected_membership, dims=2)) ./ n_selected
+        actual_fractions = vec(sum(selected_membership, dims = 2)) ./ n_selected
         bin_errors = 100.0 .* abs.(actual_fractions .- target_fractions_all)
         mean_error = mean(bin_errors)
 
@@ -554,34 +554,36 @@ returns the non-dominated solutions.
 Vector of ParetoPoint representing the Pareto front
 """
 function find_pareto_front(
-    vp_values::AbstractVector,
-    target_data::AbstractVector;
-    nbins_range::UnitRange{Int} = 10:5:50,
-    epsilon_range::Tuple{Float64, Float64} = (0.01, 0.5),
-    n_epsilon_samples::Int = 10,
-    time_limit_per_solve::Float64 = 5.0,
-    silent::Bool = true
-)
-    epsilon_values = range(epsilon_range[1], epsilon_range[2], length=n_epsilon_samples)
+        vp_values::AbstractVector,
+        target_data::AbstractVector;
+        nbins_range::UnitRange{Int} = 10:5:50,
+        epsilon_range::Tuple{Float64, Float64} = (0.01, 0.5),
+        n_epsilon_samples::Int = 10,
+        time_limit_per_solve::Float64 = 5.0,
+        silent::Bool = true
+    )
+    epsilon_values = range(epsilon_range[1], epsilon_range[2], length = n_epsilon_samples)
     nbins_values = collect(nbins_range)
 
     all_points = ParetoPoint[]
 
     for nbins in nbins_values
         # Create target distribution with this nbins
-        target = create_target_from_data(target_data; nbins=nbins)
+        target = create_target_from_data(target_data; nbins = nbins)
 
         for eps in epsilon_values
             result = solve_milp_calibration(
                 vp_values, target, eps;
-                time_limit=time_limit_per_solve,
-                silent=silent
+                time_limit = time_limit_per_solve,
+                silent = silent
             )
 
             if result.n_selected > 0 && isfinite(result.mean_error)
-                push!(all_points, ParetoPoint(
-                    nbins, eps, result.n_selected, result.mean_error, result
-                ))
+                push!(
+                    all_points, ParetoPoint(
+                        nbins, eps, result.n_selected, result.mean_error, result
+                    )
+                )
             end
         end
     end
@@ -604,7 +606,7 @@ function find_pareto_front(
     end
 
     # Sort by n_selected (descending)
-    sort!(pareto_points, by=p -> -p.n_selected)
+    sort!(pareto_points, by = p -> -p.n_selected)
 
     return pareto_points
 end
@@ -623,9 +625,9 @@ Select the optimal point from the Pareto front.
 - `:max_vps`: Select the point with maximum VPs
 """
 function select_optimal_pareto_point(
-    pareto_front::Vector{ParetoPoint};
-    method::Symbol = :knee
-)
+        pareto_front::Vector{ParetoPoint};
+        method::Symbol = :knee
+    )
     if isempty(pareto_front)
         error("Empty Pareto front")
     end
@@ -657,7 +659,7 @@ function select_optimal_pareto_point(
         end
 
         # Distance to utopia point (1, 0)
-        distances = sqrt.((1 .- vps_norm).^2 .+ err_norm.^2)
+        distances = sqrt.((1 .- vps_norm) .^ 2 .+ err_norm .^ 2)
         _, idx = findmin(distances)
 
         return pareto_front[idx]
@@ -692,17 +694,17 @@ Convenience function to calibrate a virtual population.
 Tuple of (calibrated_vpop, calibration_result)
 """
 function calibrate_vpop(
-    vpop::DataFrame,
-    variable::Symbol,
-    target_data::AbstractVector;
-    nbins::Int = 20,
-    epsilon::Float64 = 0.1,
-    time_limit::Float64 = 60.0
-)
+        vpop::DataFrame,
+        variable::Symbol,
+        target_data::AbstractVector;
+        nbins::Int = 20,
+        epsilon::Float64 = 0.1,
+        time_limit::Float64 = 60.0
+    )
     vp_values = vpop[!, variable]
-    target = create_target_from_data(target_data; nbins=nbins, variable_name=variable)
+    target = create_target_from_data(target_data; nbins = nbins, variable_name = variable)
 
-    result = solve_milp_calibration(vp_values, target, epsilon; time_limit=time_limit)
+    result = solve_milp_calibration(vp_values, target, epsilon; time_limit = time_limit)
 
     if result.n_selected > 0
         calibrated_vpop = vpop[result.selected_indices, :]
@@ -720,22 +722,22 @@ end
 Print a summary of calibration results.
 """
 function print_calibration_summary(result::CalibrationResult)
-    println("=" ^ 50)
+    println("="^50)
     println("MILP Calibration Results")
-    println("=" ^ 50)
+    println("="^50)
     println("Solver status: $(result.solver_status)")
     println("Original VPs: $(result.n_original)")
     println("Selected VPs: $(result.n_selected)")
-    println("Selection rate: $(round(100 * result.selection_rate, digits=1))%")
-    println("Mean error: $(round(result.mean_error, digits=2))%")
+    println("Selection rate: $(round(100 * result.selection_rate, digits = 1))%")
+    println("Mean error: $(round(result.mean_error, digits = 2))%")
 
     if !isempty(result.bin_errors)
         println("\nPer-bin errors (%):")
         for (i, err) in enumerate(result.bin_errors)
-            println("  Bin $i: $(round(err, digits=2))%")
+            println("  Bin $i: $(round(err, digits = 2))%")
         end
     end
-    println("=" ^ 50)
+    return println("="^50)
 end
 
 export TargetDistribution, CalibrationResult, ParetoPoint

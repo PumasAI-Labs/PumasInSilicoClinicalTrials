@@ -1,0 +1,76 @@
+project:
+  type: website
+  render:
+    - index.qmd
+    # Add other .qmd files here
+    - tutorials/tb_0[1-4]*.qmd
+
+website:
+  title: "Pumas Virtual Population Workflow"
+  sidebar:
+    contents:
+      - index.qmd
+      # Add sections as needed, e.g.:
+      - section: "Tumor Burden Model"
+        contents:
+          - tutorials/tb_01_model_introduction_tutorial.qmd
+          - tutorials/tb_02_copula_vpop_tutorial.qmd
+          - tutorials/tb_03_gsa_tutorial.qmd
+          - tutorials/tb_04_structural_identifiability_tutorial.qmd
+
+bibliography: tutorials/references.bib
+
+format:
+  html:
+    html-table-processing: none
+    embed-resources: false
+    page-layout: full
+    theme:
+      light: cosmo
+      dark: darkly
+    code-fold: false
+    lightbox: true
+    anchor-sections: true
+    number-sections: true
+    toc: true
+    toc-title: Contents
+    toc-location: left
+    toc-depth: 3
+    toc-expand: 2
+    include-in-header:
+      text: |
+        <style>
+          .header-container {
+            width: 100%;
+          }
+          .logo {
+            display: block;
+            width: 150px;
+            margin-left: -2.5%;
+          }
+        </style>
+        <link rel="shortcut icon" href="https://pumas.ai/favicon.ico" />
+    include-before-body:
+      text: |
+        <div class="header-container">
+          <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png"
+               alt="Pumas Logo" class="logo">
+        </div>
+
+execute:
+  freeze: auto
+  cache: true
+  echo: true
+  warning: false
+  error: false
+  daemon: 300
+  fig-format: svg
+  fig-width: 8
+  fig-height: 6
+  fig-dpi: 300
+
+engines: ['julia']
+
+# Default metadata for all documents
+date-format: "DD-MMM-YYYY"
+csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
