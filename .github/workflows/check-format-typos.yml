@@ -2,6 +2,7 @@ name: Check format and typos
 
 on:
   push:
+    branches: ["main"]
   pull_request:
 
 jobs:
