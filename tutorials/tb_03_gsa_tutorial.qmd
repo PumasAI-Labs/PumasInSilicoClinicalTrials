@@ -16,7 +16,7 @@ This is **Tutorial 3 of 6** in the Tumor Burden series.
 | 2 | [Copula Vpop Generation](tb_02_copula_vpop_tutorial.qmd) | Complete |
 | 3 | **Global Sensitivity Analysis (current)** | You are here |
 | 4 | [Structural Identifiability](tb_04_structural_identifiability_tutorial.qmd) | |
-| 5 | [MILP Calibration](tb_05_milp_calibration_tutorial.qmd) | |
+| 5 | [ILP Calibration](tb_05_ilp_calibration_tutorial.qmd) | |
 | 6 | [VCT Simulation](tb_06_vct_simulation_tutorial.qmd) | |
 
 :::

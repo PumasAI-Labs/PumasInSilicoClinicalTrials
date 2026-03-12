@@ -19,8 +19,8 @@ The tutorials on this site walk through the six steps of the ISCT workflow:
 3. **Global sensitivity analysis** — Identify influential parameters via Sobol and eFAST methods
 4. **Structural identifiability analysis** —
    Assess whether model parameters are identifiable from outputs
-5. **MILP calibration** — Calibrate the virtual population to clinical distributions using
-   mixed-integer linear programming
+5. **ILP calibration** — Calibrate the virtual population to clinical distributions using
+   integer linear programming
 6. **Virtual clinical trial simulation** —
    Run multi-arm VCT simulations with the calibrated population
 
@@ -35,6 +35,8 @@ Tutorials are available now:
 - [Copula Virtual Population](tutorials/tb_02_copula_vpop_tutorial.qmd)
 - [Global Sensitivity Analysis](tutorials/tb_03_gsa_tutorial.qmd)
 - [Structural Identifiablity Analysis](tutorials/tb_04_structural_identifiability_tutorial.qmd)
+- [ILP-Based Virtual Population Calibration](tutorials/tb_05_ilp_calibration_tutorial.qmd)
+- [Virtual Clinical Trial Simulation](tutorials/tb_06_vct_simulation_tutorial.qmd)
 
 ### HBV QSP Model
 

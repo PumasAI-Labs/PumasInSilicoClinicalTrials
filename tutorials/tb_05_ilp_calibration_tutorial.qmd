@@ -1,0 +1,871 @@
+---
+title: "ILP-Based Virtual Population Calibration"
+subtitle: "Matching Response Rate Distributions with Optimization"
+author:
+  - Vijay Ivaturi
+---
+
+:::{.callout-note}
+## Tumor Burden Tutorial Series
+
+This is **Tutorial 5 of 6** in the Tumor Burden series.
+
+| # | Tutorial | Status |
+|---|----------|--------|
+| 1 | [Model Introduction](tb_01_model_introduction_tutorial.qmd) | ✓ Complete |
+| 2 | [Copula Vpop Generation](tb_02_copula_vpop_tutorial.qmd) | ✓ Complete |
+| 3 | [Global Sensitivity Analysis](tb_03_gsa_tutorial.qmd) | ✓ Complete |
+| 4 | [Structural Identifiability](tb_04_structural_identifiability_tutorial.qmd) | ✓ Complete |
+| 5 | **ILP Calibration (current)** | ← You are here |
+| 6 | [VCT Simulation](tb_06_vct_simulation_tutorial.qmd) | |
+
+:::
+
+## Learning Outcomes
+
+Virtual populations generated using copula sampling (see
+[Tutorial 2](tb_02_copula_vpop_tutorial.qmd)) may not match real clinical data distributions.
+Calibration ensures the virtual population is representative of the actual patient population being
+studied [@cortes2025].
+
+In this tutorial, you will learn:
+
+- Why virtual population calibration is essential for realistic ISCTs
+- The mathematical formulation of Integer Linear Programming (ILP)
+- How to build a JuMP optimization model step-by-step
+- How to calibrate to response rate distributions (not just baseline
+  characteristics)
+- Pareto analysis for finding optimal calibration parameters
+- Validating calibration results with visualizations
+
+:::{.callout-tip}
+## Prerequisites
+
+This tutorial builds on concepts from earlier tutorials:
+
+- **[Tutorial 1](tb_01_model_introduction_tutorial.qmd)**:
+  Tumor burden model definition
+- **[Tutorial 2](tb_02_copula_vpop_tutorial.qmd)**:
+  Virtual population generation with copulas
+
+We'll generate a new vpop using the copula approach
+and then calibrate it to match clinical response rates.
+:::
+
+## Background
+
+### The Problem: Why Calibration Matters
+
+After generating a virtual population (Vpop) using copula sampling,
+we have patients with realistic parameter correlations.
+However, the **marginal distributions**
+and **outcome distributions** may not match what we observe in real clinical trials.
+
+Consider this scenario for tumor burden:
+
+- Your Vpop has 10,000 virtual patients with parameters (f, g, k)
+- When you simulate treatment, you get certain response rates
+- The real clinical trial showed: 30% complete response, 45% partial response,
+  25% no response
+- Your Vpop shows different rates due to parameter distribution differences
+
+:::{.callout-warning}
+## The Distribution Mismatch Problem
+
+If your Vpop outcome distribution doesn't match the clinical trial:
+
+- Treatment effect estimates will be biased
+- Subgroup analyses won't reflect real clinical heterogeneity
+- Regulatory questions about population representativeness
+
+**Calibration selects a subset of your Vpop that, when simulated, matches the target response
+distribution.**
+:::
+
+### What is ILP-Based Calibration?
+
+**ILP** stands for **Integer Linear Programming**.
+It is an optimization technique where variables are **integer** or **binary** (0 or 1),
+and both the objective function and the constraints are linear.
+
+For Vpop calibration, we use binary variables to **select or reject** each virtual patient:
+
+$$ x_j = \begin{cases} 1 & \text{if patient } j \text{ is selected} \\ 0 & \text{if patient } j \text{ is rejected} \end{cases} $$
+
+### Why ILP? Alternatives and Trade-offs
+
+| Approach | Pros | Cons |
+|:---------|:-----|:-----|
+| **Random Rejection Sampling** | Simple, fast | Inefficient, may reject too many |
+| **Importance Weighting** | No rejection needed | Weights can be extreme, high variance |
+| **ILP** | Optimal selection, precise matching | Computationally more expensive |
+
+ILP is the preferred approach when you need precise control over the distribution matching.
+
+## Libraries
+
+```{julia}
+#| output: false
+using Pumas
+using StatsBase
+using JuMP
+using HiGHS
+using Copulas
+using AlgebraOfGraphics
+using CairoMakie
+using DataFramesMeta
+using SummaryTables
+
+using Random
+using Statistics
+
+# Set seed for reproducibility
+Random.seed!(1234)
+```
+
+**What each package does:**
+
+- `JuMP`: Algebraic modeling language for optimization problems
+- `HiGHS`: High-performance ILP solver (open source, fast)
+- `Copulas`: For generating correlated parameter samples
+- `AlgebraOfGraphics` + `CairoMakie`: Publication-quality visualizations
+
+## Part 1: Understanding the Calibration Problem
+
+### The Tumor Burden Model Recap
+
+From [Tutorial 1](tb_01_model_introduction_tutorial.qmd), our tumor burden model has:
+
+- **f**: Fraction of treatment-sensitive cells (0-1)
+- **g**: Growth rate of resistant cells (1/day)
+- **k**: Death rate of sensitive cells (1/day)
+
+The tumor dynamics follow:
+
+$$ N(t) = N_0 \cdot f \cdot e^{-kt} + N_0 \cdot (1-f) \cdot e^{gt} $$
+
+The full non-linear mixed effect model, implemented and explained in
+[Tutorial 1: Model Introduction](tb_01_model_introduction_tutorial.qmd), is:
+
+```{julia}
+tumor_burden_model = @model begin
+    @metadata begin
+        desc = "Tumor Burden Model for NSCLC Chemotherapy"
+        timeu = u"d"  # Time unit is days
+    end
+
+    @options begin
+        checklinear = false
+    end
+
+    @param begin
+        # Typical values (population parameters)
+        tvf ∈ RealDomain(lower = 0.0, upper = 1.0)
+        tvg ∈ RealDomain(lower = 0.0)
+        tvk ∈ RealDomain(lower = 0.0)
+
+        # Inter-individual variability (diagonal covariance matrix)
+        # Values on the transformed scale (logit for f, log for g and k)
+        Ω ∈ PDiagDomain(3)
+
+        # Residual error (standard deviation)
+        σ ∈ RealDomain(lower = 0.0)
+    end
+
+    @random begin
+        # Random effects vector (one per parameter)
+        η ~ MvNormal(Ω)
+    end
+
+    @covariates treatment
+
+    @pre begin
+        # Transform random effects to individual parameters
+        # f: logit-normal transformation (bounded 0-1)
+        f = logistic(logit(tvf) + η[1])
+        # g: log-normal transformation (positive value)
+        g = tvg * exp(η[2])
+        # k: log-normal transformation (positive value)
+        # Additionally, treatment affects death rate:
+        # treatment = 0 → control arm (no killing)
+        # treatment = 1 → treatment arm (killing at rate tvk * exp(η[3]))
+        k = treatment * tvk * exp(η[3])
+    end
+
+    # Initial conditions (normalized tumor = 1)
+    @init begin
+        N_sens = f           # Sensitive cells
+        N_res = 1 - f        # Resistant cells
+    end
+
+    @dynamics begin
+        # Sensitive cells: die at rate k (0 if control)
+        N_sens' = -k * N_sens
+
+        # Resistant cells: grow at rate g
+        N_res' = g * N_res
+    end
+
+    @derived begin
+        # Total normalized tumor size
+        Nt := @. N_sens + N_res
+
+        # Observation with residual error
+        tumor_size ~ @. Normal(Nt, σ)
+    end
+end
+```
+
+### Defining Response Categories
+
+For tumor burden, we define response based on tumor size at a fixed time point (e.g., 18 weeks):
+
+```{julia}
+# Response category definitions based on tumor size ratio (final/initial)
+const RESPONSE_THRESHOLDS = (
+    complete_response = 0.14,    # < 14% of initial = CR
+    partial_response = 0.7,     # 14-70% = PR
+    stable_disease = 1.0,        # 70-100% = SD (not growing)
+    progressive_disease = Inf,    # > 100% = PD (growing)
+)
+
+"""
+Classify response based on final tumor size ratio.
+"""
+function classify_response(tumor_ratio::Float64)
+    if tumor_ratio < RESPONSE_THRESHOLDS.complete_response
+        return :CR  # Complete Response
+    elseif tumor_ratio < RESPONSE_THRESHOLDS.partial_response
+        return :PR  # Partial Response
+    elseif tumor_ratio <= RESPONSE_THRESHOLDS.stable_disease
+        return :SD  # Stable Disease
+    else
+        return :PD  # Progressive Disease
+    end
+end
+```
+
+### Generating the Virtual Population
+
+Let us generate a vpop using the copula approach from Tutorial 2.
+
+The parameter values come from @qi2022, who fit this model to NSCLC clinical trial data:
+
+```{julia}
+# Population (typical) parameter values
+pop_f = 0.27    # 27% of tumor is treatment-sensitive
+pop_g = 0.0013  # Resistant cells grow ~0.13% per day
+pop_k = 0.0091  # Sensitive cells die ~0.91% per day
+
+# Inter-individual variability (standard deviations on transformed scale)
+ω_f = 2.16  # High variability in sensitive fraction
+ω_g = 1.57  # Moderate variability in growth rate
+ω_k = 1.24  # Moderate variability in death rate
+
+# Residual error (standard deviation)
+resid_σ = 0.095
+
+# Critical correlation from the data
+cor_f_g = -0.64  # Negative correlation: high f ↔ low g
+```
+
+We create 2000 virtual subjects for simulations with the estimated population parameters:
+
+```{julia}
+patients = [
+    Subject(;
+            id, time = 7 * (0:18), covariates = (; treatment = true),
+        ) for id in 1:2_000
+]
+param = (; tvf = pop_f, tvg = pop_g, tvk = pop_k, Ω = Diagonal([ω_f^2, ω_g^2, ω_k^2]), σ = resid_σ)
+```
+
+Based on the estimated correlation matrix, we define a Gaussian copula:
+
+```{julia}
+Rho = [
+    1.0 -0.64 0.0
+    -0.64 1.0 0.0
+    0.0 0.0 1.0
+]
+copula = GaussianCopula(Rho)
+```
+
+We define the joint distribution of correlated random effects based on the marginal distributions
+and the Gaussian copula:
+
+```{julia}
+correlated_randeffs_dist = SklarDist(copula, (Normal(0, ω_f), Normal(0, ω_g), Normal(0, ω_k)))
+```
+
+We sample correlated random effects for each virtual patient:
+
+```{julia}
+correlated_randeffs = rand(correlated_randeffs_dist, length(patients))
+vrandeffs = [(; η) for η in eachcol(correlated_randeffs)]
+```
+
+Now let us simulate the tumor dynamics for each virtual patient:
+
+```{julia}
+sims = simobs(
+    tumor_burden_model, patients, param, vrandeffs; simulate_error = false
+)
+```
+
+We compute the observed Spearman correlation of the simulated parameters (`f`, `g`, and `k`):
+
+```{julia}
+sims_f_g_k = postprocess(sims) do generated, _
+    (; f = only(unique(generated.f)), g = only(unique(generated.g)), k = only(unique(generated.k)))
+end |> DataFrame
+corspearman(Matrix(sims_f_g_k))
+```
+
+Additionally, we validate the marginal distributions of the simulated parameters:
+
+```{julia}
+marginals_df = DataFrame(
+    parameter = ["f", "g", "k"],
+    median_exp = [pop_f, pop_g, pop_k],
+    median_obs = [median(sims_f_g_k.f), median(sims_f_g_k.g), median(sims_f_g_k.k)],
+    omega_exp = [ω_f, ω_g, ω_k],
+    omega_obs = [std(logit.(sims_f_g_k.f)), std(log.(sims_f_g_k.g)), std(log.(sims_f_g_k.k))],
+)
+simple_table(
+    marginals_df,
+    [:parameter => "Parameter", :median_exp => "Median (expected)", :median_obs => "Median (observed)", :omega_exp => "ω (expected)", :omega_obs => "ω (observed)"]
+)
+```
+
+### Classifying the Tumor Response
+
+Now let us classify the response of each virtual patient after 18 weeks.
+
+```{julia}
+vpop = postprocess(sims) do generated, _
+    if generated.t[end] != 7 * 18 # days
+        error("final time point must be 18 weeks")
+    end
+    tumor_size_final = generated.tumor_size[end]
+    (;
+        tumor_size_final,
+        response = classify_response(tumor_size_final),
+    )
+end |> DataFrame
+```
+
+We compute the distribution of responses:
+
+```{julia}
+vpop_distribution = @by vpop :response begin
+    :pct = 100 * length(:response) / nrow(vpop)
+end
+simple_table(
+    vpop_distribution, [:response => "Response", :pct => "Vpop (%)"],
+)
+```
+
+### Defining the Target Distribution
+
+Let us define a target response distribution that we want to match.
+In practice, one would use response rates in a clinical trial.
+
+```{julia}
+target_distribution = DataFrame(
+    response = [:CR, :PR, :SD, :PD],
+    pct = [25.0, 40.0, 20.0, 15.0],
+)
+simple_table(
+    target_distribution, [:response => "Response", :pct => "Target (%)"],
+)
+```
+
+We compare the target distribution with the distribution of response rates in the current virtual
+population.
+
+```{julia}
+comparison_df = leftjoin(target_distribution, vpop_distribution; on = :response, renamecols = "_target" => "_vpop")
+@rtransform! comparison_df :diff = :pct_vpop - :pct_target
+
+simple_table(
+    comparison_df,
+    [:response => "Response", :pct_vpop => "Vpop (%)", :pct_target => "Target (%)", :diff => "Difference (%)"]
+)
+```
+
+## Part 2: The Mathematical Formulation
+
+Before writing code, let's understand the ILP optimization problem mathematically.
+
+### Decision Variables
+
+We have **binary selection variables** for each virtual patient:
+$$ x_j \in \{0, 1\} \quad \text{for } j = 1, \ldots, N $$
+
+### Objective Function
+
+We want to **maximize** the number of selected patients (larger calibrated populations give better
+statistical power):
+
+$$\max \sum_{i=1}^N x_i $$
+
+### Constraints
+
+Additionally, we want the distribution of observed response rates of the selected patients to match
+the target distribution.
+
+As generally we cannot expect the observed and expected distributions to match exactly,
+we enforce only approximate equality of the two distributions.
+That is, for each response category $c$ with target fraction $p_c$,
+the proportion of selected VPs in category $c$ is constrained to be within an absolute error of
+$\epsilon > 0$ of the target:
+
+$$ (p_c - \epsilon) N_{total} \leq \text{N}_c \leq (p_c + \epsilon) N_{total}$$
+
+where $N_total = \sum_{i=1}^N x_i$ is the total number of selected VPs
+and $N_{c} = \sum_{i \text{ with category } c} x_i$ is the number of selected VPs in category $c$.
+
+### Why Binary Variables Make This Hard (But Solvable)
+
+The fundamental insight is that VP selection is an **all-or-nothing decision**.
+Each virtual patient is either:
+
+- **Selected** ($x_j = 1$): included in the calibrated population
+- **Rejected** ($x_j = 0$): excluded from the calibrated population
+
+This **discrete choice** makes the problem an **Integer** Linear Program (ILP) rather than a
+standard Linear Program (LP).
+
+:::{.callout-note}
+## Computational Complexity
+
+Binary optimization is **NP-hard**— there's no known algorithm that solves all instances quickly.
+With $N$ virtual patients, there are $2^N$ possible selections:
+
+| VPs | Possible Selections |
+|:----|:--------------------|
+| 10 | 1,024 |
+| 20 | ~1 million |
+| 100 | $2^{100}$ (astronomical) |
+
+Fortunately, modern solvers like HiGHS use sophisticated algorithms (branch-and-bound,
+cutting planes) that solve well-structured problems like ours in seconds
+[@dunning2017; @huangfu2018].
+:::
+
+## Part 3: Building the JuMP Model Step-by-Step
+
+### Step 3a: Create Membership Matrix
+
+For efficient constraint formulation,
+we create a matrix where `membership[i, c] = true` if VP `i` belongs to category `c`,
+and `false` otherwise.
+
+```{julia}
+# Create membership matrix (categories × VPs)
+membership = indicatormat(vpop.response, target_distribution.response)
+```
+
+### Step 3b: Build the Optimization Model
+
+We implement the optimization problem using a maximum absolute error of 5% for each category:
+
+```{julia}
+# Calibration tolerance
+epsilon = 0.05
+
+# Create optimization model
+model = Model(HiGHS.Optimizer)
+set_silent(model)
+set_attribute(model, "presolve", "on")
+set_time_limit_sec(model, 60.0)
+
+# Decision variables
+@variable(model, x[1:length(patients)], Bin)     # Binary selection for each VP
+
+# Objective: maximize number of selected VPs
+N_total = sum(x)
+@objective(model, Max, N_total)
+
+# Constraints: distribution matching for each category
+for c in 1:nrow(target_distribution)
+    p_c = target_distribution[c, :pct] / 100
+
+    # Count of selected VPs in this category
+    N_c = sum(x[membership[c, :]])
+
+    # Upper bound: count <= (p_c + ε) × N_total
+    @constraint(model, N_c <= (p_c + epsilon) * N_total)
+
+    # Lower bound: count >= (p_c - ε) × N_total
+    @constraint(model, N_c >= (p_c - epsilon) * N_total)
+end
+
+model
+```
+
+### Step 3c: Solve the Model
+
+Solve the optimization problem:
+
+```{julia}
+optimize!(model)
+```
+
+We ensure that the problem was solved successfully:
+
+```{julia}
+assert_is_solved_and_feasible(model)
+```
+
+In case the problem was not solved successfully,
+the function `assert_is_solved_and_feasible` throws an error describing the state of the solver.
+
+### Step 3d: Extract and Analyze Results
+
+We can inspect the results in more detail:
+
+```{julia}
+solution_summary(model)
+```
+
+From the summary, we can already see
+that the selected number of virtual patients (which corresponds to the objective function value of
+the solution) is 235.
+
+We extract the selected virtual patients, i.e., those for which the solution is 1:
+
+```{julia}
+selected_vps = findall(xi -> value(xi) == 1, x)
+calibrated_vpop = vpop[selected_vps, :]
+```
+
+The distribution of observed responses for this subset of virtual patients is
+
+```{julia}
+calibrated_vpop_distribution = @by calibrated_vpop :response begin
+    :pct = 100 * length(:response) / nrow(calibrated_vpop)
+end
+simple_table(
+    calibrated_vpop_distribution, [:response => "Response", :pct => "Vpop (%)"],
+)
+```
+
+We compare it with the target distribution of response rates:
+
+```{julia}
+comparison_df = leftjoin(target_distribution, calibrated_vpop_distribution; on = :response, renamecols = "_target" => "_vpop")
+@rtransform! comparison_df :diff = :pct_vpop - :pct_target
+
+simple_table(
+    comparison_df,
+    [:response => "Response", :pct_vpop => "Vpop (%)", :pct_target => "Target (%)", :diff => "Difference (%)"]
+)
+```
+
+### Visualizing the Calibration Result
+
+```{julia}
+#| fig-cap: "Before and after calibration: response distribution comparison. The calibrated virtual population closely matches the target distribution."
+original_comparison_df = vcat(target_distribution, vpop_distribution; source = "type" => ["Target", "VPop"])
+calibrated_comparison_df = vcat(target_distribution, calibrated_vpop_distribution; source = "type" => ["Target", "VPop"])
+comparison_df = vcat(original_comparison_df, calibrated_comparison_df; source = "source" => ["Original", "Calibrated"])
+
+response_mapping = renamer(
+    :CR => "Complete Response",
+    :PR => "Partial Response",
+    :SD => "Stable Disease",
+    :PD => "Progressive Disease",
+) => "Response"
+type_mapping = :type => sorter("VPop", "Target") => ""
+specs = data(comparison_df) *
+    mapping(
+    :response => response_mapping,
+    :pct => "Percentage (%)",
+    dodge = type_mapping,
+    row = :source => sorter("Original", "Calibrated") => "VPop",
+    color = type_mapping
+) *
+    visual(BarPlot)
+draw(specs; axis = (; xticklabelrotation = π / 4))
+```
+
+## Part 5: Pareto Front Analysis
+
+### What is Pareto Analysis?
+
+In optimization, we often face situations where improving one objective makes another worse.
+**Pareto analysis** systematically explores these trade-offs.
+
+For Vpop calibration, our two competing objectives are:
+
+1. **Maximize** the number of selected VPs (larger population = better
+   statistical power)
+2. **Minimize** the distribution matching error (better match = more realistic
+   population)
+
+A **Pareto-optimal** solution is one
+where you can't improve one objective without making the other worse.
+
+### Grid Search
+
+One approach is to perform optimization for a grid of $\epsilon$ hyperparameter values:
+
+```{julia}
+epsilons = 0:0.01:1
+```
+
+```{julia}
+solutions_vpop = map(epsilons) do epsilon
+    # Create optimization model
+    model = Model(HiGHS.Optimizer)
+    set_silent(model)
+    set_attribute(model, "presolve", "on")
+    set_time_limit_sec(model, 60.0)
+
+    # Decision variables
+    @variable(model, x[1:length(patients)], Bin)     # Binary selection for each VP
+
+    # Objective: maximize number of selected VPs
+    N_total = sum(x)
+    @objective(model, Max, N_total)
+
+    # Constraints: distribution matching for each category
+    for c in 1:nrow(target_distribution)
+        p_c = target_distribution[c, :pct] / 100
+
+        # Count of selected VPs in this category
+        N_c = sum(x[membership[c, :]])
+
+        # Upper bound: count <= (p_c + ε) × N_total
+        @constraint(model, N_c <= (p_c + epsilon) * N_total)
+
+        # Lower bound: count >= (p_c - ε) × N_total
+        @constraint(model, N_c >= (p_c - epsilon) * N_total)
+    end
+
+    # Solve the problem
+    optimize!(model)
+
+    if is_solved_and_feasible(model)
+        # If a solution was computed successfully: Return selected VPs
+        return findall(xi -> value(xi) == 1, x)
+    else
+        # If no solution could be computed successfully: Return empty array (no selected VPs)
+        return Int[]
+    end
+end
+```
+
+### Pareto-Optimal Solutions
+
+We summarize the solutions in a dataframe
+and quantify the error of each solution in terms of the
+[total variation distance](https://en.wikipedia.org/wiki/Total_variation_distance_of_probability_measures)
+between the observed and the target distribution of responses (half of the sum of the absolute
+errors of all categories):
+
+```{julia}
+solutions_error = map(solutions_vpop) do idxs
+    df = @chain vpop[idxs, :] begin
+        @by :response begin
+            :pct = 100 * length(:response) / length(idxs)
+        end
+        leftjoin(target_distribution, _; on = :response, renamecols = "_target" => "_vpop")
+        @rtransform! :pct_vpop = @coalesce(:pct_vpop, 0.0)
+    end
+    return L1dist(df.pct_target, df.pct_vpop) / 200
+end
+
+solutions_df = DataFrame(;
+    epsilon = epsilons,
+    vpop = solutions_vpop,
+    nselected = map(length, solutions_vpop),
+    error = solutions_error,
+)
+simple_table(
+    solutions_df,
+    [
+        :epsilon => "ϵ",
+        :nselected => "# selected VPs",
+        :error => "Distribution Error",
+    ]
+)
+```
+
+We compute the Pareto-optimal solutions, i.e.,
+the solutions that are not dominated by any other solution in terms of both distribution error
+(smaller is better) and number of selected virtual patients (larger is better).
+
+```{julia}
+sort!(solutions_df, [order(:nselected; rev = true), :error])
+solutions_df.pareto_optimal .= false
+solutions_df.pareto_optimal[begin] = true
+dominating_error = solutions_df.error[begin]
+for row in eachrow(solutions_df)
+    if row.error < dominating_error
+        row.pareto_optimal = true
+        dominating_error = row.error
+    end
+end
+sort!(solutions_df, :epsilon)
+simple_table(
+    solutions_df, [
+        :epsilon => "ϵ",
+        :nselected => "# selected VPs",
+        :error => "Distribution Error",
+        :pareto_optimal => "Pareto-Optimal",
+    ]
+)
+```
+
+### Visualization
+
+We visualize the front of Pareto-optimal solutions together with the utopia of zero distribution
+error and selecting all virtual patients:
+
+```{julia}
+pareto_mapping = :pareto_optimal => renamer(true => "Yes", false => "No") => "Pareto-Optimal"
+specs_solutions = data(solutions_df) *
+    mapping(:error => "Distribution Error", :nselected => "# selected VPs", color = pareto_mapping, marker = pareto_mapping) * visual(Scatter)
+specs_utopia = mapping([0.0], nrow(vpop)) * visual(Scatter; label = "Utopia", color = :red)
+
+draw(specs_solutions + specs_utopia)
+```
+
+Depending on which trade-off between distribution error and removal rate we want to make,
+we can decide for one of the Pareto-optimal solutions.
+
+For instance, if a distribution error of 0.05 is acceptable,
+we might want to choose the Pareto-optimal solution with distribution error ≤ 0.05
+that maximizes the number of selected virtual patients:
+
+```{julia}
+candidates_df = @chain solutions_df begin
+    @rsubset :error <= 0.05 && :pareto_optimal
+    @rorderby -:nselected
+end
+simple_table(
+    candidates_df, [
+        :epsilon => "ϵ",
+        :nselected => "# selected VPs",
+        :error => "Distribution Error",
+        :pareto_optimal => "Pareto-Optimal",
+    ]
+)
+```
+
+```{julia}
+# Choose Pareto-optimal solution with maximum number of selected VPs
+calibrated_vpop = vpop[candidates_df[begin, :vpop], :]
+
+# Distribution of responses
+calibrated_vpop_distribution = @by calibrated_vpop :response begin
+    :pct = 100 * length(:response) / nrow(calibrated_vpop)
+end
+simple_table(
+    calibrated_vpop_distribution, [:response => "Response", :pct => "Vpop (%)"],
+)
+```
+
+We compare it with the target distribution of response rates:
+
+```{julia}
+#| fig-cap: "Before and after calibration: response distribution comparison. The calibrated virtual population closely matches the target distribution."
+original_comparison_df = vcat(target_distribution, vpop_distribution; source = "type" => ["Target", "VPop"])
+calibrated_comparison_df = vcat(target_distribution, calibrated_vpop_distribution; source = "type" => ["Target", "VPop"])
+comparison_df = vcat(original_comparison_df, calibrated_comparison_df; source = "source" => ["Original", "Calibrated"])
+
+response_mapping = renamer(
+    :CR => "Complete Response",
+    :PR => "Partial Response",
+    :SD => "Stable Disease",
+    :PD => "Progressive Disease",
+) => "Response"
+type_mapping = :type => sorter("VPop", "Target") => ""
+specs = data(comparison_df) *
+    mapping(
+    :response => response_mapping,
+    :pct => "Percentage (%)",
+    dodge = type_mapping,
+    row = :source => sorter("Original", "Calibrated") => "VPop",
+    color = type_mapping
+) *
+    visual(BarPlot)
+draw(specs; axis = (; xticklabelrotation = π / 4))
+```
+
+## Part 6: Practical Recommendations
+
+:::{.callout-tip}
+## Choosing Epsilon (Tolerance)
+
+Start with ε = 0.10 (10% tolerance):
+
+| Epsilon | Effect |
+|:--------|:-------|
+| 0.05 (5%) | Very strict, fewer VPs selected |
+| 0.10 (10%) | Good balance (recommended) |
+| 0.15-0.20 | More VPs, acceptable for preliminary work |
+| > 0.25 | Too loose, poor distribution matching |
+
+:::
+
+:::{.callout-tip}
+## Handling Infeasible Problems
+
+If the solver returns `INFEASIBLE`:
+
+1. **Increase epsilon** from 0.10 to 0.15 or 0.20
+2. **Check target achievability** - do you have VPs in all response categories?
+3. **Merge sparse categories** - combine SD and PD if both are rare
+4. **Increase Vpop size** - generate more VPs to have more options
+:::
+
+:::{.callout-warning}
+## When Categories Are Imbalanced
+
+If your Vpop has very few VPs in a target category (e.g., only 2% CR but target is 25% CR):
+
+- Calibration may fail or reject most VPs
+- Consider: Is the Vpop generation realistic?
+- Solution: Adjust population parameters or use importance sampling
+:::
+
+## Summary
+
+### Key Concepts
+
+1. **Calibration ensures realistic virtual populations**
+   that match clinical response distributions
+
+2. **ILP optimization** provides precise control over distribution matching
+   through binary selection variables
+
+3. **The calibration formulation:**
+   - Maximize: Number of selected VPs
+   - Subject to: Each response category within ε of target
+
+4. **Pareto analysis** helps find the optimal epsilon value
+
+### Quick Reference: Steps
+
+1. Generate virtual population (Tutorial 2)
+2. Simulate responses for each VP
+3. Define target response distribution
+4. Choose epsilon (or use Pareto analysis)
+5. Run ILP calibration
+6. Validate: compare calibrated vs target distributions
+7. Save calibrated vpop for VCT (Tutorial 6)
+
+### What's Next?
+
+In [Tutorial 6: VCT Simulation](tb_06_vct_simulation_tutorial.qmd),
+we'll use the calibrated virtual population to run a complete Virtual Clinical Trial,
+comparing treatment effects and analyzing endpoints.
+
+### References
+
+::: {#refs}
+:::

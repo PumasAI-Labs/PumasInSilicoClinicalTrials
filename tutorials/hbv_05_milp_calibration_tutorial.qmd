@@ -31,7 +31,7 @@ In this tutorial, you will learn:
 
 - Why baseline HBsAg calibration is critical for HBV VCTs
 - How to apply MILP calibration (from
-  [TB-05](tb_05_milp_calibration_tutorial.qmd)) to HBV
+  [TB-05](tb_05_ilp_calibration_tutorial.qmd)) to HBV
 - How to define target distributions from clinical trial data
 - How to validate calibration results
 
@@ -41,9 +41,9 @@ In this tutorial, you will learn:
 This tutorial builds on:
 
 - **[HBV-02](hbv_02_copula_vpop_tutorial.qmd)**: HBV vpop generation
-- **[TB-05](tb_05_milp_calibration_tutorial.qmd)**: Detailed MILP theory
+- **[TB-05](tb_05_ilp_calibration_tutorial.qmd)**: Detailed ILP theory
 
-We'll apply MILP concepts without repeating the full theory.
+We'll apply ILP concepts without repeating the full theory.
 :::
 
 ## Libraries

@@ -3,7 +3,7 @@ project:
   render:
     - index.qmd
     # Add other .qmd files here
-    - tutorials/tb_0[1-4]*.qmd
+    - tutorials/tb_0[1-6]*.qmd
 
 website:
   title: "Pumas Virtual Population Workflow"
@@ -17,6 +17,8 @@ website:
           - tutorials/tb_02_copula_vpop_tutorial.qmd
           - tutorials/tb_03_gsa_tutorial.qmd
           - tutorials/tb_04_structural_identifiability_tutorial.qmd
+          - tutorials/tb_05_ilp_calibration_tutorial.qmd
+          - tutorials/tb_06_vct_simulation_tutorial.qmd
 
 bibliography: tutorials/references.bib
 

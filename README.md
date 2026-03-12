@@ -42,7 +42,7 @@ and treatment arms.
 | 2 | [Copula Virtual Population](tutorials/tb_02_copula_vpop_tutorial.qmd) | Generate virtual patients via Gaussian copulas |
 | 3 | [Global Sensitivity Analysis](tutorials/tb_03_gsa_tutorial.qmd) | Sobol and eFAST sensitivity analysis |
 | 4 | [Structural Identifiability](tutorials/tb_04_structural_identifiability_tutorial.qmd) | Parameter identifiability assessment |
-| 5 | [MILP Calibration](tutorials/tb_05_milp_calibration_tutorial.qmd) | Calibrate Vpop to clinical distributions |
+| 5 | [ILP Calibration](tutorials/tb_05_ilp_calibration_tutorial.qmd) | Calibrate Vpop to clinical distributions |
 | 6 | [VCT Simulation](tutorials/tb_06_vct_simulation_tutorial.qmd) | Run virtual clinical trials |
 
 ### HBV Series
