@@ -110,7 +110,7 @@ In the ISCT workflow [@cortes2025], GSA serves several important purposes:
    which parameter uncertainties matter most
 
 ```{mermaid}
-#| echo: false
+%%| echo: false
 flowchart LR
     A["Build Model"] --> B["Run GSA"]
     B --> C{"Parameter\nInfluential?"}

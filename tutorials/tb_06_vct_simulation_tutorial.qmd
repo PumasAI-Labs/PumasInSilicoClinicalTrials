@@ -90,9 +90,11 @@ using Pumas
 using Copulas
 using JuMP
 using HiGHS
+using HypothesisTests
 using StatsBase
 using AlgebraOfGraphics
 using CairoMakie
+using CategoricalArrays
 using DataFramesMeta
 using SummaryTables
 
@@ -255,18 +257,7 @@ sims = simobs(
 ### Calibrate Virtual Population: ILP Solution
 
 ```{julia}
-# Classify response of virtual patients
-function classify_response(tumor_ratio)
-    if tumor_ratio < 0.14
-        return :CR  # Complete Response
-    elseif tumor_ratio < 0.7
-        return :PR  # Partial Response
-    elseif tumor_ratio <= 1.0
-        return :SD  # Stable Disease
-    else
-        return :PD  # Progressive Disease
-    end
-end
+#| echo: false
 vpop = postprocess(sims) do generated, _
     if generated.t[end] != 7 * 18 # days
         error("final time point must be 18 weeks")
@@ -285,16 +276,31 @@ vpop = postprocess(sims) do generated, _
 
         # Response
         tumor_size_final,
-        response = classify_response(tumor_size_final),
     )
 end |> DataFrame
+```
 
-# Define target response distribution
+Classify responses of virtual patients:
+
+```{julia}
+#| echo: false
+classify_response(tumor_size::AbstractVector) = cut(tumor_size, [0.14, 0.7, 1.0]; labels = ["CR", "PR", "SD", "PD"], extend = true)
+vpop.response = classify_response(vpop.tumor_size_final)
+```
+
+Define target response distribution:
+
+```{julia}
 target_distribution = DataFrame(
-    response = [:CR, :PR, :SD, :PD],
+    response = categorical(["CR", "PR", "SD", "PD"]),
     pct = [25.0, 40.0, 20.0, 15.0]
 )
+simple_table(target_distribution, [:response => "Response", :pct => "Target (%)"])
+```
 
+Calibrate the virtual population:
+
+```{julia}
 # Maximum absolute error in each category
 epsilon = 0.05
 
@@ -312,12 +318,11 @@ N_total = sum(x)
 @objective(model, Max, N_total)
 
 # Constraints: distribution matching for each category
-membership = indicatormat(vpop.response, target_distribution.response)
-for c in 1:nrow(target_distribution)
-    p_c = target_distribution[c, :pct] / 100
+for row in eachrow(target_distribution)
+    p_c = row.pct / 100
 
     # Count of selected VPs in this category
-    N_c = sum(x[membership[c, :]])
+    N_c = sum(x[vpop.response .== row.response])
 
     # Upper bound: count <= (p_c + ε) × N_total
     @constraint(model, N_c <= (p_c + epsilon) * N_total)
@@ -427,7 +432,7 @@ specs_time_summary = data(time_summary) *
         mapping(:median) * visual(Lines)
 )
 # Reference lines
-specs_references = mapping([1.0, 0.14], linestyle = ["baseline", "complete response"] => "Reference") * visual(HLines)
+specs_references = mapping([1.0, 0.14], linestyle = ["Baseline", "Complete response"] => "Reference") * visual(HLines)
 
 draw(specs_time_summary + specs_references, scales(Color = (; palette = [:blue, :red])); axis = (; ylabel = "Normalized Tumor Size"))
 ```
@@ -496,7 +501,7 @@ specs_time_summary = data(comparison_time_summary) *
         mapping(:median) * visual(Lines)
 )
 # Reference lines
-specs_references = mapping([1.0, 0.14], linestyle = ["baseline", "complete response"] => "Reference") * visual(HLines)
+specs_references = mapping([1.0, 0.14], linestyle = ["Baseline", "Complete response"] => "Reference") * visual(HLines)
 
 draw(specs_time_summary + specs_references, scales(Color = (; palette = [:blue, :red])); axis = (; ylabel = "Normalized Tumor Size"), legend = (; position = :bottom))
 ```
@@ -507,64 +512,31 @@ draw(specs_time_summary + specs_references, scales(Color = (; palette = [:blue, 
 #| fig-cap: "Individual patient trajectories (30 randomly selected). Green lines = complete responders; gray lines = others."
 
 # Sample 30 random patients
-Random.seed!(123)
 sample_ids = sample(unique(treatment_results.id), 30, replace = false)
 
-# Classify final response for treatment arm
-final_tx = @subset(final, :arm .== "Treatment")
-responders = Set(@subset(final_tx, :Nt .< 0.14).id)
-
-# Prepare treatment data with response classification
-sample_tx = @chain treatment_results begin
-    @subset(:id .∈ Ref(sample_ids))
-    @transform(:response = ifelse.(:id .∈ Ref(responders), "Complete Response", "Other"))
-end
-
-# Prepare control data (all "Other" since no treatment)
-sample_ctrl = @chain control_results begin
-    @subset(:id .∈ Ref(sample_ids))
-    @transform(:response = "Other")
+# Prepare data with response classification
+all_data = @chain all_results begin
+    @rsubset :id in sample_ids
+    @orderby :id :arm :time
+    @groupby :id :arm
+    @transform @astable begin
+        final_tumor_size = :tumor_size[end]
+        :response = ifelse.(:arm .== "Treatment" .&& final_tumor_size < 0.14, "Complete Response", "Other")
+    end
 end
 
 # Treatment panel using AoG
-tx_layer = data(sample_tx) *
+specs_data = data(all_data) *
     mapping(
-    :time => "Time (days)", :Nt => "Normalized Tumor Size",
-    color = :response => "Response", group = :id => nonnumeric
+    :time => (t -> t / 7) => "Time (weeks)", :tumor_size => "Normalized Tumor Size",
+    color = :response => sorter("Complete Response", "Other") => "Response", group = :id,
+    col = :arm => "Arm",
 ) *
     visual(Lines, linewidth = 0.8)
+# Add reference lines
+specs_refs = mapping([1.0, 0.14], linestyle = ["Baseline", "Complete response"] => "Reference") * visual(HLines)
 
-# Control panel using AoG
-ctrl_layer = data(sample_ctrl) *
-    mapping(
-    :time => "Time (days)", :Nt => "Normalized Tumor Size",
-    group = :id => nonnumeric
-) *
-    visual(Lines, linewidth = 0.8, color = (:gray, 0.5))
-
-# Create figure with panels
-fig = Figure(size = (1000, 400))
-
-# Treatment panel
-ax1 = Axis(
-    fig[1, 1], title = "Treatment Arm",
-    xlabel = "Time (days)", ylabel = "Normalized Tumor Size"
-)
-ag1 = draw!(ax1, tx_layer, scales(Color = (; palette = [:green, (:gray, 0.5)])))
-hlines!(ax1, [0.14], color = :green, linestyle = :dot, linewidth = 2)
-
-# Control panel
-ax2 = Axis(
-    fig[1, 2], title = "Control Arm",
-    xlabel = "Time (days)", ylabel = "Normalized Tumor Size"
-)
-draw!(ax2, ctrl_layer)
-hlines!(ax2, [0.14], color = :green, linestyle = :dot, linewidth = 2)
-
-# Shared legend
-legend!(fig[1, 3], ag1, framevisible = false)
-
-fig
+draw(specs_data + specs_refs, scales(Color = (; palette = [:green, (:gray, 0.5)])); axis = (; yscale = log10), legend = (; position = :bottom))
 ```
 
 ## Part 6: Endpoint Analysis
@@ -575,72 +547,43 @@ Classify all patients:
 
 ```{julia}
 #| output: false
-final_tx = @chain final begin
-    @rsubset :arm == "Treatment"
-    @rtransform! :response = classify_response(:tumor_size)
-end
-final_ctrl = @chain final begin
-    @rsubset :arm == "Control"
-    @rtransform! :response = classify_response(:tumor_size)
-end
+final_classify = @transform final :response = classify_response(:tumor_size)
 ```
 
 Distribution of responses:
 
 ```{julia}
-tx_response = @by final_tx :response begin
-    :pct = 100 * length(:response) / nrow(final_tx)
-end
-ctrl_response = @by final_ctrl :response begin
-    :pct = 100 * length(:response) / nrow(final_ctrl)
-end
-
 # All responses
-all_response = outerjoin(tx_response, ctrl_response; on = :response, renamecols = "_tx" => "_ctrl")
-@rtransform! all_response begin
-    :pct_tx = @coalesce(:pct_tx, 0.0)
-    :pct_ctrl = @coalesce(:pct_ctrl, 0.0)
+all_response = @chain final_classify begin
+    @groupby :arm
+    @transform :npatients = length(:arm)
+    @by [:arm, :response] @astable begin
+        npatients = only(unique(:npatients))
+        :pct = 100 * length(:response) / npatients
+    end
+    unstack(_, [:response], :arm, :pct; fill = 0)
 end
 
-simple_table(all_response, [:response => "Resppnse", :pct_tx => "Treatment (%)", :pct_ctrl => "Control (%)"])
+simple_table(all_response, [:response => "Response", :Treatment => "Treatment (%)", :Control => "Control (%)"])
 ```
 
-### Bootstrap Confidence Intervals
+### Confidence Intervals
+
+We compute 95% confidence intervals (Clopper-Pearson) for the complete response rate:
 
 ```{julia}
-"""
-    bootstrap_ci(data, statistic; n_boot=1000, alpha=0.05)
-
-Calculate bootstrap confidence interval for a statistic.
-"""
-function bootstrap_ci(
-        data::AbstractVector, statistic::Function;
-        n_boot::Int = 1000, alpha::Float64 = 0.05
-    )
-    n = length(data)
-    estimate = statistic(data)
-
-    boot_stats = Float64[]
-    for _ in 1:n_boot
-        boot_sample = sample(data, n, replace = true)
-        push!(boot_stats, statistic(boot_sample))
+# Calculate all response rates with CI using DataFrame operations
+response_ci = @chain final_classify begin
+    @groupby :arm
+    @transform :npatients = length(:arm)
+    @by [:arm, :response] @astable begin
+        npatients = only(unique(:npatients))
+        :rate = 100 * length(:response) / npatients
+        :ci = round.(100 .* confint(BinomialTest(length(:response), npatients); level = 0.95); sigdigits = 3)
     end
-
-    lower = quantile(boot_stats, alpha / 2)
-    upper = quantile(boot_stats, 1 - alpha / 2)
-
-    return (estimate = estimate, lower = lower, upper = upper)
 end
 
-# Complete response rate with 95% CI
-cr_rate(x) = 100 * count(y -> classify_response(y) == :CR, x) / length(x)
-
-tx_cr = bootstrap_ci(final_tx.Nt, cr_rate)
-ctrl_cr = bootstrap_ci(final_ctrl.Nt, cr_rate)
-
-println("Complete Response Rates (95% CI):")
-println("  Treatment: $(round(tx_cr.estimate, digits = 1))% ($(round(tx_cr.lower, digits = 1))%-$(round(tx_cr.upper, digits = 1))%)")
-println("  Control: $(round(ctrl_cr.estimate, digits = 1))% ($(round(ctrl_cr.lower, digits = 1))%-$(round(ctrl_cr.upper, digits = 1))%)")
+simple_table(response_ci, [:arm => "Arm", :response => "Response", :rate => "Rate (%)", :ci => "95% CI"])
 ```
 
 ### Waterfall Plot
@@ -648,61 +591,31 @@ println("  Control: $(round(ctrl_cr.estimate, digits = 1))% ($(round(ctrl_cr.low
 ```{julia}
 #| fig-cap: "Waterfall plot showing percent change in tumor size from baseline. Green = Complete Response, Gray = Partial Response, Red = Progressive Disease."
 
-# Calculate percent change from baseline and classify response
-waterfall_data = @chain final_tx begin
-    @transform(
-        :pct_change = 100 .* (:Nt .- 1.0),
-        :response_cat = ifelse.(
-            :Nt .< 0.14, "Complete Response",
-            ifelse.(:Nt .< 1.0, "Partial Response", "Progressive Disease")
-        )
-    )
-    @orderby(:pct_change)
-    @transform(:rank = 1:length(:id))
+# Compute ranks of patients
+waterfall_data = @chain final_classify begin
+    @rtransform :pct_change = 100 * (:tumor_size - 1)
+    @orderby -:pct_change
+    @groupby :arm
+    @transform! :rank = 1:length(:arm)
 end
 
-# Create AoG waterfall plot
-waterfall_layer = data(waterfall_data) *
+# Data
+specs_data = data(waterfall_data) *
     mapping(
     :rank => "Patient (sorted by response)",
-    :pct_change => "Change from Baseline (%)",
-    color = :response_cat => "Response"
+    :pct_change => "Change from baseline (%)",
+    color = :response => renamer("CR" => "Complete Response", "PR" => "Partial Response", "SD" => "Stable Disease", "PD" => "Progressive Disease") => "Response",
+    col = :arm => sorter("Control", "Treatment") => "Arm",
 ) *
-    visual(BarPlot, gap = 0)
-wf_hline = mapping([-86, 0]) * visual(HLines, color = [:green, :black], linestyle = [:dot, :dash], linewidth = [2, 1])
+    visual(BarPlot, gap = 0, fillto = minimum(waterfall_data.tumor_size) / 2)
+# Reference lines
+specs_references = mapping([0, -86], linestyle = ["Baseline", "Complete Response"] => "Reference") * visual(HLines)
+
 draw(
-    waterfall_layer, # wf_hline,
-    axis = (
-        title = "Waterfall Plot: Treatment Arm Response",
-        xlabel = "Patient (sorted by response)",
-        ylabel = "Change from Baseline (%)",
-    ),
-    #xticks = ([1, nrow(waterfall_data)], ["1", "$(nrow(waterfall_data))"]),
-    # scales(Color = (; palette = [:green, :gray, :red])),
-    legend = (position = :bottom, framevisible = false)
+    specs_data + specs_references,
+    axis = (; yscale = Makie.pseudolog10, yticks = [-100, -10, 0, 10, 100, 1000, 10000], limits = (nothing, (-100, nothing))),
+    legend = (; position = :bottom, nbanks = 2)
 )
-# Create figure with legend outside
-fig = Figure(size = (1000, 400))
-ax = Axis(
-    fig[1, 1],
-    title = "Waterfall Plot: Treatment Arm Response",
-    xlabel = "Patient (sorted by response)",
-    ylabel = "Change from Baseline (%)"
-)
-
-ag = draw!(ax, waterfall_layer, scales(Color = (; palette = [:green, :gray, :red])))
-
-# Add reference lines (Makie)
-hlines!(ax, [-86], color = :green, linestyle = :dash, linewidth = 2)
-hlines!(ax, [0], color = :black, linewidth = 1)
-
-# Simplify x-axis ticks
-ax.xticks = ([1, nrow(waterfall_data)], ["1", "$(nrow(waterfall_data))"])
-
-# Add legend outside
-legend!(fig[1, 2], ag, framevisible = false)
-
-fig
 ```
 
 ### Response Rate Comparison
@@ -710,65 +623,21 @@ fig
 ```{julia}
 #| fig-cap: "Response rates by treatment arm with 95% bootstrap confidence intervals."
 
-# Calculate all response rates with CI using DataFrame operations
-response_data = DataFrame(
-    arm = String[],
-    response = String[],
-    rate = Float64[],
-    ci_lower = Float64[],
-    ci_upper = Float64[]
-)
-
-for (arm_name, arm_data) in [("Treatment", final_tx.Nt), ("Control", final_ctrl.Nt)]
-    for response_type in [:CR, :PR, :PD]
-        rate_fn = x -> 100 * count(y -> classify_response(y) == response_type, x) / length(x)
-        ci = bootstrap_ci(arm_data, rate_fn)
-        push!(response_data, (arm_name, string(response_type), ci.estimate, ci.lower, ci.upper))
-    end
-end
-
 # Create AoG grouped bar chart
-bar_layer = data(response_data) *
+bar_layer = data(response_ci) *
     mapping(
-    :response => "Response Category",
-    :rate => "Rate (%)",
-    color = :arm => "Arm",
-    dodge = :arm
-) *
-    visual(BarPlot)
-
-# Create figure with legend outside
-fig = Figure(size = (800, 450))
-ax = Axis(
-    fig[1, 1],
-    title = "Response Rates: Treatment vs Control",
-    xlabel = "Response Category",
-    ylabel = "Rate (%)",
-    limits = (nothing, (0, 100))
+    :response => renamer("CR" => "Complete Response", "PR" => "Partial Response", "SD" => "Stable Disease", "PD" => "Progressive Disease") => "Response",
+) * (
+    mapping(
+        :rate,
+        dodge = :arm,
+        color = :arm => sorter("Control", "Treatment") => "Arm",
+    ) *
+        visual(BarPlot) +
+        mapping(:ci => first, :ci => last, dodge_x = :arm) * visual(Rangebars; color = :black, linewidth = 1.5, whiskerwidth = 8)
 )
 
-ag = draw!(ax, bar_layer, scales(Color = (; palette = [:steelblue, :red])))
-
-# Add error bars manually (AoG doesn't support rangebars directly)
-# Calculate dodge positions for error bars
-response_cats = ["CR", "PR", "PD"]
-dodge_width = 0.4
-for (i, arm) in enumerate(["Treatment", "Control"])
-    arm_df = @subset(response_data, :arm .== arm)
-    for (j, resp) in enumerate(response_cats)
-        row = @subset(arm_df, :response .== resp)[1, :]
-        x_pos = j + (i - 1.5) * dodge_width
-        rangebars!(
-            ax, [x_pos], [row.ci_lower], [row.ci_upper],
-            color = :black, linewidth = 1.5, whiskerwidth = 8
-        )
-    end
-end
-
-# Add legend outside plot
-legend!(fig[1, 2], ag, framevisible = false)
-
-fig
+draw(bar_layer; axis = (; xticklabelrotation = π / 4, ylabel = "Rate (%)"))
 ```
 
 ## Practical Recommendations
@@ -783,22 +652,6 @@ fig
 | Pivotal VCT | 1,000-5,000 |
 | Regulatory submission | 5,000-10,000 |
 
-:::
-
-:::{.callout-warning}
-## Handling Integration Errors
-
-Some virtual patients may have extreme parameter combinations.
-Always use try-catch:
-
-```julia
-try
-    sim = simobs(model, subj, params, randeffs)
-catch e
-    @warn "Integration failed for patient $(subj.id)"
-    continue
-end
-```
 :::
 
 :::{.callout-tip}
@@ -823,16 +676,6 @@ Always set `Random.seed!()` at the start of VCT simulations for reproducible res
 
 5. **Visualizations** include time courses, spaghetti plots, waterfall plots,
    and response comparisons
-
-### Quick Reference
-
-| Function | Purpose |
-|:---------|:--------|
-| `compute_randeffs(f, g, k)` | Convert params to η |
-| `generate_vpop(n)` | Create virtual population |
-| `calibrate_to_response(vpop, target)` | ILP calibration |
-| `simulate_population(vpop, ...)` | Batch simulation |
-| `bootstrap_ci(data, stat)` | Bootstrap CIs |
 
 ### Position in ISCT Workflow
 

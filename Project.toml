@@ -1,10 +1,12 @@
 [deps]
 AlgebraOfGraphics = "cbdf2221-f076-402e-a563-3d30da359d67"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
 Copulas = "ae264745-0b69-425e-9d9d-cf662c5eec93"
 DataFramesMeta = "1313f7d8-7da2-5740-9ea0-a2ca25f37964"
 GlobalSensitivity = "af5da776-676b-467e-8baf-acd8249e4f0f"
 HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
+HypothesisTests = "09f84164-cd44-5f33-b23f-e6b0d136a0d5"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
