@@ -1,5 +1,5 @@
 ---
-title: "HBV Series: Virtual Clinical Trial Simulation"
+title: "Virtual Clinical Trial Simulation"
 subtitle: "Multi-Arm HBV Treatment Comparison with Functional Cure Endpoints"
 author:
   - Vijay Ivaturi

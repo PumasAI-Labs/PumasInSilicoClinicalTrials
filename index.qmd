@@ -28,8 +28,7 @@ The tutorials on this site walk through the six steps of the ISCT workflow:
 
 ### Tumor Burden Model
 
-A 3-parameter tumor burden model used as an introductory example.
-Tutorials are available now:
+A 3-parameter tumor burden model used as an introductory example:
 
 - [Model Introduction](tutorials/tb_01_model_introduction_tutorial.qmd)
 - [Copula Virtual Population](tutorials/tb_02_copula_vpop_tutorial.qmd)
@@ -40,8 +39,14 @@ Tutorials are available now:
 
 ### HBV QSP Model
 
-An 11-ODE hepatitis B virus QSP model that demonstrates the workflow on a more complex system.
-Tutorials for this model are in development and will be published in future updates.
+An 11-ODE hepatitis B virus QSP model that demonstrates the workflow on a more complex system:
+
+- [Model Introduction](tutorials/hbv_01_model_introduction_tutorial.qmd)
+- [Copula Virtual Population](tutorials/hbv_02_copula_vpop_tutorial.qmd)
+- [Global Sensitivity Analysis](tutorials/hbv_03_gsa_tutorial.qmd)
+- [Structural Identifiablity Analysis](tutorials/hbv_04_structural_identifiability_tutorial.qmd)
+- [ILP-Based Virtual Population Calibration](tutorials/hbv_05_ilp_calibration_tutorial.qmd)
+- [Virtual Clinical Trial Simulation](tutorials/hbv_06_vct_simulation_tutorial.qmd)
 
 ## Getting Started
 

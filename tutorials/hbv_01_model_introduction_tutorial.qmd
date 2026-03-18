@@ -1,5 +1,5 @@
 ---
-title: "HBV Series: Model Introduction"
+title: "Model Introduction"
 subtitle: "Understanding the HBV QSP Model and Treatment Mechanisms"
 author:
   - Vijay Ivaturi

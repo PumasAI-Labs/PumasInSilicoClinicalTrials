@@ -1,5 +1,5 @@
 ---
-title: "Global Sensitivity Analysis for Pharmacometric Models"
+title: "Global Sensitivity Analysis"
 author:
   - Narsimhan Sriram
   - Vijay Ivaturi

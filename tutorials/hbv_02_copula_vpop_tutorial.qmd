@@ -1,5 +1,5 @@
 ---
-title: "HBV Series: Virtual Population Generation with Copulas"
+title: "Virtual Population Generation using Gaussian Copulas"
 subtitle: "Generating Realistic HBV Virtual Patients"
 author:
   - Vijay Ivaturi

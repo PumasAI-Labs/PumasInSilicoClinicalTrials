@@ -1,5 +1,5 @@
 ---
-title: "HBV Series: ILP Calibration to Baseline HBsAg"
+title: "ILP-Based Virtual Population Calibration"
 subtitle: "Matching Virtual Population to Clinical Trial Characteristics"
 author:
   - Vijay Ivaturi

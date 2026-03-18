@@ -1,5 +1,5 @@
 ---
-title: "HBV Series: Global Sensitivity Analysis"
+title: "Global Sensitivity Analysis"
 subtitle: "Identifying Key Drivers of Treatment Response"
 author:
   - Vijay Ivaturi
