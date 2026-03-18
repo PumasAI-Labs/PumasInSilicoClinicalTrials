@@ -16,7 +16,7 @@ This is **Tutorial 2 of 6** in the HBV series.
 | 2 | **Copula Vpop Generation (current)** | ← You are here |
 | 3 | [Global Sensitivity Analysis](hbv_03_gsa_tutorial.qmd) | |
 | 4 | [Structural Identifiability](hbv_04_structural_identifiability_tutorial.qmd) | |
-| 5 | [MILP Calibration](hbv_05_milp_calibration_tutorial.qmd) | |
+| 5 | [ILP Calibration](hbv_05_ilp_calibration_tutorial.qmd) | |
 | 6 | [VCT Simulation](hbv_06_vct_simulation_tutorial.qmd) | |
 
 :::
@@ -49,13 +49,11 @@ This tutorial builds on:
 
 ```{julia}
 #| output: false
+using Pumas
 using Copulas
-using DataFrames
 using DataFramesMeta
 using Statistics
 using StatsBase
-using Pumas.Distributions
-using LogExpFunctions
 using AlgebraOfGraphics
 using CairoMakie
 using SummaryTables

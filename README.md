@@ -14,8 +14,8 @@ The package implements the six-step ISCT workflow from the paper:
 2. **Virtual population generation** — Sample plausible parameter sets using Gaussian copulas
 3. **Sensitivity analysis** — Identify influential parameters via Sobol and eFAST methods
 4. **Structural identifiability** — Assess whether model parameters are identifiable from outputs
-5. **MILP calibration** — Calibrate the virtual population to clinical distributions using
-   mixed-integer linear programming
+5. **ILP calibration** — Calibrate the virtual population to clinical distributions using integer
+   linear programming
 6. **Virtual clinical trial simulation** —
    Run multi-arm VCT simulations with the calibrated population
 
@@ -53,7 +53,7 @@ and treatment arms.
 | 2 | [Copula Virtual Population](tutorials/hbv_02_copula_vpop_tutorial.qmd) | Generate virtual HBV patients |
 | 3 | [Global Sensitivity Analysis](tutorials/hbv_03_gsa_tutorial.qmd) | Sensitivity analysis for 11-ODE system |
 | 4 | [Structural Identifiability](tutorials/hbv_04_structural_identifiability_tutorial.qmd) | Identifiability with multiple outputs |
-| 5 | [MILP Calibration](tutorials/hbv_05_milp_calibration_tutorial.qmd) | Multi-variable Vpop calibration |
+| 5 | [ILP Calibration](tutorials/hbv_05_ilp_calibration_tutorial.qmd) | Multi-variable Vpop calibration |
 | 6 | [VCT Simulation](tutorials/hbv_06_vct_simulation_tutorial.qmd) | Multi-arm treatment comparison |
 
 The [documentation website](https://pumasai.github.io/PumasVpopWorkflow/) currently publishes TB
@@ -85,6 +85,6 @@ quarto preview
 - **Models** — Tumor burden (3-parameter) and HBV QSP (11-ODE) Pumas models
 - **Sampling** — Gaussian copula-based virtual population generation
 - **Sensitivity** — Global sensitivity analysis (Sobol, eFAST) and structural identifiability
-- **Calibration** — MILP-based Vpop calibration to clinical distributions
+- **Calibration** — ILP-based Vpop calibration to clinical distributions
 - **Simulation** — VCT simulation framework with multi-arm support
 - **Visualization** — AlgebraOfGraphics + CairoMakie plotting utilities
