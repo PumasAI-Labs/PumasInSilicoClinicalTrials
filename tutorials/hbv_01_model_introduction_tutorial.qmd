@@ -31,7 +31,7 @@ In this tutorial, you will learn:
 
 - The biology of HBV infection and why it's difficult to cure
 - The structure of the 11-ODE QSP model capturing HBV dynamics
-- The treatment mechanisms of NUC (nucleoside analogs) and IFN (interferon)
+- The treatment mechanisms of NA (nucleoside analogs) and IFN (interferon)
 - How to define and simulate the HBV model in Pumas
 - Key clinical endpoints: Functional Cure and HBsAg Loss
 
@@ -77,7 +77,7 @@ Current treatments aim for different levels of control:
 :::{.callout-important}
 ## Why Functional Cure Matters
 
-Current treatments (NUC therapy) can suppress virus indefinitely,
+Current treatments (NA therapy) can suppress virus indefinitely,
 but patients must take medication for life.
 **Functional cure** means patients can stop treatment without viral rebound—
 the "holy grail" of HBV therapy.
@@ -85,7 +85,7 @@ the "holy grail" of HBV therapy.
 
 ### Treatment Modalities
 
-**Nucleoside/Nucleotide Analogs (NUCs):**
+**Nucleoside/Nucleotide Analogs (NAs):**
 
 - Examples: Entecavir, Tenofovir
 - Mechanism: Block viral replication by inhibiting reverse transcriptase
@@ -115,7 +115,7 @@ using Random
 
 ### The 11-ODE System
 
-The HBV QSP model tracks 11 state variables organized into three compartments:
+The HBV QSP model [@cortes2025HBV] tracks 11 state variables organized into three compartments:
 
 ```{mermaid}
 %%| echo: false
@@ -161,21 +161,21 @@ flowchart LR
 
 | State | Symbol | Description | Units |
 |:------|:-------|:------------|:------|
-| Target hepatocytes | T | Uninfected liver cells | cells |
+| Uninfected hepatocytes | T | Uninfected liver cells | cells |
 | Infected hepatocytes | I | Cells producing virus | cells |
-| Resistant hepatocytes | R | Cells resistant to cytotoxic effect | cells |
-| Virus | V | HBV DNA | copies/mL |
-| Surface antigen | S | HBsAg molecules | molecules |
+| Refractory hepatocytes | R | Cells resistant to cytotoxic effect | cells |
+| Viral load | V | HBV DNA | copies/mL |
+| Subviral particles containing surface antigen | S | HBsAg molecules | molecules |
 | Effector T-cells | E | Immune cells that kill infected cells | cells |
-| Dendritic cells | D | Antigen-presenting cells | cells |
+| Dendritic cells | P | Antigen-presenting cells | cells |
 | Delayed signal | Q | Immune activation delay | - |
 | Cytotoxic effect | X | Cumulative killing signal | - |
-| Dead cell marker | Y | Products from cell death | - |
-| ALT proxy | Z | Liver inflammation marker | - |
+| Dead cell marker | D | Products from cell death | - |
+| ALT proxy | A | Liver inflammation marker | - |
 
 ### Parameter Structure
 
-The model has **22 fixed parameters** (from literature/prior studies)
+The model has **23 fixed parameters** (from literature/prior studies)
 and **9 estimated parameters** (with inter-individual variability):
 
 **Estimated Parameters (with IIV):**
@@ -187,7 +187,7 @@ and **9 estimated parameters** (with inter-individual variability):
 | m | Immune killing rate | 2.5 |
 | k_Z | ALT production rate | -5.0 |
 | convE | Effector conversion | 2.5 |
-| epsNUC | NUC efficacy | -2.0 |
+| epsNA | NA efficacy | -2.0 |
 | epsIFN | IFN efficacy | -1.5 |
 | r_E_IFN | IFN immune boost | 0.3 |
 | k_D | DC activation | -4.0 |
@@ -209,267 +209,316 @@ This is equivalent to multiplicative IIV on the natural scale.
 
 Let's build the HBV model.
 
-### The Full Model
+### Model
 
 ```{julia}
 hbv_model = @model begin
     @param begin
-        # Fixed parameters
-        iniV ∈ RealDomain()
-        p_V ∈ RealDomain()
-        r_T ∈ RealDomain(lower = 0.0)
-        r_E ∈ RealDomain(lower = 0.0)
-        T_max ∈ RealDomain(lower = 0.0)
-        n ∈ RealDomain(lower = 0.0)
-        phiE ∈ RealDomain()
-        dE_X ∈ RealDomain(lower = 0.0)
-        phiQ ∈ RealDomain(lower = 0.0)
-        d_V ∈ RealDomain(lower = 0.0)
-        d_TI ∈ RealDomain(lower = 0.0)
-        d_E ∈ RealDomain()
-        d_Z ∈ RealDomain()
-        d_Q ∈ RealDomain()
-        rho ∈ RealDomain()
-        r_X ∈ RealDomain()
-        d_X ∈ RealDomain()
-        d_Y ∈ RealDomain()
-        Smax ∈ RealDomain()
-        phiS ∈ RealDomain()
-        nS ∈ RealDomain()
-        d_D ∈ RealDomain()
-        iniZ ∈ RealDomain()
+        # Estimated parameters
+        "Production/synthesis rate of HBsAg subviral particles from infected hepatocytes [molec./cell/d]"
+        tv_p_S ∈ RealDomain(; lower = exp10(2), upper = exp10(12))
+        "HBV infectivity [mL/virus/d]"
+        tv_β ∈ RealDomain(; lower = exp10(-10), upper = 1)
+        "Killing rate of infected hepatocytes by cellular immunity [mL/cells/d]"
+        tv_m ∈ RealDomain(; lower = exp10(-3), upper = exp10(5))
+        "Synthesis rate of antigen presenting cells [cells/d]"
+        tv_k_P ∈ RealDomain(; lower = 0.0)
+        "Synthesis rate of ALT from debris hepatocytes [10^3 U/cells/d]"
+        tv_k_A ∈ RealDomain(; lower = 0.0)
+        "PD efficacy of NA on HBV production []"
+        tv_ϵ_NA ∈ RealDomain(; lower = exp10(-5), upper = 1)
+        "PD efficacy of IFNα on HBV production []"
+        tv_ϵ_IFN ∈ RealDomain(; lower = exp10(-5), upper = 1)
+        "PD efficacy of IFNα on activation of cellular immunity []"
+        tv_r_E_IFN ∈ RealDomain(; lower = 1, upper = exp10(4))
+        "Scaling factor for observed effector CD4/8 T cell numbers []"
+        tv_conv_E ∈ RealDomain(; lower = 0.0)
 
-        # Estimated parameters (with IIV) - log10 scale
-        tvbeta ∈ RealDomain()
-        tvp_S ∈ RealDomain()
-        tvm ∈ RealDomain()
-        tvk_Z ∈ RealDomain()
-        tvconvE ∈ RealDomain()
-        tvepsNUC ∈ RealDomain()
-        tvepsIFN ∈ RealDomain()
-        tvr_E_IFN ∈ RealDomain()
-        tvk_D ∈ RealDomain()
-
-        # Inter-individual variability (9 parameters)
+        # IIV of estimated parameters in log10 scale
         Ω ∈ PDiagDomain(9)
 
-        # Residual error
-        σ_HBsAg ∈ RealDomain(lower = 0.0)
-        σ_V ∈ RealDomain(lower = 0.0)
+        # Fixed parameters
+        "Baseline of HBV [copies/mL]"
+        ini_V ∈ RealDomain(; lower = 0.0)
+        "Baseline of ALT [U/L]"
+        ini_A ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of uninfected hepatocytes [1/d]"
+        r_T ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of cellular immunity [1/d]"
+        r_E ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of innate immunity [1/d]"
+        r_X ∈ RealDomain(; lower = 0.0)
+        "Fraction of cellular immunity that killing uninfected and refractory cells []"
+        n ∈ RealDomain(; lower = 0.0)
+        "Max. rate of conversion of infected cells to refractory cells due to the action of innate immunity [1/d]"
+        ρ ∈ RealDomain(; lower = 0.0)
+        "Max. rate of conversion of refractory cells back to target cells in the absence of innate immune responses []"
+        ρ_o_ρ_r ∈ RealDomain(; lower = 0.0)
+        "Production/synthesis rate of HBV from infected hepatocytes [virus/cell/d]"
+        p_V ∈ RealDomain(; lower = 0.0)
+        "Death rate of infected hepatocytes [1/d]"
+        d_TI ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of HBV HBsAg subviral particles [1/d]"
+        d_V ∈ RealDomain(; lower = 0.0)
+        "Rate of systemic induction/recovery from exhaustion [1/d]"
+        d_Q ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of innate immunity [1/d]"
+        d_X ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of cellular immunity [1/d]"
+        d_E ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of antigen presenting cells [1/d]"
+        d_P ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of debris [1/d]"
+        d_D ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of ALT [1/d]"
+        d_A ∈ RealDomain(; lower = 0.0)
+        "Max. rate of exhastion [1/d]"
+        d_E_Q ∈ RealDomain(; lower = 0.0)
+        "Hepatocyte carrying capacity in the liver [cells/mL]"
+        T_max ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for the effect of systemic exhaustion []"
+        ϕ_Q ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for the activation of cellular immunity [cells/mL]"
+        ϕ_E ∈ RealDomain(; lower = 0.0)
+        "Max. inhibitory effect of HBsAg subviral particles on innate immunity []"
+        S_max ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for inhibitory effect of HBsAg subviral particles on the generation of innate immunity [μg/mL]"
+        ϕ_S ∈ RealDomain(; lower = 0.0)
+        "Hill coefficient for describing HBsAg-induced inhibition of innate immunity []"
+        nS ∈ RealDomain()
+        "Threshold of infected hepatocytes to produce dynamical switch from progressive disease to long-lasting control of HBV infection [cells/mL]"
+        I_threshold ∈ RealDomain(; lower = 0.0)
+
+        # Residual errors
+        σ_add_log10_HBsAg ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_HBsAg ∈ RealDomain(lower = 0.0)
+        σ_add_log10_HBV ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_HBV ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_ALT ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_CD8 ∈ RealDomain(lower = 0.0)
     end
 
+    #
     @random begin
         η ~ MvNormal(Ω)
     end
 
     # Time-varying covariates for treatment phases
-    @covariates dNUC dIFN
+    @covariates NA IFN
 
     @pre begin
-        # Individual parameters - additive on log10 scale
-        beta = tvbeta + η[1]
-        p_S = tvp_S + η[2]
-        m = tvm + η[3]
-        k_Z = tvk_Z + η[4]
-        convE = tvconvE + η[5]
-        epsNUC_ind = tvepsNUC + η[6]
-        epsIFN_ind = tvepsIFN + η[7]
-        r_E_IFN_ind = tvr_E_IFN + η[8]
-        k_D = tvk_D + η[9]
-
-        # Treatment effects (depend on dosing covariates)
-        eps_NUC = dNUC > 0 ? (dNUC < 1 ? epsNUC_ind / dNUC : epsNUC_ind) : 0.0
-        eps_IFN = dIFN > 0 ? (dIFN < 1 ? epsIFN_ind / dIFN : epsIFN_ind) : 0.0
-        rr_E_IFN = dIFN > 0 ? (dIFN < 1 ? 10^(r_E_IFN_ind * dIFN) : 10^r_E_IFN_ind) : 1.0
-
-        # Initial conditions
-        V_0 = 10^iniV
-        I_0 = d_V * V_0 / (10^p_V)
-        T_0 = T_max - I_0
-        S_0 = 10^p_S * I_0 / d_V
-        Z_0 = 10^iniZ
-        lambda_Z = (10^d_Z) * Z_0
+        # Individual parameters
+        # Logit-normal distribution of log10(p_S), scaled to range [2, 12]
+        p_S = exp10(10 * logistic(logit((log10(tv_p_S) - 2) / 10) + η[1]) + 2)
+        # Logit-normal distribution of log10(β), scaled to range [-10, 0]
+        β = exp10(10 * (logistic(logit(log10(tv_β) / 10 + 1) + η[2]) - 1))
+        # Logit-normal distribution of log10(m), scaled to range [-3, 5]
+        m = exp10(8 * logistic(logit((log10(tv_m) + 3) / 8) + η[3]) - 3)
+        # Normal distribution of log10(k_P)
+        k_P = tv_k_P * exp10(η[4])
+        # Normal distribution of log10(k_A)
+        k_A = tv_k_A * exp10(η[5])
+        # Logit-normal distribution of log10(ϵ_NA), scaled to range [-5, 0]
+        ϵ_NA = exp10(NA * 5 * (logistic(logit(log10(tv_ϵ_NA) / 5 + 1) + η[6]) - 1))
+        # Logit-normal distribution of log10(ϵ_IFN), scaled to range [-5, 0]
+        ϵ_IFN = exp10(IFN * 5 * (logistic(logit(log10(tv_ϵ_IFN) / 5 + 1) + η[7]) - 1))
+        # Logit-normal distribution of log10(r_E_IFN), scaled to range [0, 4]
+        r_E_IFN = exp10(IFN * 4 * logistic(logit(log10(tv_r_E_IFN) / 4) + η[8]))
+        # Normal distribution
+        conv_E = tv_conv_E * exp10(η[9])
     end
 
+    # Initial conditions
     @init begin
-        T = T_0
-        V = V_0
-        S = S_0
-        Z = Z_0
-        I = I_0
-    end
-
-    @vars begin
-        infection_active = I / (I + 0.0001)
-        SAg_ug_per_ml = (V + S) * (96 * 24000 * 1.0e6) / (6.023e23)
-
-        # HBsAg in IU/mL (log10 scale)
-        HBsAg_IU = SAg_ug_per_ml / 0.98
-        log_HBsAg = log10(max(HBsAg_IU, 0.04))
-
-        # Viral load (log10 copies/mL)
-        log_V = log10(max(V, 1.0e-6))
+        V = ini_V
+        I = d_V * V / p_V
+        T = T_max - I
+        S = p_S * I / d_V
+        A = ini_A
     end
 
     @dynamics begin
-        # Infected hepatocytes
-        I' = (10^beta) * T * V + r_T * I * (1 - (T + I + R) / T_max) -
-            (10^m) * rr_E_IFN * E * I - (10^rho) * X * I - d_TI * I
+        # Target uninfected hepatocytes
+        T' = -β * V * T + r_T * T * (1 - (T + Ieff + R) / T_max) -
+            d_TI * T + ρ_o_ρ_r * R - (m / n) * r_E_IFN * E * T
 
-        # Target hepatocytes
-        T' = -(10^beta) * T * V + r_T * T * (1 - (T + I * infection_active + R) / T_max) -
-            d_TI * T + (10^rho) * R / 100 - (10^(m - n)) * rr_E_IFN * E * T
+        # Infected hepatocytes
+        I' = β * V * T + r_T * I * (1 - (T + I + R) / T_max) -
+            ρ * X * I - d_TI * I - m * r_E_IFN * E * I
 
         # Resistant hepatocytes
-        R' = (10^rho) * X * I * infection_active + r_T * R * (1 - (T + I * infection_active + R) / T_max) -
-            (10^rho) * R / 100 - d_TI * R - (10^(m - n)) * rr_E_IFN * E * R
-
-        # Virus dynamics (NUC and IFN reduce production)
-        V' = (10^p_V) * 10^(eps_NUC + eps_IFN) * I * infection_active - d_V * V
-
-        # HBsAg dynamics
-        S' = (10^p_S) * I * infection_active - d_V * S
+        R' = ρ * X * Ieff - ρ_o_ρ_r * R + r_T * R * (1 - (T + Ieff + R) / T_max) -
+            d_TI * R - (m / n) * r_E_IFN * E * R
 
         # Dead cell marker
-        Y' = (10^m) * rr_E_IFN * E * I * infection_active +
-            (10^(m - n)) * rr_E_IFN * E * (T + R) - d_Y * Y
+        D' = m * r_E_IFN * E * Ieff + (m / n) * r_E_IFN * E * (T + R) - d_D * D
 
         # Immune response (ALT proxy)
-        Z' = lambda_Z + (10^k_Z) * Y - (10^d_Z) * Z
+        A' = d_A * (ini_A - A) + k_A * D
+
+        # HBsAg dynamics
+        S' = p_S * Ieff - d_V * S
+
+        # Viral load (NA and IFN reduce production)
+        V' = p_V * Ieff * ϵ_NA * ϵ_IFN - d_V * V
 
         # Dendritic cell activation
-        D' = (10^k_D) * I / (10^phiE + I) * infection_active - (10^d_D) * D
+        P' = k_P * (Ieff / (ϕ_E + Ieff)) - d_P * P
 
         # Effector T cells
-        E' = (10^d_E + r_E * E) * D - dE_X * E * Q^4 / (phiQ^4 + Q^4) - 10^d_E * E
+        E' = (d_E + r_E * E) * Peff - d_E_Q * E * (Q^4 / (ϕ_Q^4 + Q^4)) - d_E * E
 
         # Delayed effector signal
-        Q' = 10^d_Q * D - 10^d_Q * Q
+        Q' = d_Q * (Peff - Q)
 
         # Cytotoxic effect
-        X' = r_X * (1 - X) * (I / (10^phiE + I)) * infection_active *
-            (1 - Smax * SAg_ug_per_ml^nS / (phiS^nS + SAg_ug_per_ml^nS)) - d_X * X
+        X' = r_X * (1 - X) * (Ieff / (ϕ_E + Ieff)) *
+            (1 - S_max * (HBsAg_ug_mL^nS / (ϕ_S^nS + HBsAg_ug_mL^nS))) - d_X * X
     end
 
+    @vars begin
+        # Switch between progressive infection (I ≥ I_threshold) and clearance of infection (I < I_threshold)
+        # In the latter case, the system is forced to reach a steady state in which
+        # I = 0, viral load V = 0, HBsAg S = 0, and antigen presenting cells P = 0.
+        Ieff = ifelse(I < I_threshold, zero(I), I)
+        Peff = ifelse(I < I_threshold, zero(P), P)
+
+        # HBsAg [μg/mL]: Each particle of V and S is assumed to harbor 96 molecules of S envelope protein
+        f_molec2ug := 24000 * 1.0e6 / 6.022e23
+        HBsAg_ug_mL := 96 * (V + S) * f_molec2ug
+    end
+
+    # Error models: Values are log10-transformed
     @derived begin
-        # Observations with residual error
-        HBsAg_obs ~ @. Normal(log_HBsAg, σ_HBsAg)
-        V_obs ~ @. Normal(log_V, σ_V)
-    end
+        "HBsAg [IU/mL]"
+        log10_HBsAg ~ @. CombinedNormal(log10(HBsAg_ug_mL / 0.98e-3), σ_add_log10_HBsAg, σ_prop_log10_HBsAg)
 
-    @observed begin
-        # ALT proxy (log10)
-        log_ALT = @. log10(max(Z, 1.0e-6))
+        "Viral load [copies/mL]"
+        log10_HBV ~ @. CombinedNormal(log10(V), σ_add_log10_HBV, σ_prop_log10_HBV)
+
+        "ALT [U/L]"
+        log10_ALT ~ @. ProportionalNormal(log10(A), σ_prop_log10_ALT)
+
+        "CD8+ T cell counts [cells/mL]"
+        log10_CD8 ~ @. ProportionalNormal(log10(conv_E * E), σ_prop_log10_CD8)
     end
 end
 ```
 
-### Fixed Parameters
+### Parameters
+
+The following parameters are fixed and not varied between patients:
 
 ```{julia}
-# Fixed parameter values (not varied between patients)
+#| output: false
 hbv_fixed_params = (
-    iniV = -0.481486,      # Initial viral load (log10)
-    p_V = 2.0,             # Viral production rate (log10)
-    r_T = 1.0,             # Hepatocyte proliferation rate
-    r_E = 0.1,             # Effector cell expansion rate
-    T_max = 13600000.0,    # Maximum hepatocytes
-    n = 2.0,               # Difference in killing rate
-    phiE = 2.0,            # Half-saturation for immune activation (log10)
-    dE_X = 0.3,           # E to X conversion rate
-    phiQ = 0.8,            # Q saturation constant
-    d_V = 0.67,            # Virus clearance rate
-    d_TI = 0.0039,         # Hepatocyte death rate
-    d_E = -2.0,            # Effector cell death rate (log10)
-    d_Z = -0.328,          # Z clearance rate (log10)
-    d_Q = -2.414,          # Q clearance rate (log10)
-    rho = -3.0,            # Cell resistance conversion (log10)
-    r_X = 1.0,             # X growth rate
-    d_X = 0.2,             # X death rate
-    d_Y = 0.22,            # Y clearance rate
-    Smax = 1.0,            # Maximum HBsAg suppression
-    phiS = 0.147,          # HBsAg suppression saturation
-    nS = 0.486,            # HBsAg suppression Hill coefficient
-    d_D = -0.62157,        # D clearance rate (log10)
-    iniZ = 1.25,            # Initial Z value (log10)
+    ini_V = exp10(-0.481),
+    ini_A = exp10(1.25),
+    r_T = 1.0,
+    r_E = 0.1,
+    r_X = 1.0,
+    n = 100,
+    ρ = 0.001,
+    ρ_o_ρ_r = 1.0e-5,
+    p_V = 100.0,
+    d_TI = 0.0039,
+    d_V = 0.67,
+    d_Q = 0.00385,
+    d_X = 0.2,
+    d_E = 0.01,
+    d_P = 0.239,
+    d_D = 1.66,
+    d_A = 0.47,
+    d_E_Q = 0.3,
+    T_max = 1.36e7,
+    ϕ_Q = 0.8,
+    ϕ_E = 100.0,
+    S_max = 1.0,
+    ϕ_S = 0.1473,
+    nS = 0.486,
+    I_threshold = 1.0e-4,
 )
-
-println("Fixed parameters defined: ", length(hbv_fixed_params), " parameters")
 ```
 
-### Estimated Parameters
-
-Initial values of the estimated parameters:
+The estimates of the remaining parameters:
 
 ```{julia}
-hbv_estimated_init_params = (
-    tvbeta = -5.0,
-    tvp_S = 8.0,
-    tvm = 2.5,
-    tvk_Z = -5.0,
-    tvconvE = 2.5,
-    tvepsNUC = -2.0,
-    tvepsIFN = -1.5,
-    tvr_E_IFN = 0.3,
-    tvk_D = -4.0,
+#| output: false
+hbv_estimated_params = (;
+    tv_p_S = exp10(7.643),
+    tv_β = exp10(-4.358),
+    tv_m = exp10(1.618),
+    tv_k_P = exp10(-3.968),
+    tv_k_A = exp10(-4.869),
+    tv_ϵ_NA = exp10(-1.485),
+    tv_ϵ_IFN = exp10(-1.466),
+    tv_r_E_IFN = exp10(0.313),
+    tv_conv_E = exp10(2.745),
 
-    Ω = Diagonal(ones(9)),
+    Ω = Diagonal([0.632^2, 2.489^2, 0.827^2, 1.292^2, 1.156^2, 1.583^2, 1.626^2, 2.739^2, 1.248^2]),
 
-    σ_HBsAg = 0.1,
-    σ_V = 0.1,
+    σ_add_log10_HBsAg = 0.0972,
+    σ_prop_log10_HBsAg = 2.2204e-16,
+    σ_add_log10_HBV = 0.3206,
+    σ_prop_log10_HBV = 0.0838,
+    σ_prop_log10_ALT = 0.0478,
+    σ_prop_log10_CD8 = 0.4149,
 )
+```
+
+Taken together, the full set of model parameters is
+
+```{julia}
+#| output: false
+hbv_params = merge(hbv_fixed_params, hbv_estimated_params)
 ```
 
 ## Part 3: Understanding Treatment Mechanisms
 
-### NUC (Nucleoside Analog) Effect
+### Nucleoside Analog Effect
 
-NUCs block viral production by inhibiting reverse transcriptase:
+Nucleoside analogs (NAs) block viral production by inhibiting reverse transcriptase.
+During treatment with NAs (`NA = true`),
+$\epsilon_{NA} < 1$ and hence the viral production is reduced:
 
-$$V' = 10^{p_V} \cdot \underbrace{10^{\epsilon_{NUC} + \epsilon_{IFN}}}_{\text{treatment reduction}} \cdot I - d_V \cdot V$$
+$$V' = p_V \cdot {\epsilon_{NA} \epsilon_{IFN}}_{\text{treatment reduction}} \cdot I - d_V \cdot V$$
 
-When `dNUC = 1`:
+### Interferon Effect
 
-- `eps_NUC` is active (negative value, e.g., -2.0)
-- Viral production drops by factor of $10^{-2} = 0.01$ (100-fold reduction)
+Interferon (IFN) has dual mechanisms:
 
-### IFN (Interferon) Effect
-
-IFN has dual mechanisms:
-
-1. **Viral suppression** (like NUC):
-   - Reduces viral production via `eps_IFN`
+1. **Viral suppression** (like NA):
+   - Reduces viral production via $\epsilon_{IFN}$
 
 2. **Immune enhancement**:
-   - Boosts effector T-cell killing via `rr_E_IFN`
-   - $\text{killing rate} = m \cdot \underbrace{rr\_E\_IFN}_{\text{IFN boost}} \cdot E \cdot I$
+   - Boosts effector T-cell killing via `r_E_IFN`:
+     $\text{killing rate} = m \cdot \underbrace{r\_E\_IFN}_{\text{IFN boost}} \cdot E \cdot I$
 
 ### Treatment Arms
 
 The model supports four treatment scenarios:
 
-| Arm | dNUC | dIFN | Description |
+| Arm | NA | IFN | Description |
 |:----|:-----|:-----|:------------|
-| 0 | 0 | 0 | Control (no treatment) |
-| 1 | 1 | 0 | NUC only |
-| 2 | 0 | 1 | IFN only |
-| 3 | 1 | 1 | NUC + IFN combination |
+| 0 | false | false | Control (no treatment) |
+| 1 | true | false | NA only |
+| 2 | false | true | IFN only |
+| 3 | true | true | NA + IFN combination |
 
 ## Part 4: Basic Simulation
 
-Let's simulate a typical patient without treatment to see natural disease progression.
+Let's simulate a typical patient to see the natural disease progression.
+The model starts from a small viral inoculum and establishes chronic infection over 5 years,
+mimicking the clinical course from initial infection to chronic steady state.
 
 ### Create a Subject
 
 ```{julia}
-# Default population parameters
-pop_params = merge(hbv_fixed_params, hbv_estimated_init_params)
-
-# Create a subject with no treatment
+# Create a subject with no treatment — simulate 5 years of natural history
 subject_no_tx = Subject(
     id = "No Treatment",
-    covariates = (dNUC = 0, dIFN = 0),
-    time = 0.0:7.0:365.0  # Weekly for 1 year
+    covariates = (NA = false, IFN = false),
+    time = 0.0:7.0:(5 * 365.0)  # Weekly for 5 years
 )
 ```
 
@@ -479,9 +528,9 @@ subject_no_tx = Subject(
 sim_no_tx = simobs(
     hbv_model,
     subject_no_tx,
-    pop_params,
-    zero_randeffs(hbv_model, subject_no_tx, pop_params);
-    obstimes = 0.0:1.0:365.0,
+    hbv_params,
+    zero_randeffs(hbv_model, subject_no_tx, hbv_params);
+    obstimes = 0.0:1.0:(5 * 365.0),
     simulate_error = false
 )
 
@@ -491,207 +540,277 @@ sim_df = DataFrame(sim_no_tx)
 ### Visualize Natural History
 
 ```{julia}
-#| fig-cap: "HBV natural history without treatment. Top: Viral load (HBV DNA). Bottom: HBsAg levels. Both remain elevated without intervention."
+#| fig-cap: "HBV natural history without treatment over 5 years. Top: Viral load (HBV DNA) rises to chronic levels. Bottom: HBsAg reaches a chronic set point. Both remain elevated without intervention."
 
 # Prepare data in long format for AoG
 sim_long = stack(
-    sim_df[:, [:time, :log_V, :log_HBsAg]],
-    [:log_V, :log_HBsAg],
-    variable_name = :Biomarker,
-    value_name = :Value
+    sim_df[:, [:time, :log10_HBV, :log10_HBsAg, :log10_ALT, :log10_CD8]],
+    Not(:time),
+    variable_name = :biomarker,
 )
-sim_long.Biomarker = replace(
-    sim_long.Biomarker,
-    "log_V" => "HBV DNA (copies/mL)",
-    "log_HBsAg" => "HBsAg (IU/mL)"
-)
+@rsubset! sim_long isfinite(:value)
 
 # Create plot with AoG
-plt = data(sim_long) *
-    mapping(:time => "Time (days)", :Value => "log₁₀ Concentration") *
-    mapping(row = :Biomarker, color = :Biomarker) *
-    #), color = :Biomarker) *
-    visual(Lines, linewidth = 2) +
-    data((; Value = [log10(0.05)])) * mapping(:Value => "log₁₀ Concentration") * mapping(row = AlgebraOfGraphics.direct("HBsAg (IU/mL)")) * (visual(HLines; color = :green, linestyle = :dash, label = "FC Threshold")) #+ #visual(Annotations))
-#    mapping(:Value => AlgebraOfGraphics.direct(log10(0.05)), ) * visual(HLines)
+biomarker_mapping = :biomarker => renamer("log10_HBV" => "HBV DNA [copies/mL]", "log10_HBsAg" => "HBsAg [IU/mL]", "log10_ALT" => "ALT [U/L]", "log10_CD8" => "CD8+ T Cells [cells/mL]")
+specs = data(sim_long) *
+    mapping(:time => (t -> t / 365) => "Time [years]", :value => "log₁₀ Concentration") *
+    mapping(layout = biomarker_mapping) *
+    visual(Lines, linewidth = 2)
 
-draw(plt, scales(Color = (; palette = [:red, :blue])); legend = (; show = false))
-
-# Add functional cure threshold to the HBsAg panel (second row)
-# In AoG 0.7+, ag is a Matrix{AxisEntries} - get the axis from the second row
-#ax_hbsag = ag[2, 1].axis  # Second row, first column
-#hlines!(ax_hbsag, [log10(0.05)], color = :green, linestyle = :dash, linewidth = 2)
-#text!(ax_hbsag, 300, log10(0.05) + 0.3, text = "FC Threshold", fontsize = 12, color = :green)
+draw(specs; facet = (; linkyaxes = false))
 ```
+
+## Part 5: Treatment Scenarios
 
 ### Compare Treatment Scenarios
 
-```{julia}
-#| fig-cap: "Effect of treatment on HBsAg levels. NUC (blue) gradually reduces HBsAg. IFN (green) provides faster decline through immune enhancement. Combination (purple) achieves the fastest reduction."
+The key to meaningful treatment comparison is a **multi-phase clinical protocol**:
+the virus must first establish chronic infection before treatment begins.
 
-# Create subjects with different treatment covariates and collect all results
+1. **Untreated phase** (5 years): Virus establishes chronic steady state
+2. **Treatment phase** (48 weeks): Arm-specific intervention
+3. **Off-treatment phase** (24 weeks): Assess durability of response
+
+```{julia}
+#| output: false
+t_chronic = 5 * 365  # 5 years: establish chronic infection
+t_eot = t_chronic + 48 * 7 # end of 48-week treatment
+t_end = t_eot + 24 * 7 # end of 24-week follow-up
+```
+
+```{julia}
+#| fig-cap: "Effect of treatment on biomarkers in chronic HBV (5 years of untreated chronic infection) for a typical patient ($\eta = 0$). NA reduces HBsAg gradually, IFN provides immune-mediated decline, and combination of NA and IFN achieves the steepest reduction. Gray dashed line marks end of treatment (week 48)."
+
+# Create subjects with time-varying covariates for each treatment arm
 treatments = [
-    ("No Treatment", 0, 0),
-    ("NUC Only", 1, 0),
-    ("IFN Only", 0, 1),
-    ("NUC + IFN", 1, 1),
+    ("No treatment", false, false),
+    ("NA only", true, false),
+    ("IFN only", false, true),
+    ("NA + IFN", true, true),
 ]
-
-# Build DataFrame with all treatment arms
-all_sims = DataFrame()
-for (label, dnuc, difn) in treatments
-    subj = Subject(
-        id = label,
-        covariates = (dNUC = dnuc, dIFN = difn),
-        observations = (HBsAg_obs = nothing, V_obs = nothing),
-        time = 0.0:7.0:365.0
+pop = map(treatments) do (id, tx_NA, tx_IFN)
+    return Subject(;
+        id,
+        covariates_time = [0.0, t_chronic, t_eot],
+        covariates = (
+            NA = [false, tx_NA, false],   # treatment only during Phase 2
+            IFN = [false, tx_IFN, false],
+        ),
     )
-
-    sim = simobs(
-        hbv_model, subj, pop_params,
-        zero_randeffs(hbv_model, subj, pop_params);
-        obstimes = 0.0:1.0:365.0,
-        simulate_error = false
-    )
-
-    df = DataFrame(sim)
-    df.Treatment = fill(label, nrow(df))
-    append!(all_sims, df)
 end
 
-# Set treatment order for legend
-all_sims.Treatment = categorical(
-    all_sims.Treatment,
-    levels = ["No Treatment", "NUC Only", "IFN Only", "NUC + IFN"]
+# Simulate all arms for a "typical" patient (η = 0)
+sims = simobs(
+    hbv_model,
+    pop,
+    hbv_params,
+    zero_randeffs(hbv_model, pop, hbv_params);
+    obstimes = 0:t_end,
+    simulate_error = false,
 )
 
-# Create AoG plot
-plt = data(all_sims) *
-    mapping(
-    :time => "Time (days)", :log_HBsAg => "log₁₀ HBsAg (IU/mL)",
-    color = :Treatment
-) *
-    visual(Lines, linewidth = 2)
-
-fig = Figure(size = (900, 500))
-ax = Axis(fig[1, 1], title = "HBsAg Dynamics by Treatment Arm")
-ag = draw!(ax, plt, scales(Color = (; palette = [:gray, :blue, :green, :purple])))
-
-# Add functional cure threshold (Makie annotation)
-hlines!(ax, [log10(0.05)], color = :black, linestyle = :dash, linewidth = 2)
-text!(ax, 10, log10(0.05) + 0.3, text = "FC Threshold", fontsize = 12)
-
-# Add legend outside the plot
-legend!(fig[1, 2], ag, framevisible = false)
-
-fig
-```
-
-## Part 5: Clinical Endpoints
-
-### Defining Endpoints
-
-```{julia}
-# Clinical thresholds
-const LOQ_HBsAg = 0.05  # IU/mL
-const LOQ_V = 25.0      # copies/mL
-
-"""
-    is_functional_cure(log_hbsag, log_v)
-
-Determine if a patient has achieved functional cure.
-"""
-function is_functional_cure(log_hbsag::Real, log_v::Real)
-    return log_hbsag < log10(LOQ_HBsAg) && log_v < log10(LOQ_V)
+# Combine into dataframe
+df_sims = @chain DataFrame(sims) begin
+    @rsubset! :time >= t_chronic
+    stack(_, ["log10_HBV", "log10_HBsAg", "log10_ALT", "log10_CD8"], ["time", "id"]; variable_name = "biomarker")
+    @rsubset! isfinite(:value)
 end
 
-"""
-    is_hbsag_loss(log_hbsag)
+# Plot simulations
+biomarker_mapping = :biomarker => renamer("log10_HBV" => "HBV DNA [copies/mL]", "log10_HBsAg" => "HBsAg [IU/mL]", "log10_ALT" => "ALT [U/L]", "log10_CD8" => "CD8+ T Cells [cells/mL]")
+specs = (
+    data(df_sims) *
+        mapping(
+        :time => (t -> (t - t_chronic) / 7) => "Time after treatment start [week]",
+        color = :id => sorter("No treatment", "NA only", "IFN only", "NA + IFN") => "Treatment",
+        layout = biomarker_mapping,
+    ) *
+        visual(Lines; color = (:blue, 0.2)) +
+        data([(; value = 1.4, biomarker = "log10_HBV"), (; value = log10(0.05), biomarker = "log10_HBsAg")]) * mapping(linestyle = AlgebraOfGraphics.direct("Functional cure") => "Threshold") * visual(HLines)
+) * mapping(:value => "log₁₀ concentration", layout = biomarker_mapping)
 
-Determine if a patient has achieved HBsAg loss.
-"""
-function is_hbsag_loss(log_hbsag::Real)
-    return log_hbsag < log10(LOQ_HBsAg)
-end
-
-println("Endpoint definitions:")
-println("  HBsAg Loss: HBsAg < $(LOQ_HBsAg) IU/mL (log10 < $(round(log10(LOQ_HBsAg), digits = 2)))")
-println("  Functional Cure: HBsAg Loss AND HBV DNA < $(LOQ_V) copies/mL")
+draw(specs; axis = (; xticks = [0, 24, 48, 72]), facet = (; linkxaxes = true, linkyaxes = false))
 ```
 
-### Treatment Phases
+### Clinical Endpoints
 
-A complete HBV VCT simulates multiple phases:
+Common clinical endpoints are:
 
-```{julia}
-# Treatment phase durations
-const HBV_PHASES = (
-    untreated = 5 * 365,       # 5 years - establish steady state
-    nuc_background = 4 * 365,  # 4 years - NUC background (suppressed patients)
-    treatment = 48 * 7,        # 48 weeks - active treatment
-    off_treatment = 24 * 7,     # 24 weeks - follow-up
-)
+1. *HBsAg loss*: HBsAg < 0.05 IU/mL at 24 weeks post-treatment.
 
-println("HBV VCT Treatment Phases:")
-println("  1. Untreated: $(HBV_PHASES.untreated) days ($(HBV_PHASES.untreated ÷ 365) years)")
-println("  2. NUC Background: $(HBV_PHASES.nuc_background) days ($(HBV_PHASES.nuc_background ÷ 365) years)")
-println("  3. Active Treatment: $(HBV_PHASES.treatment) days ($(HBV_PHASES.treatment ÷ 7) weeks)")
-println("  4. Off-Treatment: $(HBV_PHASES.off_treatment) days ($(HBV_PHASES.off_treatment ÷ 7) weeks)")
-println("  Total: $(sum(HBV_PHASES)) days")
-```
+2. *Functional cure*: Undetectable HBV DNA < 10^1.4 copies/mL
+   and HBsAg < 0.05 IU/mL at 24 weeks post-treatment.
+
+:::{.callout-important}
+## Why does the typical patient not achieve functional cure?
+
+Notice that HBsAg barely declines during treatment and rebounds immediately when treatment stops.
+This is **expected behavior** — it reflects a key clinical reality of HBV therapy.
+
+**HBsAg production is not directly reduced by drugs.**
+Looking at the ODE: $S' = p_S \cdot I - d_V \cdot S$.
+Neither NA nor IFN appear in this equation.
+While HBsAg is always cleared at rate $d_V$,
+its production ($p_S \cdot I$) depends entirely on the number of infected cells.
+For HBsAg to decline meaningfully, $I$ itself must be reduced.
+
+**Infected cell clearance requires immune activation.**
+$I$ decreases through immune killing ($m \cdot E \cdot I$),
+but in chronic infection the effector T cells ($E$) are exhausted (high $Q$ suppresses $E$).
+The typical patient's immune system cannot clear $I$ below the critical threshold
+($10^{-4}$~cells/mL).
+
+**Functional cure requires the threshold switch.**
+When $I$ drops below $10^{-4}$~cells/mL,
+the model transitions to a "cured" state where viral and HBsAg production stops entirely.
+At population mean parameters, $I$ never reaches this threshold —
+which is why the typical patient rebounds after treatment.
+
+**Only patients with favorable random effects achieve FC.**
+Patients with stronger immune killing (higher $m$), better IFN response (higher $r^{E}_{IFN}$),
+and less exhaustion can push $I$ below threshold during treatment.
+This matches clinical observations: FC rates are only ~5–15% with IFN-based regimens.
+We demonstrate this mechanism below.
+:::
 
 ## Part 6: Population Variability Preview
 
-Let's see how parameter variability affects outcomes.
+Let's see how parameter variability affects outcomes using the multi-phase protocol.
+We use the **estimated IIV** from the NLME fit to generate virtual patients
+and simulate 50 patients to capture the range of outcomes.
 
 ```{julia}
-#| fig-cap: "HBsAg dynamics with inter-individual variability. Different patients (colors) show varying treatment responses due to random effects on parameters."
+#| fig-cap: "Biomarker dynamics with inter-individual variability under NA+IFN treatment. Each line is a virtual patient sampled from the estimated population distribution. Most patients rebound after treatment stops (week 48), but patients with favorable immune parameters show steeper HBsAg decline."
 
-Random.seed!(123)
-
-# Sample a few random patients and collect into a DataFrame
-n_patients = 10
-using LinearAlgebra: Diagonal
-params_with_iiv = merge(pop_params, (Ω = Diagonal(fill(0.3, 9)),))
-
-all_patients = DataFrame()
-for i in 1:n_patients
-    subj = Subject(
-        id = i,
-        covariates = (dNUC = 1, dIFN = 1),
-        observations = (HBsAg_obs = nothing, V_obs = nothing),
-        time = 0.0:7.0:365.0
+# Simulate 50 patients with IIV using the estimated Ω
+n_patients = 50
+sims = map(1:n_patients) do id
+    subj = Subject(;
+        id,
+        covariates_time = [0.0, t_chronic, t_eot],
+        covariates = (
+            NA = [false, true, false],
+            IFN = [false, true, false],
+        ),
     )
 
+    # Simulate with IIV:
+    # Sampling of random effects is repeated until random effects allow for successful simulation of the dynamics
+    randeffs = sample_randeffs(hbv_model, subj, hbv_params)
     sim = simobs(
-        hbv_model, subj, params_with_iiv;
-        obstimes = 0.0:1.0:365.0,
+        hbv_model, subj, hbv_params, randeffs;
+        obstimes = 0:t_end,
         simulate_error = false
     )
+    while !isvalid(sim)
+        randeffs = sample_randeffs(hbv_model, subj, hbv_params)
+        sim = simobs(
+            hbv_model, subj, hbv_params, randeffs;
+            obstimes = 0:t_end,
+            simulate_error = false
+        )
+    end
 
-    df = DataFrame(sim)
-    df.Patient = fill(string(i), nrow(df))
-    append!(all_patients, df)
+    return sim
 end
 
-# Create AoG plot with patient as grouping variable
-plt = data(all_patients) *
-    mapping(
-    :time => "Time (days)", :log_HBsAg => "log₁₀ HBsAg (IU/mL)",
-    group = :Patient
-) *
-    visual(Lines, linewidth = 1.5, color = (:steelblue, 0.5))
+# Combine into dataframe
+df_sims = @chain DataFrame(sims) begin
+    @rsubset! :time >= t_chronic
+    stack(_, ["log10_HBV", "log10_HBsAg", "log10_ALT", "log10_CD8"], ["time", "id"]; variable_name = "biomarker")
+    @rsubset! isfinite(:value)
+end
 
-fig = Figure(size = (900, 500))
-ax = Axis(fig[1, 1], title = "HBsAg Variability (NUC + IFN Treatment)")
-draw!(ax, plt)
+# Plot simulations
+biomarker_mapping = :biomarker => renamer("log10_HBV" => "HBV DNA [copies/mL]", "log10_HBsAg" => "HBsAg [IU/mL]", "log10_ALT" => "ALT [U/L]", "log10_CD8" => "CD8+ T Cells [cells/mL]")
+specs = (
+    data(df_sims) *
+        mapping(
+        :time => (t -> (t - t_chronic) / 7) => "Time after treatment start [week]",
+        group = :id,
+        layout = biomarker_mapping,
+    ) *
+        visual(Lines; color = (:blue, 0.2)) +
+        data([(; value = 1.4, biomarker = "log10_HBV"), (; value = log10(0.05), biomarker = "log10_HBsAg")]) * visual(HLines; label = "Functional cure threshold")
+) * mapping(:value => "log₁₀ concentration", layout = biomarker_mapping)
 
-# Add threshold (Makie annotation)
-hlines!(ax, [log10(0.05)], color = :green, linestyle = :dash, linewidth = 2)
-text!(ax, 10, log10(0.05) + 0.3, text = "FC Threshold", fontsize = 12, color = :green)
-
-fig
+draw(specs; axis = (; xticks = [0, 24, 48, 72]), facet = (; linkxaxes = true, linkyaxes = false), legend = (; position = :bottom))
 ```
+
+### Functional Cure Mechanism: Responder vs Non-Responder
+
+To understand *how* functional cure works in this model,
+let's compare two patients with NA+IFN treatment: the **typical patient** (population mean,
+η = 0) and a **responder** with favorable random effects (stronger immune killing
+and better IFN response).
+
+The key state variable is **infected cells (I)**:
+when I crosses below the threshold ($10^{-4}$ cells/mL),
+the model switches to a "cured" state where viral and HBsAg production ceases permanently.
+
+```{julia}
+#| fig-cap: "Functional cure mechanism. The responder's stronger immune response drives the concentration of infected cells below the threshold, triggering the switch to durable viral control. Thereby, the responder achieves HBsAg loss that persists off-treatment, while the typical patient rebounds."
+
+# Construct a typical patient and a responder
+covariates_time = [0.0, t_chronic, t_eot]
+covariates = (NA = [false, true, false], IFN = [false, true, false])
+# Typical patient: η = 0
+typical_subject = Subject(; id = "Typical", covariates_time, covariates)
+typical_randeffs = zero_randeffs(hbv_model, typical_subject, hbv_params)
+# Responder: favorable random effects
+# Higher m (immune killing, η[3] > 0) and higher r_E_IFN (IFN boost, η[8] > 0)
+responder_subject = Subject(; id = "Responder", covariates_time, covariates)
+responder_randeffs = (; η = [0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0])
+
+# Simulate both
+sims = simobs(
+    hbv_model, [typical_subject, responder_subject], hbv_params,
+    [typical_randeffs, responder_randeffs];
+    obstimes = 0:t_end,
+    simulate_error = false,
+)
+
+# Combine into DataFrame
+df_sims = @chain DataFrame(sims) begin
+    @rsubset! :time >= t_chronic
+    @rtransform! :log10_I = log10(:I)
+    stack(_, ["log10_I", "log10_HBV", "log10_HBsAg", "log10_ALT", "log10_CD8"], ["time", "id"]; variable_name = "biomarker")
+end
+
+# Plot simulations
+biomarker_mapping = :biomarker => renamer("log10_I" => "Infected cells [cells/mL]", "log10_HBV" => "HBV DNA [copies/mL]", "log10_HBsAg" => "HBsAg [IU/mL]", "log10_ALT" => "ALT [U/L]", "log10_CD8" => "CD8+ T Cells [cells/mL]")
+specs = (
+    data(df_sims) *
+        mapping(
+        :time => (t -> (t - t_chronic) / 7) => "Time after treatment start [week]",
+        color = :id => "Patient",
+        layout = biomarker_mapping,
+    ) *
+        visual(Lines) +
+        data([(; value = 1.4, biomarker = "log10_HBV"), (; value = log10(0.05), biomarker = "log10_HBsAg"), (; value = -4, biomarker = "log10_I")]) * mapping(linestyle = AlgebraOfGraphics.direct(["Functional cure", "Functional cure", "Infected cells"]) => "Threshold") * visual(HLines)
+) * mapping(:value => "log₁₀ concentration", layout = biomarker_mapping)
+
+draw(specs; axis = (; xticks = [0, 24, 48, 72]), facet = (; linkxaxes = true, linkyaxes = false), legend = (; position = :bottom, nbanks = 2))
+```
+
+:::{.callout-tip}
+## The Threshold Switch is Key
+
+The responder achieves functional cure because their stronger immune response (higher $m$
+and $r_{E,IFN}$) drives infected cells below $10^{-4}$ cells/mL.
+At that point, the model's threshold switch activates:
+
+- Viral production stops: $V' = -d_V \cdot V$ (exponential decay)
+- HBsAg production stops: $S' = -d_V \cdot S$ (exponential decay)
+- Immune activation ceases, preventing overshoot
+
+This creates a **stable cured equilibrium** — even after treatment stops,
+the virus cannot re-establish because the immune system maintains control.
+
+In a Virtual Clinical Trial (Tutorial 6),
+we sample thousands of virtual patients from the estimated population distribution to predict
+realistic FC rates.
+:::
 
 ## Summary
 
@@ -703,17 +822,15 @@ fig
 2. **The 11-ODE QSP model captures:**
    - Hepatocyte populations (T, I, R)
    - Viral dynamics (V, S)
-   - Immune response (E, D, Q, X, Y, Z)
+   - Immune response (E, P, Q, X, D, A)
 
 3. **Treatment mechanisms:**
-   - NUC: Blocks viral production
+   - NA: Blocks viral production
    - IFN: Enhances immune killing + reduces viral production
 
-4. **Parameters are on log10 scale** with additive random effects
-
-5. **Clinical endpoints:**
+4. **Clinical endpoints:**
    - HBsAg Loss: HBsAg < 0.05 IU/mL
-   - Functional Cure: HBsAg Loss + Viral Suppression off-treatment
+   - Functional Cure: HBsAg Loss + viral suppression (HBV DNA < 10^1.4 copies/mL)
 
 ### Model Complexity Comparison
 
