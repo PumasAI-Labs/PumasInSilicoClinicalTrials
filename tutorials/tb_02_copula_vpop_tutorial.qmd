@@ -522,7 +522,7 @@ tumors with more treatment-sensitive cells tend to grow more slowly.
 #| fig-cap: "Corner plot showing all pairwise parameter relationships and marginal distributions. The negative correlation between f and g (r = -0.64) is clearly visible."
 pairplot(
     vpop => (
-        PairPlots.Scatter(),
+        PairPlots.Scatter(; rasterize = 1),
         PairPlots.MarginHist(),
         PairPlots.Calculation(corspearman),
     ),
@@ -532,23 +532,6 @@ pairplot(
         :k => "k (death rate)",
     )
 )
-```
-
-## Part 6: Optional - Save Results
-
-The generated virtual population will be used in subsequent tutorials.
-You can optionally save it to a CSV file.
-
-```{julia}
-#| output: false
-# Optional: Save results for use in separate session
-# Uncomment the following lines to save:
-
-# using CSV
-# CSV.write(joinpath(@__DIR__, "outputs", "vpop_tumor_burden.csv"), vpop)
-
-# To load in next tutorial:
-# vpop = CSV.read(joinpath(@__DIR__, "outputs", "vpop_tumor_burden.csv"), DataFrame)
 ```
 
 ## Practical Recommendations

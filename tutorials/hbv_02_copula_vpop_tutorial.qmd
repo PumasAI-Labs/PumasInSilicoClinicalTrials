@@ -597,10 +597,10 @@ draw(specs_vpop + specs_median; axis = (; xlabel = "log₁₀ value", ylabel = "
 ### Corner Plot: All Pairwise Relationships
 
 ```{julia}
-#| fig-cap: "Corner plot showing all pairwise parameter relationships and marginal distributions. Spearman correlations are shown in the upper triangle."
+#| fig-cap: "Corner plot showing all pairwise parameter relationships and marginal distributions."
 pairplot(
-    log10.(vpop[:, param_cols]) => (
-        PairPlots.Scatter(),
+    log10.(vpop) => (
+        PairPlots.Scatter(; rasterize = 1),
         PairPlots.MarginHist(),
         PairPlots.Calculation(corspearman),
     ),
