@@ -251,8 +251,8 @@ tumor_burden_model_gsa = @model begin
         g = tvg * exp(η[2])
         # k: log-normal transformation (positive value)
         # Additionally, treatment affects death rate:
-        # treatment = 0 → control arm (no killing)
-        # treatment = 1 → treatment arm (killing at rate tvk * exp(η[3]))
+        # treatment = false → control arm (no killing)
+        # treatment = true → treatment arm (killing at rate tvk * exp(η[3]))
         k = treatment * tvk * exp(η[3])
     end
 
@@ -320,7 +320,7 @@ GSA requires a "subject" to provide time points and covariates:
 ```{julia}
 subject = Subject(
     id = 1,
-    covariates = (treatment = 1,),  # Treatment arm (drug active)
+    covariates = (; treatment = true),  # Treatment arm (drug active)
     time = [0, 18 * 7], # 18 weeks of treatment
 )
 ```
@@ -701,8 +701,8 @@ tumor_burden_model_gsa_multiple = @model begin
         g = tvg * exp(η[2])
         # k: log-normal transformation (positive value)
         # Additionally, treatment affects death rate:
-        # treatment = 0 → control arm (no killing)
-        # treatment = 1 → treatment arm (killing at rate tvk * exp(η[3]))
+        # treatment = false → control arm (no killing)
+        # treatment = true → treatment arm (killing at rate tvk * exp(η[3]))
         k = treatment * tvk * exp(η[3])
     end
 
@@ -740,7 +740,7 @@ end
 ```{julia}
 subject = Subject(
     id = 1,
-    covariates = (treatment = 1,),  # Treatment arm (drug active)
+    covariates = (; treatment = true),  # Treatment arm (drug active)
     time = [4 * 7, 8 * 7, 18 * 7],
 )
 gsa_sobol = gsa(

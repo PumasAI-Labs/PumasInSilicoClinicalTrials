@@ -288,8 +288,8 @@ tumor_burden_model = @model begin
         g = tvg * exp(η[2])
         # k: log-normal transformation (positive value)
         # Additionally, treatment affects death rate:
-        # treatment = 0 → control arm (no killing)
-        # treatment = 1 → treatment arm (killing at rate tvk * exp(η[3]))
+        # treatment = false → control arm (no killing)
+        # treatment = true → treatment arm (killing at rate tvk * exp(η[3]))
         k = treatment * tvk * exp(η[3])
     end
 

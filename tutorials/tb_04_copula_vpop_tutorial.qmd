@@ -196,8 +196,8 @@ tumor_burden_model = @model begin
         g = tvg * exp(η[2])
         # k: log-normal transformation (positive value)
         # Additionally, treatment affects death rate:
-        # treatment = 0 → control arm (no killing)
-        # treatment = 1 → treatment arm (killing at rate tvk * exp(η[3]))
+        # treatment = false → control arm (no killing)
+        # treatment = true → treatment arm (killing at rate tvk * exp(η[3]))
         k = treatment * tvk * exp(η[3])
     end
 
@@ -255,7 +255,7 @@ cor_f_g = -0.64  # Negative correlation: high f ↔ low g
 Let us demonstrate why independent sampling breaks the correlation structure.
 
 ```{julia}
-patients = [Subject(; id, time = [0.0], covariates = (; treatment = false)) for id in 1:10_000]
+patients = [Subject(; id, time = [0.0], covariates = (; treatment = true)) for id in 1:10_000]
 param = (; tvf = pop_f, tvg = pop_g, tvk = pop_k, Ω = Diagonal([ω_f^2, ω_g^2, ω_k^2]), σ = resid_σ)
 sims = simobs(tumor_burden_model, patients, param; simulate_error = false)
 ```
