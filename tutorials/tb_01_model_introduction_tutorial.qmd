@@ -12,9 +12,9 @@ This is **Tutorial 1 of 6** in the Tumor Burden series.
 | # | Tutorial | Status |
 |---|----------|--------|
 | 1 | **Model Introduction (current)** | You are here |
-| 2 | [Copula Vpop Generation](tb_02_copula_vpop_tutorial.qmd) | |
-| 3 | [Global Sensitivity Analysis](tb_03_gsa_tutorial.qmd) | |
-| 4 | [Structural Identifiability](tb_04_structural_identifiability_tutorial.qmd) | |
+| 2 | [Global Sensitivity Analysis](tb_02_gsa_tutorial.qmd) | |
+| 3 | [Structural Identifiability](tb_03_structural_identifiability_tutorial.qmd) | |
+| 4 | [Copula Vpop Generation](tb_04_copula_vpop_tutorial.qmd) | |
 | 5 | [ILP Calibration](tb_05_ilp_calibration_tutorial.qmd) | |
 | 6 | [VCT Simulation](tb_06_vct_simulation_tutorial.qmd) | |
 
@@ -204,7 +204,7 @@ Possible explanations:
 3. **Stem cell fraction:** Resistant cells may correlate with cancer stem cell
    populations
 
-This correlation is crucial for realistic virtual population generation (Tutorial 2).
+This correlation is crucial for realistic virtual population generation (Tutorial 4).
 :::
 
 ## Part 2: Building the Pumas Model
@@ -601,7 +601,7 @@ The parameter **f** (sensitive fraction) is the primary driver of treatment resp
 | **> 0.50** | Good responder — deep initial response, delayed progression |
 | **> 0.85** | Excellent responder — may achieve durable complete response |
 
-This explains why `f` dominates the global sensitivity analysis (Tutorial 3).
+This explains why `f` dominates the global sensitivity analysis (Tutorial 2).
 :::
 
 ## Part 5: Population Variability Preview
@@ -613,7 +613,7 @@ Let us generate trajectories for a small sample of virtual patients.
 ```{julia}
 patients = [Subject(; id, covariates = (; treatment = true)) for id in 1:100]
 
-# Simple sampling (not using copulas yet - that's Tutorial 2)
+# Simple sampling (not using copulas yet - that's Tutorial 4)
 # Just to show variability concept
 patients_sims = simobs(tumor_burden_model, patients, pop_params; obstimes = 0:(7 * 18), simulate_error = false)
 ```
@@ -655,15 +655,15 @@ draw(specs_sims + specs_references, scales(Color = (; palette = [:green, :gray])
 
 This preview shows why we need:
 
-1. **Copula sampling (Tutorial 2):** The random sampling above ignores parameter correlations.
+1. **Copula sampling (Tutorial 4):** The random sampling above ignores parameter correlations.
    In reality, patients with high f tend to have low g (r = -0.64).
 
 2. **Calibration (Tutorial 5):** The response rate from random sampling may not
    match real clinical trial data.
 
 3. **Systematic analysis:** We need to understand
-   which parameters matter most (Tutorial 3:
-   GSA) and whether they can be estimated (Tutorial 4: Identifiability).
+   which parameters matter most (Tutorial 2:
+   GSA) and whether they can be estimated (Tutorial 3: Identifiability).
 :::
 
 ## Summary
@@ -696,13 +696,12 @@ This preview shows why we need:
 
 ### What's Next
 
-In **Tutorial 2: Copula Vpop Generation**, we will:
+In **Tutorial 2: Global Sensitivity Analysis**, we will:
 
-- Learn why correlated parameter sampling matters
-- Understand Gaussian copulas and Sklar's theorem
-- Generate realistic virtual populations preserving the r(f,
-  g) = -0.64 correlation
-- Validate that generated populations match expected distributions
+- Learn what global sensitivity analysis is and why it differs from local sensitivity
+- Understand first-order and total-order sensitivity indices
+- Run GSA using Sobol and eFAST methods in Pumas
+- Discover that `f` dominates but the importance of `g` and `k` varies across timepoints
 
 ### Quick Reference: Key Functions
 

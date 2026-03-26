@@ -8,14 +8,14 @@ author:
 :::{.callout-note}
 ## HBV Tutorial Series
 
-This is **Tutorial 2 of 6** in the HBV series.
+This is **Tutorial 4 of 6** in the HBV series.
 
 | # | Tutorial | Status |
 |---|----------|--------|
 | 1 | [Model Introduction](hbv_01_model_introduction_tutorial.qmd) | ✓ Complete |
-| 2 | **Copula Vpop Generation (current)** | ← You are here |
-| 3 | [Global Sensitivity Analysis](hbv_03_gsa_tutorial.qmd) | |
-| 4 | [Structural Identifiability](hbv_04_structural_identifiability_tutorial.qmd) | |
+| 2 | [Global Sensitivity Analysis](hbv_02_gsa_tutorial.qmd) | ✓ Complete |
+| 3 | [Structural Identifiability](hbv_03_structural_identifiability_tutorial.qmd) | ✓ Complete |
+| 4 | **Copula Vpop Generation (current)** | ← You are here |
 | 5 | [ILP Calibration](hbv_05_ilp_calibration_tutorial.qmd) | |
 | 6 | [VCT Simulation](hbv_06_vct_simulation_tutorial.qmd) | |
 
@@ -26,7 +26,7 @@ This is **Tutorial 2 of 6** in the HBV series.
 In this tutorial, you will learn how to generate a virtual population
 for the HBV model using Gaussian copula sampling.
 For the theory behind copulas and why correlated sampling matters,
-see [TB-02: Copula Vpop Generation](tb_02_copula_vpop_tutorial.qmd).
+see [TB-04: Copula Vpop Generation](tb_04_copula_vpop_tutorial.qmd).
 
 In this tutorial, you will learn:
 
@@ -44,7 +44,7 @@ This tutorial builds on:
 
 - **[HBV-01](hbv_01_model_introduction_tutorial.qmd)**:
   HBV model structure and parameters
-- **[TB-02](tb_02_copula_vpop_tutorial.qmd)**:
+- **[TB-04](tb_04_copula_vpop_tutorial.qmd)**:
   Detailed copula theory (we reference, not repeat)
 :::
 
@@ -349,7 +349,7 @@ hbv_params = merge(hbv_fixed_params, hbv_estimated_params)
 
 ## Part 2: The Gaussian Copula Algorithm
 
-As explained in [TB-02](tb_02_copula_vpop_tutorial.qmd),
+As explained in [TB-04](tb_04_copula_vpop_tutorial.qmd),
 independently sampling random effects destroys correlation structures estimated by NLME fitting.
 Gaussian copulas solve this by preserving Spearman (rank) correlations through any monotonic
 transformation [@cortes2025].
@@ -507,7 +507,7 @@ overview_table(vpop)
 The nonlinear transformations of `η` entries in the `@pre` block are all
 **monotonically increasing**, so they preserve the ordering (ranks) of values and therefore preserve
 Spearman correlations.
-For a detailed explanation, see [TB-02](tb_02_copula_vpop_tutorial.qmd).
+For a detailed explanation, see [TB-04](tb_04_copula_vpop_tutorial.qmd).
 :::
 
 ## Part 3: Validation
@@ -648,10 +648,10 @@ pairplot(
 
 ### What's Next
 
-In **[Tutorial 3: Global Sensitivity Analysis](hbv_03_gsa_tutorial.qmd)**, we will:
+In **[Tutorial 5: ILP Calibration](hbv_05_ilp_calibration_tutorial.qmd)**, we will:
 
-- Analyze which parameters most influence HBV treatment outcomes
-- Use the generated virtual population for GSA parameter ranges
+- Calibrate the virtual population to match clinical trial baseline characteristics
+- Apply ILP optimization to match target HBsAg distributions
 
 ### References
 
