@@ -117,25 +117,6 @@ This is crucial because sampling with a copula consists of
 Pearson correlations are NOT preserved through nonlinear transforms, but Spearman correlations are.
 :::
 
-### The Logit-Normal Distribution
-
-Many pharmacometric parameters are bounded:
-
-- Bioavailability F: [0, 1]
-- Fraction sensitive f: [0, 1]
-- Rates with physiological upper limits
-
-The **logit-normal distribution** handles bounded parameters by working on the logit (log-odds)
-scale:
-
-$$\text{logit}(p) = \log\left(\frac{p}{1-p}\right)$$
-
-If $Y \sim \text{Normal}(\mu, \sigma)$,
-then $P = \text{logistic}(Y) = \frac{1}{1 + e^{-Y}}$ follows a logit-normal distribution bounded on
-[0, 1].
-
-For general bounds [a, b]: $$P = a + (b - a) \cdot \text{logistic}(Y)$$
-
 ## Libraries
 
 Load the necessary packages for this tutorial.
@@ -143,15 +124,16 @@ Load the necessary packages for this tutorial.
 ```{julia}
 #| output: false
 using Pumas
-using Copulas              # GaussianCopula, SklarDist
+using Copulas
 using AlgebraOfGraphics
 using CairoMakie
-using PairPlots            # Corner plots / pair plots
+using PairPlots
 using StatsBase
-using SummaryTables        # Nice table rendering
+using SummaryTables
+
+using LinearAlgebra
 using Random
 using Statistics
-using LinearAlgebra
 
 # Set seed for reproducibility
 Random.seed!(42)
@@ -183,10 +165,6 @@ tumor_burden_model = @model begin
     @metadata begin
         desc = "Tumor Burden Model for NSCLC Chemotherapy"
         timeu = u"d"  # Time unit is days
-    end
-
-    @options begin
-        checklinear = false
     end
 
     @param begin

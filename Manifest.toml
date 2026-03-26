@@ -2,7 +2,7 @@
 
 julia_version = "1.11.8"
 manifest_format = "2.0"
-project_hash = "e127cf4592af9c7038eb80ac26f8b1b286b58a09"
+project_hash = "5cbfacee0419960405fb21c8b11da5cc32c16430"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "f7304359109c768cf32dc5fa2d371565bb63b68a"
@@ -2250,6 +2250,18 @@ version = "2023.12.12"
 git-tree-sha1 = "cac9cc5499c25554cba55cd3c30543cff5ca4fab"
 uuid = "46d2c3a1-f734-5fdb-9937-b9b9aeba4221"
 version = "0.2.4"
+
+[[deps.MultiObjectiveAlgorithms]]
+deps = ["Combinatorics", "MathOptInterface", "Printf"]
+git-tree-sha1 = "3fa05e08fdafd240b2b0780ba6020ab43ed42818"
+uuid = "0327d340-17cd-11ea-3e99-2fd5d98cecda"
+version = "1.10.0"
+
+    [deps.MultiObjectiveAlgorithms.extensions]
+    MultiObjectiveAlgorithmsPolyhedraExt = "Polyhedra"
+
+    [deps.MultiObjectiveAlgorithms.weakdeps]
+    Polyhedra = "67491407-f73d-577b-9b50-8179a7c68029"
 
 [[deps.MultipleTesting]]
 deps = ["Distributions", "SpecialFunctions", "StatsBase"]

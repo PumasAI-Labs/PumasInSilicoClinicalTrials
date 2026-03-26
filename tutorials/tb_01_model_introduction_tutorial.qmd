@@ -259,10 +259,6 @@ tumor_burden_model = @model begin
         timeu = u"d"  # Time unit is days
     end
 
-    @options begin
-        checklinear = false
-    end
-
     @param begin
         # Typical values (population parameters)
         tvf ∈ RealDomain(lower = 0.0, upper = 1.0)

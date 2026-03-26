@@ -36,6 +36,7 @@ In this tutorial, you will learn:
 - How to calibrate to response rate distributions (not just baseline
   characteristics)
 - Pareto analysis for finding optimal calibration parameters
+- Multi-objective optimization with MultiObjectiveAlgorithms.jl
 - Validating calibration results with visualizations
 
 :::{.callout-tip}
@@ -110,6 +111,7 @@ using Pumas
 using StatsBase
 using JuMP
 using HiGHS
+import MultiObjectiveAlgorithms as MOA
 using Copulas
 using AlgebraOfGraphics
 using CairoMakie
@@ -127,6 +129,7 @@ Random.seed!(1234)
 
 - `JuMP`: Algebraic modeling language for optimization problems
 - `HiGHS`: High-performance ILP solver (open source, fast)
+- `MultiObjectiveAlgorithms` (MOA): Multi-objective optimization algorithms for JuMP
 - `Copulas`: For generating correlated parameter samples
 - `AlgebraOfGraphics` + `CairoMakie`: Publication-quality visualizations
 
@@ -152,10 +155,6 @@ tumor_burden_model = @model begin
     @metadata begin
         desc = "Tumor Burden Model for NSCLC Chemotherapy"
         timeu = u"d"  # Time unit is days
-    end
-
-    @options begin
-        checklinear = false
     end
 
     @param begin
@@ -423,7 +422,7 @@ $\epsilon > 0$ of the target:
 
 $$ (p_c - \epsilon) N_{total} \leq \text{N}_c \leq (p_c + \epsilon) N_{total}$$
 
-where $N_total = \sum_{i=1}^N x_i$ is the total number of selected VPs
+where $N_{\text{total}} = \sum_{i=1}^N x_i$ is the total number of selected VPs
 and $N_{c} = \sum_{i \text{ with category } c} x_i$ is the number of selected VPs in category $c$.
 
 ### Why Binary Variables Make This Hard (But Solvable)
@@ -456,18 +455,7 @@ cutting planes) that solve well-structured problems like ours in seconds
 
 ## Part 3: Building the JuMP Model Step-by-Step
 
-### Step 3a: Create Membership Matrix
-
-For efficient constraint formulation,
-we create a matrix where `membership[i, c] = true` if VP `i` belongs to category `c`,
-and `false` otherwise.
-
-```{julia}
-# Create membership matrix (categories × VPs)
-membership = indicatormat(vpop.response, target_distribution.response)
-```
-
-### Step 3b: Build the Optimization Model
+### Step 3a: Build the Optimization Model
 
 We implement the optimization problem using a maximum absolute error of 5% for each category:
 
@@ -482,18 +470,18 @@ set_attribute(model, "presolve", "on")
 set_time_limit_sec(model, 60.0)
 
 # Decision variables
-@variable(model, x[1:length(patients)], Bin)     # Binary selection for each VP
+@variable(model, x[1:nrow(vpop)], Bin)     # Binary selection for each VP
 
 # Objective: maximize number of selected VPs
 N_total = sum(x)
 @objective(model, Max, N_total)
 
 # Constraints: distribution matching for each category
-for c in 1:nrow(target_distribution)
-    p_c = target_distribution[c, :pct] / 100
+for row in eachrow(target_distribution)
+    p_c = row.pct / 100
 
     # Count of selected VPs in this category
-    N_c = sum(x[membership[c, :]])
+    N_c = sum(x[vpop.response .== row.response])
 
     # Upper bound: count <= (p_c + ε) × N_total
     @constraint(model, N_c <= (p_c + epsilon) * N_total)
@@ -625,18 +613,18 @@ solutions_vpop = map(epsilons) do epsilon
     set_time_limit_sec(model, 60.0)
 
     # Decision variables
-    @variable(model, x[1:length(patients)], Bin)     # Binary selection for each VP
+    @variable(model, x[1:nrow(vpop)], Bin)     # Binary selection for each VP
 
     # Objective: maximize number of selected VPs
     N_total = sum(x)
     @objective(model, Max, N_total)
 
     # Constraints: distribution matching for each category
-    for c in 1:nrow(target_distribution)
-        p_c = target_distribution[c, :pct] / 100
+    for row in eachrow(target_distribution)
+        p_c = row.pct / 100
 
         # Count of selected VPs in this category
-        N_c = sum(x[membership[c, :]])
+        N_c = sum(x[vpop.response .== row.response])
 
         # Upper bound: count <= (p_c + ε) × N_total
         @constraint(model, N_c <= (p_c + epsilon) * N_total)
@@ -667,6 +655,7 @@ between the observed and the target distribution of responses (half of the sum o
 errors of all categories):
 
 ```{julia}
+#| output: false
 solutions_error = map(solutions_vpop) do idxs
     df = @chain vpop[idxs, :] begin
         @by :response begin
@@ -684,14 +673,6 @@ solutions_df = DataFrame(;
     nselected = map(length, solutions_vpop),
     error = solutions_error,
 )
-simple_table(
-    solutions_df,
-    [
-        :epsilon => "ϵ",
-        :nselected => "# selected VPs",
-        :error => "Distribution Error",
-    ]
-)
 ```
 
 We compute the Pareto-optimal solutions, i.e.,
@@ -699,6 +680,7 @@ the solutions that are not dominated by any other solution in terms of both dist
 (smaller is better) and number of selected virtual patients (larger is better).
 
 ```{julia}
+#| output: false
 sort!(solutions_df, [order(:nselected; rev = true), :error])
 solutions_df.pareto_optimal .= false
 solutions_df.pareto_optimal[begin] = true
@@ -710,14 +692,6 @@ for row in eachrow(solutions_df)
     end
 end
 sort!(solutions_df, :epsilon)
-simple_table(
-    solutions_df, [
-        :epsilon => "ϵ",
-        :nselected => "# selected VPs",
-        :error => "Distribution Error",
-        :pareto_optimal => "Pareto-Optimal",
-    ]
-)
 ```
 
 ### Visualization
@@ -726,11 +700,11 @@ We visualize the front of Pareto-optimal solutions together with the utopia of z
 error and selecting all virtual patients:
 
 ```{julia}
+#| fig-cap: "Number of selected virtual patients versus distribution error for calibrated virtual populations. The utopia is achieving zero distribution error when selecting all virtual patients."
 pareto_mapping = :pareto_optimal => renamer(true => "Yes", false => "No") => "Pareto-Optimal"
 specs_solutions = data(solutions_df) *
     mapping(:error => "Distribution Error", :nselected => "# selected VPs", color = pareto_mapping, marker = pareto_mapping) * visual(Scatter)
 specs_utopia = mapping([0.0], nrow(vpop)) * visual(Scatter; label = "Utopia", color = :red)
-
 draw(specs_solutions + specs_utopia)
 ```
 
@@ -796,12 +770,239 @@ specs = data(comparison_df) *
 draw(specs; axis = (; xticklabelrotation = π / 4))
 ```
 
-## Part 6: Practical Recommendations
+## Part 6: Multi-Objective Optimization
+
+### Motivation
+
+The Pareto analysis in Part 5 traces the trade-off frontier by solving many independent ILPs,
+one per ε value.
+An alternative is to formulate the problem as a **bi-objective mixed-integer program**
+and let a dedicated multi-objective solver find the Pareto front directly.
+
+Our two competing objectives are:
+
+1. **Maximize** $N_{\text{total}} = \sum x_i$ (number of selected VPs)
+2. **Minimize** the total variation (TV) distance between the observed and target distributions
+
+### From Proportions to Counts
+
+The total variation distance between the observed and target distributions is:
+
+$$
+\text{TV} = \frac{1}{2} \sum_c \left| \frac{N_c}{N_{\text{total}}} - p_c \right|
+$$
+
+Using TV directly as an optimization objective is problematic:
+$N_c / N_{\text{total}}$ is a **ratio** of decision variables,
+making the problem a nonlinear fractional program.
+
+Instead, we work with **count deviations**:
+
+$$ \delta_c = |N_c - p_c \cdot N_{\text{total}}| $$
+
+Since
+$N_c - p_c \cdot N_\text{total} = \sum_{j \in c} x_j - p_c \sum_j x_j = \sum_j (\mathbb{1}_{j \in c} - p_c) \cdot x_j$,
+this is a **linear** function of the decision variables $x_j$.
+The absolute value can be linearized with auxiliary variables $\delta_c \geq 0$
+and two-sided inequality constraints:
+
+$$ \delta_c \geq N_c - p_c \cdot N_\text{total}, \qquad \delta_c \geq p_c \cdot N_\text{total} - N_c $$
+
+The total count deviation $D = \sum_c \delta_c$ is related to TV by:
+
+$$ D = 2 \cdot \text{TV} \cdot N_\text{total} $$
+
+### Recovering the TV-Pareto Front
+
+Using $D$ as the second objective keeps the problem as a **MILP**, solvable efficiently by HiGHS.
+But $D$ is not the metric we ultimately care about — TV is.
+The Pareto fronts in $(N_\text{total}, D)$
+and $(N_\text{total}, \text{TV})$ space are generally not identical.
+
+Fortunately, the $D$-Pareto front is guaranteed to contain all TV-Pareto-optimal solutions:
+
+:::{.callout-note}
+## $D$-Dominance Implies TV-Dominance
+
+If solution $T$ dominates $S$ in $(N_\text{total}, D)$ space (i.e.,
+$N_T \geq N_S$ and $D_T \leq D_S$, with at least one strict inequality), then:
+
+$$ \text{TV}_T = \frac{D_T}{2 \cdot N_T} \leq \frac{D_S}{2 \cdot N_S} = \text{TV}_S $$
+
+This holds because $D_T \leq D_S$ and $\frac{1}{N_T} \leq \frac{1}{N_S}$,
+so their product satisfies $\frac{D_T}{N_T} \leq \frac{D_S}{N_S}$.
+
+**Consequence:** every TV-Pareto-optimal solution is also $D$-Pareto-optimal.
+We can therefore find the $D$-Pareto front efficiently (as a MILP),
+compute $\text{TV} = D / (2 \cdot N_\text{total})$ for each solution,
+and **post-filter** for TV-dominance to recover the exact TV-Pareto front.
+:::
+
+### Multi-Objective Formulation with MultiObjectiveAlgorithms.jl
+
+[MultiObjectiveAlgorithms.jl](https://github.com/jump-dev/MultiObjectiveAlgorithms.jl) (MOA) extends
+JuMP with multi-objective optimization algorithms.
+It wraps a single-objective solver (here,
+HiGHS) and orchestrates multiple subproblem solves to trace the Pareto front.
+
+We use the **ε-constraint method** (`MOA.EpsilonConstraint`),
+which is well-suited for bi-objective integer programs.
+It iterates over the range of one objective,
+constraining it at each step while optimizing the other,
+systematically enumerating nondominated solutions.
 
 :::{.callout-tip}
-## Choosing Epsilon (Tolerance)
+## Choosing the MOA Algorithm
 
-Start with ε = 0.10 (10% tolerance):
+For bi-objective problems, MOA offers several algorithms:
+
+| Algorithm | What it finds | Best for |
+|:----------|:--------------|:---------|
+| `EpsilonConstraint()` | All nondominated points | General bi-objective (recommended) |
+| `Chalmet()` | All nondominated points | Bi-criterion integer programs |
+| `Dichotomy()` | Supported extreme points | Quick overview (may miss points) |
+| `TambyVanderpooten()` | All nondominated points | Multi-objective (p ≥ 2) discrete programs |
+
+`EpsilonConstraint` is the most intuitive
+and gives fine-grained control over the number of Pareto points via `MOA.SolutionLimit()`.
+:::
+
+```{julia}
+moa_model = Model(() -> MOA.Optimizer(HiGHS.Optimizer))
+set_attribute(moa_model, MOA.Algorithm(), MOA.EpsilonConstraint())
+set_attribute(moa_model, MOA.SolutionLimit(), 50)
+set_silent(moa_model)
+
+# Binary selection variables (same as before)
+@variable(moa_model, y[1:nrow(vpop)], Bin)
+
+# Continuous count deviation variables (one per category)
+@variable(moa_model, δ[1:nrow(target_distribution)] >= 0)
+
+# Total selected VPs
+N_total = sum(y)
+
+# Bi-objective: minimize [-N_total, D]
+# (negate N_total since JuMP requires a uniform optimization sense)
+@objective(moa_model, Min, [-N_total, sum(δ)])
+
+# Count deviation constraints
+for (δ_c, row) in zip(δ, eachrow(target_distribution))
+    p_c = row.pct / 100
+    N_c = sum(y[vpop.response .== row.response])
+    @constraint(moa_model, δ_c >= N_c - p_c * N_total)
+    @constraint(moa_model, δ_c >= p_c * N_total - N_c)
+end
+
+moa_model
+```
+
+```{julia}
+optimize!(moa_model)
+```
+
+```{julia}
+assert_is_solved_and_feasible(moa_model)
+```
+
+### Extracting and Filtering the Pareto Front
+
+We extract all nondominated solutions found by the ε-constraint method,
+compute the distribution error for each, and filter for TV-Pareto-optimality:
+
+```{julia}
+#| output: false
+n_solutions = result_count(moa_model)
+
+moa_solutions_df = map(1:n_solutions) do i
+    obj = objective_value(moa_model; result = i)
+    nselected = round(Int, -obj[1])
+    count_dev = obj[2]
+
+    # Recover TV distance from count deviation
+    error = nselected > 0 ? count_dev / (2 * nselected) : NaN
+
+    # Extract selected VPs
+    selected = findall(yj -> value(yj) == 1, y)
+
+    (; nselected, error, selected)
+end |> DataFrame
+```
+
+We filter for TV-Pareto-optimality by removing solutions
+that are dominated in $(N_\text{total}, \text{TV})$ space:
+
+```{julia}
+# Remove TV-dominated solutions
+filter!(moa_solutions_df) do row
+    !any(eachrow(moa_solutions_df)) do other
+        other.nselected >= row.nselected &&
+            other.error <= row.error &&
+            (other.nselected > row.nselected || other.error < row.error)
+    end
+end
+
+sort!(moa_solutions_df, :nselected; rev = true)
+simple_table(
+    moa_solutions_df,
+    [
+        :nselected => "# Selected VPs",
+        :error => "Distribution Error",
+    ],
+)
+```
+
+### Visualization
+
+We compare the MOA Pareto front with the grid-search front from Part 5:
+
+```{julia}
+#| fig-cap: "Pareto front comparison: grid search (Part 5) vs. multi-objective optimization with MOA."
+all_solutions_df = vcat(
+    @select!(@rsubset(solutions_df, :pareto_optimal), :nselected, :error),
+    @select(moa_solutions_df, :nselected, :error);
+    source = :Method => ["Grid Search", "Multi-Objective"],
+)
+specs = data(all_solutions_df) *
+    mapping(:error => "Distribution Error", :nselected => "# Selected VPs", color = :Method, marker = :Method) * visual(Scatter)
+draw(specs)
+```
+
+The MOA approach typically finds solutions
+that dominate some of the grid search solutions (higher $N_\text{total}$ *and* lower TV distance).
+This is because the two methods use fundamentally different constraint structures:
+
+- The **grid search** (Part 5) enforces a **per-category** tolerance:
+  $|N_c / N_\text{total} - p_c| \leq \epsilon$ for each category independently.
+  This is conservative — it does not allow trading off accuracy in one category for another.
+- The **MOA formulation** (Part 6) minimizes the **total** count deviation
+  $D = \sum_c |N_c - p_c \cdot N_\text{total}|$ as a single objective.
+  This allows inter-category trade-offs:
+  slightly exceeding the target proportion in one category can be compensated by a better match in
+  another.
+
+As a result, the MOA approach explores a larger feasible space and can find calibrated populations
+that the per-category grid search would reject.
+
+## Part 7: Practical Recommendations
+
+:::{.callout-tip}
+## Choosing a Calibration Strategy
+
+The two calibration approaches offer different trade-offs:
+
+- **Per-category ε constraints** (Part 5): Simple, interpretable,
+  and guarantees that each response category individually matches the target within ε.
+  Use this when per-category accuracy matters (e.g., matching the CR rate within 5%).
+- **Multi-objective optimization** (Part 6): More flexible,
+  often finds larger calibrated populations with the same TV distance.
+  Use this when the overall distribution match matters more than any individual category.
+:::
+
+:::{.callout-tip}
+## Choosing Epsilon (Per-Category Tolerance)
+
+When using per-category ε constraints (Part 5), start with ε = 0.10 (10% tolerance):
 
 | Epsilon | Effect |
 |:--------|:-------|
@@ -848,6 +1049,9 @@ If your Vpop has very few VPs in a target category (e.g., only 2% CR but target 
    - Subject to: Each response category within ε of target
 
 4. **Pareto analysis** helps find the optimal epsilon value
+
+5. **Multi-objective optimization** with count-based deviation and TV post-filtering
+   provides a direct, solver-driven alternative to grid search for Pareto front exploration
 
 ### Quick Reference: Steps
 

@@ -222,10 +222,6 @@ tumor_burden_model_gsa = @model begin
         timeu = u"d"  # Time unit is days
     end
 
-    @options begin
-        checklinear = false
-    end
-
     @param begin
         # Typical values (population parameters)
         tvf ∈ RealDomain(lower = 0.0, upper = 1.0)
@@ -674,10 +670,6 @@ tumor_burden_model_gsa_multiple = @model begin
     @metadata begin
         desc = "Tumor Burden Model for NSCLC Chemotherapy"
         timeu = u"d"  # Time unit is days
-    end
-
-    @options begin
-        checklinear = false
     end
 
     @param begin
