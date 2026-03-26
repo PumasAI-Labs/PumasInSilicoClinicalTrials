@@ -54,6 +54,7 @@ using Pumas
 using StatsBase
 using JuMP
 using HiGHS
+import MultiObjectiveAlgorithms as MOA
 using Copulas
 using AlgebraOfGraphics
 using CairoMakie
@@ -291,6 +292,107 @@ df = vcat(vpop, calibrated_vpop; source = "stage" => ["Original", "Calibrated"])
 data_specs = data(df) * mapping(:log_hbsag_bl, col = :stage => sorter("Original", "Calibrated")) * histogram(; bins = vcat(everest_target.log10_lower, everest_target.log10_upper[end]), normalization = :probability)
 target_specs = mapping(collect(Iterators.flatten((row.log10_lower, row.log10_upper) for row in eachrow(everest_target))), repeat(everest_target.pct; inner = 2) ./ 100, group = repeat(1:nrow(everest_target); inner = 2)) * visual(Lines; label = "Everest Target")
 draw(data_specs + target_specs; axis = (; xlabel = "Baseline HBsAg (log₁₀ IU/mL)", ylabel = "Proportion"))
+```
+
+## Part 5: Multi-Objective Optimization
+
+The single-objective ILP in Part 3 maximizes population size subject to a fixed per-category
+tolerance ε.
+An alternative is to treat population size and distribution error as competing objectives
+and trace the Pareto front directly using a multi-objective solver.
+See [TB-05, Part 6](tb_05_ilp_calibration_tutorial.qmd) for the full theoretical motivation
+and derivation.
+
+### Build and Solve MOA Model
+
+```{julia}
+moa_model = Model(() -> MOA.Optimizer(HiGHS.Optimizer))
+set_attribute(moa_model, MOA.Algorithm(), MOA.EpsilonConstraint())
+set_attribute(moa_model, MOA.SolutionLimit(), 50)
+set_silent(moa_model)
+
+# Binary selection variables
+@variable(moa_model, y[1:nrow(vpop)], Bin)
+
+# Continuous count deviation variables (one per HBsAg category)
+@variable(moa_model, δ[1:nrow(everest_target)] >= 0)
+
+# Total selected VPs
+N_total = sum(y)
+
+# Bi-objective: minimize [-N_total, D]
+# (negate N_total since JuMP requires a uniform optimization sense)
+@objective(moa_model, Min, [-N_total, sum(δ)])
+
+# Count deviation constraints
+for (δ_c, row) in zip(δ, eachrow(everest_target))
+    p_c = row.pct / 100
+    N_c = sum(y[row.log10_lower .<= vpop.log_hbsag_bl .< row.log10_upper])
+    @constraint(moa_model, δ_c >= N_c - p_c * N_total)
+    @constraint(moa_model, δ_c >= p_c * N_total - N_c)
+end
+
+moa_model
+```
+
+```{julia}
+optimize!(moa_model)
+```
+
+```{julia}
+assert_is_solved_and_feasible(moa_model)
+```
+
+### Extract and Filter the Pareto Front
+
+```{julia}
+#| output: false
+n_solutions = result_count(moa_model)
+
+moa_solutions_df = map(1:n_solutions) do i
+    obj = objective_value(moa_model; result = i)
+    nselected = round(Int, -obj[1])
+    count_dev = obj[2]
+
+    # Recover TV distance from count deviation
+    error = nselected > 0 ? count_dev / (2 * nselected) : NaN
+
+    # Extract selected VPs
+    selected = findall(yj -> value(yj) == 1, y)
+
+    (; nselected, error, selected)
+end |> DataFrame
+```
+
+Filter for TV-Pareto-optimality:
+
+```{julia}
+filter!(moa_solutions_df) do row
+    !any(eachrow(moa_solutions_df)) do other
+        other.nselected >= row.nselected &&
+            other.error <= row.error &&
+            (other.nselected > row.nselected || other.error < row.error)
+    end
+end
+
+sort!(moa_solutions_df, :nselected; rev = true)
+simple_table(
+    moa_solutions_df,
+    [
+        :nselected => "# Selected VPs",
+        :error => "Distribution Error",
+    ],
+)
+```
+
+### Visualization
+
+```{julia}
+#| fig-cap: "Pareto front from multi-objective optimization: each point is a feasible calibrated population with a different trade-off between size and distribution fidelity."
+specs = data(moa_solutions_df) *
+    mapping(:error => "Distribution Error", :nselected => "# Selected VPs") *
+    visual(Scatter)
+draw(specs)
 ```
 
 ## Summary
