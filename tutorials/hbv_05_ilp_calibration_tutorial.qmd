@@ -63,7 +63,6 @@ using SummaryTables
 
 using Statistics
 using Random
-using LinearAlgebra: I
 
 # Set seed for reproducibility
 Random.seed!(1234)
@@ -97,73 +96,337 @@ simple_table(everest_target, [:hbsag_range => "HBsAg", :pct => "Target (%)"])
 
 ## Part 2: Generate HBV Virtual Population
 
-First, let's generate a virtual population using the copula approach from HBV-04.
+We generate a virtual population using the Gaussian copula approach from
+[HBV-04](hbv_04_copula_vpop_tutorial.qmd), then simulate 5 years of untreated chronic infection to
+obtain each patient's baseline HBsAg at steady state.
+
+### Model and Parameters
 
 ```{julia}
-# HBV parameter specifications
-const HBV_PARAM_SPECS = [
-    (name = :beta, tv = -5.0, omega = 0.5),
-    (name = :p_S, tv = 8.0, omega = 0.4),
-    (name = :m, tv = 2.5, omega = 0.3),
-    (name = :k_Z, tv = -5.0, omega = 0.4),
-    (name = :convE, tv = 2.5, omega = 0.3),
-    (name = :epsNUC, tv = -2.0, omega = 0.5),
-    (name = :epsIFN, tv = -1.5, omega = 0.6),
-    (name = :r_E_IFN, tv = 0.3, omega = 0.4),
-    (name = :k_D, tv = -4.0, omega = 0.4),
-]
+#| output: false
+hbv_model = @model begin
+    @param begin
+        # Estimated parameters
+        "Production/synthesis rate of HBsAg subviral particles from infected hepatocytes [molec./cell/d]"
+        tv_p_S ∈ RealDomain(; lower = exp10(2), upper = exp10(12))
+        "HBV infectivity [mL/virus/d]"
+        tv_β ∈ RealDomain(; lower = exp10(-10), upper = 1)
+        "Killing rate of infected hepatocytes by cellular immunity [mL/cells/d]"
+        tv_m ∈ RealDomain(; lower = exp10(-3), upper = exp10(5))
+        "Synthesis rate of antigen presenting cells [cells/d]"
+        tv_k_P ∈ RealDomain(; lower = 0.0)
+        "Synthesis rate of ALT from debris hepatocytes [10^3 U/cells/d]"
+        tv_k_A ∈ RealDomain(; lower = 0.0)
+        "PD efficacy of NA on HBV production []"
+        tv_ϵ_NA ∈ RealDomain(; lower = exp10(-5), upper = 1)
+        "PD efficacy of IFNα on HBV production []"
+        tv_ϵ_IFN ∈ RealDomain(; lower = exp10(-5), upper = 1)
+        "PD efficacy of IFNα on activation of cellular immunity []"
+        tv_r_E_IFN ∈ RealDomain(; lower = 1, upper = exp10(4))
+        "Scaling factor for observed effector CD4/8 T cell numbers []"
+        tv_conv_E ∈ RealDomain(; lower = 0.0)
 
-# Simplified correlation matrix
-const HBV_CORRELATION = Matrix{Float64}(I, 9, 9)  # Identity for simplicity
+        # IIV of estimated parameters in log10 scale
+        Ω ∈ PDiagDomain(9)
 
-function generate_hbv_vpop(n::Int)
-    n_params = length(HBV_PARAM_SPECS)
-    copula = GaussianCopula(HBV_CORRELATION)
-    U = rand(copula, n)'
+        # Fixed parameters
+        "Baseline of HBV [copies/mL]"
+        ini_V ∈ RealDomain(; lower = 0.0)
+        "Baseline of ALT [U/L]"
+        ini_A ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of uninfected hepatocytes [1/d]"
+        r_T ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of cellular immunity [1/d]"
+        r_E ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of innate immunity [1/d]"
+        r_X ∈ RealDomain(; lower = 0.0)
+        "Fraction of cellular immunity that killing uninfected and refractory cells []"
+        n ∈ RealDomain(; lower = 0.0)
+        "Max. rate of conversion of infected cells to refractory cells due to the action of innate immunity [1/d]"
+        ρ ∈ RealDomain(; lower = 0.0)
+        "Max. rate of conversion of refractory cells back to target cells in the absence of innate immune responses []"
+        ρ_o_ρ_r ∈ RealDomain(; lower = 0.0)
+        "Production/synthesis rate of HBV from infected hepatocytes [virus/cell/d]"
+        p_V ∈ RealDomain(; lower = 0.0)
+        "Death rate of infected hepatocytes [1/d]"
+        d_TI ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of HBV HBsAg subviral particles [1/d]"
+        d_V ∈ RealDomain(; lower = 0.0)
+        "Rate of systemic induction/recovery from exhaustion [1/d]"
+        d_Q ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of innate immunity [1/d]"
+        d_X ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of cellular immunity [1/d]"
+        d_E ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of antigen presenting cells [1/d]"
+        d_P ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of debris [1/d]"
+        d_D ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of ALT [1/d]"
+        d_A ∈ RealDomain(; lower = 0.0)
+        "Max. rate of exhastion [1/d]"
+        d_E_Q ∈ RealDomain(; lower = 0.0)
+        "Hepatocyte carrying capacity in the liver [cells/mL]"
+        T_max ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for the effect of systemic exhaustion []"
+        ϕ_Q ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for the activation of cellular immunity [cells/mL]"
+        ϕ_E ∈ RealDomain(; lower = 0.0)
+        "Max. inhibitory effect of HBsAg subviral particles on innate immunity []"
+        S_max ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for inhibitory effect of HBsAg subviral particles on the generation of innate immunity [μg/mL]"
+        ϕ_S ∈ RealDomain(; lower = 0.0)
+        "Hill coefficient for describing HBsAg-induced inhibition of innate immunity []"
+        nS ∈ RealDomain()
+        "Threshold of infected hepatocytes to produce dynamical switch from progressive disease to long-lasting control of HBV infection [cells/mL]"
+        I_threshold ∈ RealDomain(; lower = 0.0)
 
-    params = similar(U)
-    for j in 1:n_params
-        tv = HBV_PARAM_SPECS[j].tv
-        ω = HBV_PARAM_SPECS[j].omega
-        eta = quantile.(Normal(0, ω), U[:, j])
-        params[:, j] = tv .+ eta
+        # Residual errors
+        σ_add_log10_HBsAg ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_HBsAg ∈ RealDomain(lower = 0.0)
+        σ_add_log10_HBV ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_HBV ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_ALT ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_CD8 ∈ RealDomain(lower = 0.0)
     end
 
-    return DataFrame(
-        id = 1:n,
-        beta = params[:, 1],
-        p_S = params[:, 2],
-        m = params[:, 3],
-        k_Z = params[:, 4],
-        convE = params[:, 5],
-        epsNUC = params[:, 6],
-        epsIFN = params[:, 7],
-        r_E_IFN = params[:, 8],
-        k_D = params[:, 9]
-    )
+    @random begin
+        η ~ MvNormal(Ω)
+    end
+
+    # Time-varying covariates for treatment phases
+    @covariates NA IFN
+
+    @pre begin
+        # Individual parameters
+        # Logit-normal distribution of log10(p_S), scaled to range [2, 12]
+        p_S = exp10(10 * logistic(logit((log10(tv_p_S) - 2) / 10) + η[1]) + 2)
+        # Logit-normal distribution of log10(β), scaled to range [-10, 0]
+        β = exp10(10 * (logistic(logit(log10(tv_β) / 10 + 1) + η[2]) - 1))
+        # Logit-normal distribution of log10(m), scaled to range [-3, 5]
+        m = exp10(8 * logistic(logit((log10(tv_m) + 3) / 8) + η[3]) - 3)
+        # Normal distribution of log10(k_P)
+        k_P = tv_k_P * exp10(η[4])
+        # Normal distribution of log10(k_A)
+        k_A = tv_k_A * exp10(η[5])
+        # Logit-normal distribution of log10(ϵ_NA), scaled to range [-5, 0]
+        ϵ_NA = exp10(NA * 5 * (logistic(logit(log10(tv_ϵ_NA) / 5 + 1) + η[6]) - 1))
+        # Logit-normal distribution of log10(ϵ_IFN), scaled to range [-5, 0]
+        ϵ_IFN = exp10(IFN * 5 * (logistic(logit(log10(tv_ϵ_IFN) / 5 + 1) + η[7]) - 1))
+        # Logit-normal distribution of log10(r_E_IFN), scaled to range [0, 4]
+        r_E_IFN = exp10(IFN * 4 * logistic(logit(log10(tv_r_E_IFN) / 4) + η[8]))
+        # Normal distribution
+        conv_E = tv_conv_E * exp10(η[9])
+    end
+
+    # Initial conditions
+    @init begin
+        V = ini_V
+        I = d_V * V / p_V
+        T = T_max - I
+        S = p_S * I / d_V
+        A = ini_A
+    end
+
+    @dynamics begin
+        # Target uninfected hepatocytes
+        T' = -β * V * T + r_T * T * (1 - (T + Ieff + R) / T_max) -
+            d_TI * T + ρ_o_ρ_r * R - (m / n) * r_E_IFN * E * T
+
+        # Infected hepatocytes
+        I' = β * V * T + r_T * I * (1 - (T + I + R) / T_max) -
+            ρ * X * I - d_TI * I - m * r_E_IFN * E * I
+
+        # Resistant hepatocytes
+        R' = ρ * X * Ieff - ρ_o_ρ_r * R + r_T * R * (1 - (T + Ieff + R) / T_max) -
+            d_TI * R - (m / n) * r_E_IFN * E * R
+
+        # Dead cell marker
+        D' = m * r_E_IFN * E * Ieff + (m / n) * r_E_IFN * E * (T + R) - d_D * D
+
+        # Immune response (ALT proxy)
+        A' = d_A * (ini_A - A) + k_A * D
+
+        # HBsAg dynamics
+        S' = p_S * Ieff - d_V * S
+
+        # Viral load (NA and IFN reduce production)
+        V' = p_V * Ieff * ϵ_NA * ϵ_IFN - d_V * V
+
+        # Dendritic cell activation
+        P' = k_P * (Ieff / (ϕ_E + Ieff)) - d_P * P
+
+        # Effector T cells
+        E' = (d_E + r_E * E) * Peff - d_E_Q * E * (Q^4 / (ϕ_Q^4 + Q^4)) - d_E * E
+
+        # Delayed effector signal
+        Q' = d_Q * (Peff - Q)
+
+        # Cytotoxic effect
+        X' = r_X * (1 - X) * (Ieff / (ϕ_E + Ieff)) *
+            (1 - S_max * (HBsAg_ug_mL^nS / (ϕ_S^nS + HBsAg_ug_mL^nS))) - d_X * X
+    end
+
+    @vars begin
+        # Switch between progressive infection (I ≥ I_threshold) and clearance of infection (I < I_threshold)
+        Ieff = ifelse(I < I_threshold, zero(I), I)
+        Peff = ifelse(I < I_threshold, zero(P), P)
+
+        # HBsAg [μg/mL]: Each particle of V and S is assumed to harbor 96 molecules of S envelope protein
+        f_molec2ug := 24000 * 1.0e6 / 6.022e23
+        HBsAg_ug_mL := 96 * (V + S) * f_molec2ug
+    end
+
+    # Error models: Values are log10-transformed
+    @derived begin
+        "HBsAg [IU/mL]"
+        log10_HBsAg ~ @. CombinedNormal(log10(HBsAg_ug_mL / 0.98e-3), σ_add_log10_HBsAg, σ_prop_log10_HBsAg)
+
+        "Viral load [copies/mL]"
+        log10_HBV ~ @. CombinedNormal(log10(V), σ_add_log10_HBV, σ_prop_log10_HBV)
+
+        "ALT [U/L]"
+        log10_ALT ~ @. ProportionalNormal(log10(A), σ_prop_log10_ALT)
+
+        "CD8+ T cell counts [cells/mL]"
+        log10_CD8 ~ @. ProportionalNormal(log10(conv_E * E), σ_prop_log10_CD8)
+    end
 end
 ```
 
 ```{julia}
+#| output: false
+hbv_fixed_params = (
+    ini_V = exp10(-0.481),
+    ini_A = exp10(1.25),
+    r_T = 1.0,
+    r_E = 0.1,
+    r_X = 1.0,
+    n = 100,
+    ρ = 0.001,
+    ρ_o_ρ_r = 1.0e-5,
+    p_V = 100.0,
+    d_TI = 0.0039,
+    d_V = 0.67,
+    d_Q = 0.00385,
+    d_X = 0.2,
+    d_E = 0.01,
+    d_P = 0.239,
+    d_D = 1.66,
+    d_A = 0.47,
+    d_E_Q = 0.3,
+    T_max = 1.36e7,
+    ϕ_Q = 0.8,
+    ϕ_E = 100.0,
+    S_max = 1.0,
+    ϕ_S = 0.1473,
+    nS = 0.486,
+    I_threshold = 1.0e-4,
+)
+```
+
+```{julia}
+#| output: false
+# IIV standard deviations (on logit/log10 scale)
+ω_p_S = 0.632
+ω_β = 2.489
+ω_m = 0.827
+ω_k_P = 1.292
+ω_k_A = 1.156
+ω_ϵ_NA = 1.583
+ω_ϵ_IFN = 1.626
+ω_r_E_IFN = 2.739
+ω_conv_E = 1.248
+
+hbv_estimated_params = (;
+    tv_p_S = exp10(7.643),
+    tv_β = exp10(-4.358),
+    tv_m = exp10(1.618),
+    tv_k_P = exp10(-3.968),
+    tv_k_A = exp10(-4.869),
+    tv_ϵ_NA = exp10(-1.485),
+    tv_ϵ_IFN = exp10(-1.466),
+    tv_r_E_IFN = exp10(0.313),
+    tv_conv_E = exp10(2.745),
+
+    Ω = Diagonal([ω_p_S^2, ω_β^2, ω_m^2, ω_k_P^2, ω_k_A^2, ω_ϵ_NA^2, ω_ϵ_IFN^2, ω_r_E_IFN^2, ω_conv_E^2]),
+
+    σ_add_log10_HBsAg = 0.0972,
+    σ_prop_log10_HBsAg = 2.2204e-16,
+    σ_add_log10_HBV = 0.3206,
+    σ_prop_log10_HBV = 0.0838,
+    σ_prop_log10_ALT = 0.0478,
+    σ_prop_log10_CD8 = 0.4149,
+)
+```
+
+```{julia}
+#| output: false
+hbv_params = merge(hbv_fixed_params, hbv_estimated_params)
+```
+
+### Copula Sampling and Simulation
+
+We sample correlated random effects using the Gaussian copula with the Spearman correlation matrix
+from @cortes2025HBV (see [HBV-04](hbv_04_copula_vpop_tutorial.qmd) for details):
+
+```{julia}
+#| output: false
+# Spearman correlation matrix (9×9) from @cortes2025HBV Figure S5B
+Rho = [
+    # p_S     β      m     k_P    k_A    ϵ_NA   ϵ_IFN  r_E_IFN conv_E
+    1.0    0.43   0.46   0.51  -0.7   0.58  -0.14  -0.38    0.0;  # p_S
+    0.43   1.0    0.3  -0.01  -0.5   0.38  -0.52  -0.21    0.0;  # β
+    0.46   0.3   1.0   -0.16  -0.5   0.29   0.07  -0.33    0.0;  # m
+    0.51  -0.01  -0.16   1.0   -0.45   0.25   0.14  -0.1    0.0;  # k_P
+    -0.7  -0.5  -0.5  -0.45   1.0   -0.41   0.01   0.05    0.0;  # k_A
+    0.58   0.38   0.29   0.25  -0.41   1.0   -0.61  -0.36    0.0;  # ϵ_NA
+    -0.14  -0.52   0.07   0.14   0.01  -0.61   1.0    0.26    0.0;  # ϵ_IFN
+    -0.38  -0.21  -0.33  -0.1   0.05  -0.36   0.26   1.0     0.0;  # r_E_IFN
+    0.0    0.0    0.0    0.0    0.0    0.0    0.0    0.0      1.0;  # conv_E
+]
+
 n_vps = 5000
-vpop = generate_hbv_vpop(n_vps)
+copula = GaussianCopula(Rho)
+correlated_randeffs_dist = SklarDist(
+    copula, (
+        Normal(0, ω_p_S),
+        Normal(0, ω_β),
+        Normal(0, ω_m),
+        Normal(0, ω_k_P),
+        Normal(0, ω_k_A),
+        Normal(0, ω_ϵ_NA),
+        Normal(0, ω_ϵ_IFN),
+        Normal(0, ω_r_E_IFN),
+        Normal(0, ω_conv_E),
+    )
+)
 ```
 
-### Calculate Baseline HBsAg
-
-Baseline HBsAg depends primarily on p_S (HBsAg production rate):
+Baseline HBsAg is the steady-state level reached
+after 5 years of untreated chronic infection [@cortes2025HBV].
+Some random effect combinations lead to integration errors,
+so we resample until each simulation succeeds:
 
 ```{julia}
-function calculate_baseline_hbsag(p_S)
-    # Baseline HBsAg approximation (log10 IU/mL)
-    # Scaling chosen to spread values across Everest trial range (0.05 to 10000 IU/mL)
-    # log10(0.05) ≈ -1.3, log10(10000) = 4
-    return 2.5 + 1.2 * (p_S - 8.0)
+#| output: false
+t_chronic = 5 * 365
+sims = map(1:n_vps) do id
+    subj = Subject(; id, time = [t_chronic], covariates = (; NA = false, IFN = false))
+    randeffs = (; η = rand(correlated_randeffs_dist))
+    sim = simobs(hbv_model, subj, hbv_params, randeffs; simulate_error = false)
+    while !isvalid(sim)
+        randeffs = (; η = rand(correlated_randeffs_dist))
+        sim = simobs(hbv_model, subj, hbv_params, randeffs; simulate_error = false)
+    end
+    return sim
 end
+```
 
-# Calculate baseline HBsAg for each VP
-vpop[!, :log_hbsag_bl] = calculate_baseline_hbsag.(vpop.p_S)
-vpop[!, :hbsag_bl] = 10 .^ vpop.log_hbsag_bl
+```{julia}
+vpop = postprocess(sims) do generated, _
+    (; log10_HBsAg_baseline = only(generated.log10_HBsAg))
+end |> DataFrame
 
 overview_table(vpop)
 ```
@@ -176,7 +439,7 @@ Check current distribution vs target:
 
 ```{julia}
 current_counts = zeros(Int, nrow(everest_target))
-for val in vpop.log_hbsag_bl
+for val in vpop.log10_HBsAg_baseline
     for b in 1:nrow(everest_target)
         if everest_target[b, :log10_lower] <= val < everest_target[b, :log10_upper]
             current_counts[b] += 1
@@ -222,7 +485,7 @@ for row in eachrow(everest_target)
     pc = row.pct / 100
 
     # Count of selected VPs in this category
-    nc = sum(x[row.log10_lower .<= vpop.log_hbsag_bl .< row.log10_upper])
+    nc = sum(x[row.log10_lower .<= vpop.log10_HBsAg_baseline .< row.log10_upper])
 
     # Upper bound
     @constraint(model, nc <= (pc + epsilon) * ntotal)
@@ -265,7 +528,7 @@ Check calibrated distributions vs target:
 
 ```{julia}
 calibrated_counts = zeros(Int, nrow(everest_target))
-for val in calibrated_vpop.log_hbsag_bl
+for val in calibrated_vpop.log10_HBsAg_baseline
     for b in 1:nrow(everest_target)
         if everest_target[b, :log10_lower] <= val < everest_target[b, :log10_upper]
             calibrated_counts[b] += 1
@@ -289,7 +552,7 @@ simple_table(comparison, [:range => "HBsAg", :target_pct => "Target (%)", :calib
 ```{julia}
 #| fig-cap: "Before and after ILP calibration to Everest trial baseline HBsAg distribution. The calibrated population (right) closely matches the target."
 df = vcat(vpop, calibrated_vpop; source = "stage" => ["Original", "Calibrated"])
-data_specs = data(df) * mapping(:log_hbsag_bl, col = :stage => sorter("Original", "Calibrated")) * histogram(; bins = vcat(everest_target.log10_lower, everest_target.log10_upper[end]), normalization = :probability)
+data_specs = data(df) * mapping(:log10_HBsAg_baseline, col = :stage => sorter("Original", "Calibrated")) * histogram(; bins = vcat(everest_target.log10_lower, everest_target.log10_upper[end]), normalization = :probability)
 target_specs = mapping(collect(Iterators.flatten((row.log10_lower, row.log10_upper) for row in eachrow(everest_target))), repeat(everest_target.pct; inner = 2) ./ 100, group = repeat(1:nrow(everest_target); inner = 2)) * visual(Lines; label = "Everest Target")
 draw(data_specs + target_specs; axis = (; xlabel = "Baseline HBsAg (log₁₀ IU/mL)", ylabel = "Proportion"))
 ```
@@ -327,7 +590,7 @@ N_total = sum(y)
 # Count deviation constraints
 for (δ_c, row) in zip(δ, eachrow(everest_target))
     p_c = row.pct / 100
-    N_c = sum(y[row.log10_lower .<= vpop.log_hbsag_bl .< row.log10_upper])
+    N_c = sum(y[row.log10_lower .<= vpop.log10_HBsAg_baseline .< row.log10_upper])
     @constraint(moa_model, δ_c >= N_c - p_c * N_total)
     @constraint(moa_model, δ_c >= p_c * N_total - N_c)
 end
