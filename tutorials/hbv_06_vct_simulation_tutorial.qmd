@@ -16,7 +16,7 @@ This is **Tutorial 6 of 6** in the HBV series.
 | 2 | [Global Sensitivity Analysis](hbv_02_gsa_tutorial.qmd) | ✓ Complete |
 | 3 | [Structural Identifiability](hbv_03_structural_identifiability_tutorial.qmd) | ✓ Complete |
 | 4 | [Copula Vpop Generation](hbv_04_copula_vpop_tutorial.qmd) | ✓ Complete |
-| 5 | [ILP Calibration](hbv_05_ilp_calibration_tutorial.qmd) | ✓ Complete |
+| 5 | [MILP Calibration](hbv_05_milp_calibration_tutorial.qmd) | ✓ Complete |
 | 6 | **VCT Simulation (current)** | ← You are here |
 
 :::
@@ -41,7 +41,7 @@ This tutorial uses concepts and code from all previous HBV tutorials:
 
 - **[HBV-01](hbv_01_model_introduction_tutorial.qmd)**: Model structure
 - **[HBV-04](hbv_04_copula_vpop_tutorial.qmd)**: Vpop generation
-- **[HBV-05](hbv_05_ilp_calibration_tutorial.qmd)**: ILP calibration
+- **[HBV-05](hbv_05_milp_calibration_tutorial.qmd)**: MILP calibration
 :::
 
 ## Libraries
@@ -611,7 +611,7 @@ You now have the skills to:
 2. **Analyze parameter sensitivity** with GSA
 3. **Assess identifiability** for clinical measurements
 4. **Generate virtual populations** with copula sampling
-5. **Calibrate to clinical distributions** with ILP
+5. **Calibrate to clinical distributions** with MILP
 6. **Run comprehensive VCTs** with multiple treatment arms
 
 ### References

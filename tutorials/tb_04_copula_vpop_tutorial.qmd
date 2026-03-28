@@ -15,7 +15,7 @@ This is **Tutorial 4 of 6** in the Tumor Burden series.
 | 2 | [Global Sensitivity Analysis](tb_02_gsa_tutorial.qmd) | ✓ Complete |
 | 3 | [Structural Identifiability](tb_03_structural_identifiability_tutorial.qmd) | ✓ Complete |
 | 4 | **Copula Vpop Generation (current)** | You are here |
-| 5 | [ILP Calibration](tb_05_ilp_calibration_tutorial.qmd) | |
+| 5 | [MILP Calibration](tb_05_milp_calibration_tutorial.qmd) | |
 | 6 | [VCT Simulation](tb_06_vct_simulation_tutorial.qmd) | |
 
 :::
@@ -586,10 +586,10 @@ Always validate your virtual population before running ISCTs:
 
 ### What's Next
 
-In **Tutorial 5: ILP Calibration**, we will:
+In **Tutorial 5: MILP Calibration**, we will:
 
 - Learn why virtual population calibration is essential for realistic ISCTs
-- Formulate calibration as an Integer Linear Programming (ILP) problem
+- Formulate calibration as a mixed-integer linear programming (MILP) problem
 - Calibrate the virtual population to match clinical response rate distributions
 - Validate calibration results with visualizations
 

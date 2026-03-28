@@ -1,5 +1,5 @@
 ---
-title: "ILP-Based Virtual Population Calibration"
+title: "MILP-Based Virtual Population Calibration"
 subtitle: "Matching Virtual Population to Clinical Trial Characteristics"
 author:
   - Vijay Ivaturi
@@ -16,7 +16,7 @@ This is **Tutorial 5 of 6** in the HBV series.
 | 2 | [Global Sensitivity Analysis](hbv_02_gsa_tutorial.qmd) | ✓ Complete |
 | 3 | [Structural Identifiability](hbv_03_structural_identifiability_tutorial.qmd) | ✓ Complete |
 | 4 | [Copula Vpop Generation](hbv_04_copula_vpop_tutorial.qmd) | ✓ Complete |
-| 5 | **ILP Calibration (current)** | ← You are here |
+| 5 | **MILP Calibration (current)** | ← You are here |
 | 6 | [VCT Simulation](hbv_06_vct_simulation_tutorial.qmd) | |
 
 :::
@@ -31,7 +31,7 @@ In this tutorial, you will learn:
 
 - Why baseline HBsAg calibration is critical for HBV VCTs
 - How to apply ILP calibration (from
-  [TB-05](tb_05_ilp_calibration_tutorial.qmd)) to HBV
+  [TB-05](tb_05_milp_calibration_tutorial.qmd)) to HBV
 - How to define target distributions from clinical trial data
 - How to validate calibration results
 
@@ -41,7 +41,7 @@ In this tutorial, you will learn:
 This tutorial builds on:
 
 - **[HBV-04](hbv_04_copula_vpop_tutorial.qmd)**: HBV vpop generation
-- **[TB-05](tb_05_ilp_calibration_tutorial.qmd)**: Detailed ILP theory
+- **[TB-05](tb_05_milp_calibration_tutorial.qmd)**: Detailed ILP theory
 
 We'll apply ILP concepts without repeating the full theory.
 :::
@@ -563,7 +563,7 @@ The single-objective ILP in Part 3 maximizes population size subject to a fixed 
 tolerance ε.
 An alternative is to treat population size and distribution error as competing objectives
 and trace the Pareto front directly using a multi-objective solver.
-See [TB-05, Part 6](tb_05_ilp_calibration_tutorial.qmd) for the full theoretical motivation
+See [TB-05, Part 6](tb_05_milp_calibration_tutorial.qmd) for the full theoretical motivation
 and derivation.
 
 ### Build and Solve MOA Model

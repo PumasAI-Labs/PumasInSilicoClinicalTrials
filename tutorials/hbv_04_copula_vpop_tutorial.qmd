@@ -16,7 +16,7 @@ This is **Tutorial 4 of 6** in the HBV series.
 | 2 | [Global Sensitivity Analysis](hbv_02_gsa_tutorial.qmd) | ✓ Complete |
 | 3 | [Structural Identifiability](hbv_03_structural_identifiability_tutorial.qmd) | ✓ Complete |
 | 4 | **Copula Vpop Generation (current)** | ← You are here |
-| 5 | [ILP Calibration](hbv_05_ilp_calibration_tutorial.qmd) | |
+| 5 | [MILP Calibration](hbv_05_milp_calibration_tutorial.qmd) | |
 | 6 | [VCT Simulation](hbv_06_vct_simulation_tutorial.qmd) | |
 
 :::
@@ -648,10 +648,10 @@ pairplot(
 
 ### What's Next
 
-In **[Tutorial 5: ILP Calibration](hbv_05_ilp_calibration_tutorial.qmd)**, we will:
+In **[Tutorial 5: MILP Calibration](hbv_05_milp_calibration_tutorial.qmd)**, we will:
 
 - Calibrate the virtual population to match clinical trial baseline characteristics
-- Apply ILP optimization to match target HBsAg distributions
+- Apply MILP optimization to match target HBsAg distributions
 
 ### References
 

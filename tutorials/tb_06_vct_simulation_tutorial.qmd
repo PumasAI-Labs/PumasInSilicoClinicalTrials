@@ -18,7 +18,7 @@ This is **Tutorial 6 of 6** in the Tumor Burden series.
 | 2 | [Global Sensitivity Analysis](tb_02_gsa_tutorial.qmd) | ✓ Complete |
 | 3 | [Structural Identifiability](tb_03_structural_identifiability_tutorial.qmd) | ✓ Complete |
 | 4 | [Copula Vpop Generation](tb_04_copula_vpop_tutorial.qmd) | ✓ Complete |
-| 5 | [ILP Calibration](tb_05_ilp_calibration_tutorial.qmd) | ✓ Complete |
+| 5 | [MILP Calibration](tb_05_milp_calibration_tutorial.qmd) | ✓ Complete |
 | 6 | **VCT Simulation (current)** | ← You are here |
 
 :::
@@ -45,8 +45,8 @@ This tutorial builds on concepts from earlier tutorials:
   Tumor burden model definition
 - **[Tutorial 4](tb_04_copula_vpop_tutorial.qmd)**:
   Virtual population generation
-- **[Tutorial 5](tb_05_ilp_calibration_tutorial.qmd)**:
-  ILP calibration to response distributions
+- **[Tutorial 5](tb_05_milp_calibration_tutorial.qmd)**:
+  MILP calibration to response distributions
 
 We'll generate a calibrated vpop and use it for VCT simulation.
 :::
@@ -250,7 +250,7 @@ sims = simobs(
 # (observed Spearman correlation, marginal distributions)
 ```
 
-### Calibrate Virtual Population: ILP Solution
+### Calibrate Virtual Population: MILP Solution
 
 ```{julia}
 #| echo: false
@@ -296,7 +296,7 @@ simple_table(target_distribution, [:response => "Response", :pct => "Target (%)"
 
 Calibrate the virtual population by maximizing the number of selected VPs subject to a bound on the
 total variation (TV) distance between the selected and target distributions (see
-[Tutorial 5](tb_05_ilp_calibration_tutorial.qmd) for the full derivation):
+[Tutorial 5](tb_05_milp_calibration_tutorial.qmd) for the full derivation):
 
 ```{julia}
 # Maximum TV distribution error
@@ -435,7 +435,7 @@ draw(specs_time_summary + specs_references, scales(Color = (; palette = [:blue, 
 
 ### Calibrated vs Uncalibrated Comparison
 
-To demonstrate the impact of ILP calibration,
+To demonstrate the impact of MILP calibration,
 let us compare tumor dynamics between the calibrated and uncalibrated populations.
 
 We repeat simulations with the uncalibrated virtual population:
@@ -680,7 +680,7 @@ Always set `Random.seed!()` at the start of VCT simulations for reproducible res
 flowchart LR
     A["Step 1-2:<br/>Model & Fitting"] --> B["Step 3:<br/>Sensitivity"]
     B --> C["Step 4:<br/>Vpop Generation"]
-    C --> D["Step 5:<br/>ILP Calibration"]
+    C --> D["Step 5:<br/>MILP Calibration"]
     D --> E["Step 6-7:<br/>VCT & Analysis<br/>(This Tutorial)"]
 
     style E fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px

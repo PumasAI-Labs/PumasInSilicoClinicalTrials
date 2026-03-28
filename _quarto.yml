@@ -18,7 +18,7 @@ website:
           - tutorials/tb_02_gsa_tutorial.qmd
           - tutorials/tb_03_structural_identifiability_tutorial.qmd
           - tutorials/tb_04_copula_vpop_tutorial.qmd
-          - tutorials/tb_05_ilp_calibration_tutorial.qmd
+          - tutorials/tb_05_milp_calibration_tutorial.qmd
           - tutorials/tb_06_vct_simulation_tutorial.qmd
       - section: "HBV model"
         contents:
@@ -26,7 +26,7 @@ website:
           - tutorials/hbv_02_gsa_tutorial.qmd
           - tutorials/hbv_03_structural_identifiability_tutorial.qmd
           - tutorials/hbv_04_copula_vpop_tutorial.qmd
-          - tutorials/hbv_05_ilp_calibration_tutorial.qmd
+          - tutorials/hbv_05_milp_calibration_tutorial.qmd
           - tutorials/hbv_06_vct_simulation_tutorial.qmd
 
 bibliography: tutorials/references.bib
