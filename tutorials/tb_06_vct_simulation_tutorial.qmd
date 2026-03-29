@@ -250,10 +250,10 @@ sims = simobs(
 # (observed Spearman correlation, marginal distributions)
 ```
 
-### Calibrate Virtual Population: MILP Solution
+### Calibrate Virtual Population: ILP Solution
 
 ```{julia}
-#| echo: false
+#| output: false
 vpop = postprocess(sims) do generated, _
     if generated.t[end] != 7 * 18 # days
         error("final time point must be 18 weeks")
@@ -279,9 +279,8 @@ end |> DataFrame
 Classify responses of virtual patients:
 
 ```{julia}
-#| echo: false
-classify_response(tumor_size::AbstractVector) = cut(tumor_size, [0.14, 0.7, 1.0]; labels = ["CR", "PR", "SD", "PD"], extend = true)
-vpop.response = classify_response(vpop.tumor_size_final)
+#| output: false
+@transform! vpop :response = cut(:tumor_size, [0.14, 0.7, 1.0]; labels = ["CR", "PR", "SD", "PD"], extend = true)
 ```
 
 Define target response distribution:
@@ -294,12 +293,12 @@ target_distribution = DataFrame(
 simple_table(target_distribution, [:response => "Response", :pct => "Target (%)"])
 ```
 
-Calibrate the virtual population by maximizing the number of selected VPs subject to a bound on the
-total variation (TV) distance between the selected and target distributions (see
-[Tutorial 5](tb_05_milp_calibration_tutorial.qmd) for the full derivation):
+Calibrate the virtual population by maximizing the number of selected VPs subject to a per-category
+error bound on the response distribution (see
+[Tutorial 5, Part 3](tb_05_milp_calibration_tutorial.qmd) for the full derivation):
 
 ```{julia}
-# Maximum TV distribution error
+# Maximum per-category distribution error
 epsilon = 0.05
 
 # Create optimization model
@@ -310,23 +309,18 @@ set_time_limit_sec(model, 60.0)
 
 # Decision variables
 @variable(model, x[1:length(patients)], Bin)
-@variable(model, δ[1:nrow(target_distribution)] >= 0)
 
 # Objective: maximize number of selected VPs
 N_total = sum(x)
 @objective(model, Max, N_total)
 
-# Count deviation constraints (linearized absolute values)
-for (δ_c, row) in zip(δ, eachrow(target_distribution))
+# Constraints: per-category distribution matching
+for row in eachrow(target_distribution)
     p_c = row.pct / 100
     N_c = sum(x[vpop.response .== row.response])
-    @constraint(model, δ_c >= N_c - p_c * N_total)
-    @constraint(model, δ_c >= p_c * N_total - N_c)
+    @constraint(model, N_c <= (p_c + epsilon) * N_total)
+    @constraint(model, N_c >= (p_c - epsilon) * N_total)
 end
-
-# Upper bound on TV distribution error: TV ≤ ε
-# Since sum(δ) = 2 · TV · N_total, this is equivalent to: sum(δ) ≤ 2ε · N_total
-@constraint(model, sum(δ) <= 2 * epsilon * N_total)
 
 # Compute optimal subset of virtual patients
 optimize!(model)
@@ -341,10 +335,10 @@ calibrated_vpop_distribution = @by calibrated_vpop :response begin
     :pct = 100 * length(:response) / nrow(calibrated_vpop)
 end
 comparison_df = leftjoin(target_distribution, calibrated_vpop_distribution; on = :response, renamecols = "_target" => "_vpop")
-@rtransform! comparison_df :diff = :pct_vpop - :pct_target
+@rtransform! comparison_df :pct_diff = :pct_vpop - :pct_target
 simple_table(
     comparison_df,
-    [:response => "Response", :pct_vpop => "Vpop (%)", :pct_target => "Target (%)", :diff => "Difference (%)"]
+    [:response => "Response", :pct_vpop => "Vpop (%)", :pct_target => "Target (%)", :pct_diff => "Difference (%)"]
 )
 ```
 
@@ -435,7 +429,7 @@ draw(specs_time_summary + specs_references, scales(Color = (; palette = [:blue, 
 
 ### Calibrated vs Uncalibrated Comparison
 
-To demonstrate the impact of MILP calibration,
+To demonstrate the impact of ILP calibration,
 let us compare tumor dynamics between the calibrated and uncalibrated populations.
 
 We repeat simulations with the uncalibrated virtual population:

@@ -113,9 +113,9 @@ In the ISCT workflow [@cortes2025], GSA serves several important purposes:
 %%| echo: false
 flowchart LR
     A["Build Model"] --> B["Run GSA"]
-    B --> C{"Parameter\nInfluential?"}
-    C -->|Yes| D["Estimate\nfrom data"]
-    C -->|No| E["Fix to\nliterature value"]
+    B --> C{"Parameter<br/>Influential?"}
+    C -->|Yes| D["Estimate<br/>from data"]
+    C -->|No| E["Fix to<br/>literature value"]
     D --> F["Run ISCT"]
     E --> F
 
@@ -331,6 +331,7 @@ GSA explores parameters within specified bounds.
 These should cover the plausible physiological range:
 
 ```{julia}
+#| output: false
 # Lower bounds for typical values
 p_range_low = (
     tvf = 0.05,    # At least 5% sensitive
@@ -344,11 +345,6 @@ p_range_high = (
     tvg = 0.005,  # Maximum growth rate
     tvk = 0.05,    # Maximum death rate
 )
-
-println("Parameter ranges for GSA:")
-for key in keys(p_range_low)
-    println("  $key: [$(p_range_low[key]), $(p_range_high[key])]")
-end
 ```
 
 ### Base Parameters and Constant Coefficients
@@ -357,13 +353,12 @@ We need base parameter values and must fix the random effect variance to make si
 deterministic:
 
 ```{julia}
-# Base parameters (center of ranges)
 base_params = (
     tvf = 0.27,
     tvg = 0.0013,
     tvk = 0.0091,
     Ω = Diagonal(zeros(3)),  # No variance → deterministic
-    σ = 0.0,                  # No residual noise
+    σ = 0.0,                 # No residual noise
 )
 ```
 
@@ -423,6 +418,8 @@ gsa_efast.total_order
 For publication-quality results, use the Sobol method.
 
 ```{julia}
+#| warning: false
+#| output: false
 gsa_sobol = gsa(
     tumor_burden_model_gsa,
     subject,
@@ -545,24 +542,24 @@ simple_table(influential_gsa_sobol_df)
 
 Looking at the **final_tumor** output:
 
-1. **tvf (sensitive fraction)** has the highest total-order index (~0.84) —
+1. **sensitive fraction (`tvf`)** has the highest total-order index (~0.84) —
    the dominant driver of final tumor size
-2. **tvg (growth rate)** is second (~0.12) — influences resistant cell regrowth
-3. **tvk (death rate)** is minor (~0.07) —
+2. **growth rate (`tvg`)** is second (~0.12) — influences resistant cell regrowth
+3. **death rate (`tvk`)** is minor (~0.07) —
    less influential for the final outcome
 
 **Biological interpretation:**
 
-- The fraction of treatment-sensitive cells (f) is the primary determinant of
+- The fraction of treatment-sensitive cells is the primary determinant of
   long-term outcome
-- Patients with high f have more cells killed by treatment → smaller final
-  tumors
-- Growth rate (g) matters because resistant cells eventually dominate the tumor
-- Death rate (k) has less impact on final size
+- Patients with high fraction of treatment-sensitive cells have more cells killed by treatment →
+  smaller final tumors
+- Growth rate matters because resistant cells eventually dominate the tumor
+- Death rate has less impact on final size
   because it only affects the sensitive population,
-  which is eventually eliminated regardless of k
+  which is eventually eliminated regardless of the death rate
 
-**Why is f dominant?**
+**Why is sensitive fraction dominant?**
 
 The model: $N(t) = N_0 \cdot f \cdot e^{-kt} + N_0 \cdot (1-f) \cdot e^{gt}$
 
@@ -584,8 +581,9 @@ long_df = stack(
     variable_name = :type, value_name = :index,
 )
 
-specs_gsa = data(long_df) * mapping(:parameter => renamer(["tvf" => "f (sensitive fraction)", "tvg" => "g (growth rate)", "tvk" => "k (death rate)"]) => "Parameter", :index => "Sensitivity", stack = :parameter, color = :type => renamer(["first_order" => "First-order (Sᵢ)", "interaction" => "Interaction (Sₜᵢ - Sᵢ)"]) => "Type") * visual(BarPlot)
-specs_threshold = mapping([threshold], color = "Sₜᵢ = 0.1" => "Importance Threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
+parameter_mapping = :parameter => renamer("tvf" => "sensitive fraction (tvf)", "tvg" => "growth rate (tvg)", "tvk" => "death rate (tvk)") => "Parameter"
+specs_gsa = data(long_df) * mapping(parameter_mapping, :index => "Sensitivity", stack = :parameter, color = :type => renamer("first_order" => "First-order (Sᵢ)", "interaction" => "Interaction (Sₜᵢ - Sᵢ)") => "Type") * visual(BarPlot)
+specs_threshold = mapping([threshold], color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
 
 draw(specs_gsa + specs_threshold, AlgebraOfGraphics.scales(; ColorLine = (; palette = [:red])), legend = (; position = :bottom))
 ```
@@ -624,14 +622,15 @@ those below can potentially be fixed to literature values.
 
 ```{julia}
 #| fig-cap: "Parameters ranked by total-order sensitivity index for final tumor size."
+parameter_mapping = :parameter => renamer("tvf" => "sensitive fraction (tvf)", "tvg" => "growth rate (tvg)", "tvk" => "death rate (tvk)") => "Parameter"
 specs_gsa = data(ranked_gsa_sobol_df) *
     mapping(
-    :parameter => renamer(["tvf" => "f (sensitive fraction)", "tvg" => "g (growth rate)", "tvk" => "k (death rate)"]) => "Parameter",
-    :total_order => "Total-Order Sensitivity Index (Sₜᵢ)",
-    color = :rank => nonnumeric => "Rank"
+    parameter_mapping,
+    :total_order => "Total-order sensitivity index (Sₜᵢ)",
+    color = :rank => nonnumeric => "Rank",
 ) *
     visual(BarPlot)
-specs_threshold = mapping([threshold], color = "Sₜᵢ = 0.1" => "Importance Threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
+specs_threshold = mapping([threshold], color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
 
 draw(specs_gsa + specs_threshold, AlgebraOfGraphics.scales(; ColorLine = (; palette = [:red])), legend = (; position = :bottom))
 ```
@@ -642,11 +641,12 @@ draw(specs_gsa + specs_threshold, AlgebraOfGraphics.scales(; ColorLine = (; pale
 #| fig-cap: "Scatter plot comparing first-order and total-order sensitivity indices. Points above the diagonal indicate parameters with significant interactions."
 
 # Create scatter plot with AoG
+parameter_mapping = :parameter => renamer("tvf" => "sensitive fraction (tvf)", "tvg" => "growth rate (tvg)", "tvk" => "death rate (tvk)") => "Parameter"
 specs_gsa = data(gsa_sobol_df) *
     mapping(
-    :first_order => "First-Order Index (S₁)",
-    :total_order => "Total-Order Index (Sₜ)",
-    color = :parameter => renamer(["tvf" => "f (sensitive fraction)", "tvg" => "g (growth rate)", "tvk" => "k (death rate)"]) => "Parameter"
+    :first_order => "First-order index (S₁)",
+    :total_order => "Total-order index (Sₜ)",
+    color = parameter_mapping,
 ) *
     visual(Scatter)
 specs_reference = mapping([0], [1]) * visual(ABLines)
@@ -738,6 +738,8 @@ end
 ### Run Comparative GSA
 
 ```{julia}
+#| warning: false
+#| output: false
 subject = Subject(
     id = 1,
     covariates = (; treatment = true),  # Treatment arm (drug active)
@@ -754,6 +756,18 @@ gsa_sobol = gsa(
     constantcoef = (:Ω, :σ),
     samples = 2^10
 )
+```
+
+First-order indices:
+
+```{julia}
+gsa_sobol.first_order
+```
+
+Total-order indices:
+
+```{julia}
+gsa_sobol.total_order
 ```
 
 ### Extract and Compare Results
@@ -785,9 +799,6 @@ gsa_sobol_df = outerjoin(
 # Parse time
 @rtransform! gsa_sobol_df :time = subject.time[parse(Int, match(r"tumor_size_t\[(\d+)\]", :dv_name).captures[1])]
 
-# "Nicer" parameter names
-@rtransform! gsa_sobol_df :parameter = :parameter[3:end]
-
 simple_table(gsa_sobol_df)
 ```
 
@@ -814,18 +825,18 @@ simple_table(influential_gsa_sobol_df)
 ### Visualize Parameter Importance Over Time
 
 ```{julia}
-#| fig-cap: "How parameter importance changes across treatment timepoints. Early: k matters for active killing. Late: f dominates as resistant cells determine outcome."
+#| fig-cap: "How parameter importance changes across treatment timepoints. Early: death rate matters for active killing. Late: sensitive fraction dominates as resistant cells determine outcome."
 
-parameter_mapping = :parameter => sorter(["f", "g", "k"]) => "Parameter"
+parameter_mapping = :parameter => renamer("tvf" => "sensitive fraction (tvf)", "tvg" => "growth rate (tvg)", "tvk" => "death rate (tvk)") => "Parameter"
 specs_gsa = data(gsa_sobol_df) *
     mapping(
     parameter_mapping,
-    :total_order => "Total-Order Sensitivity Index (Sₜᵢ)",
+    :total_order => "Total-order sensitivity index (Sₜᵢ)",
     color = parameter_mapping,
     col = :time => (t -> string("Week ", t ÷ 7))
 ) *
     visual(BarPlot)
-specs_threshold = mapping([threshold], color = "Sₜᵢ = 0.1" => "Importance Threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
+specs_threshold = mapping([threshold], color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
 
 draw(specs_gsa + specs_threshold, scales(ColorLine = (; palette = [:red])); legend = (; position = :bottom))
 ```

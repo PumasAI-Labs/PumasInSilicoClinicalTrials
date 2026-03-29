@@ -35,9 +35,9 @@ In this tutorial, you will learn:
 - How to build a JuMP optimization model step-by-step
 - How to calibrate to response rate distributions (not just baseline
   characteristics)
+- Multi-objective optimization with maximum displacement using MultiObjectiveAlgorithms.jl
 - The mixed-integer linear programming (MILP) formulation with distribution error bound
-  and its relationship to per-category constraints
-- Multi-objective optimization with MultiObjectiveAlgorithms.jl
+  for inter-category trade-offs
 - Validating calibration results with visualizations
 
 :::{.callout-tip}
@@ -529,67 +529,45 @@ the solution) is 235.
 We extract the selected virtual patients, i.e., those for which the solution is 1:
 
 ```{julia}
-selected_vps = findall(xi -> value(xi) == 1, x)
-calibrated_vpop = vpop[selected_vps, :]
+#| output: false
+ilp_selected = findall(xi -> value(xi) == 1, x)
+ilp_vpop = vpop[ilp_selected, :]
 ```
 
 The distribution of observed responses for this subset of virtual patients is
 
 ```{julia}
-calibrated_vpop_distribution = @by calibrated_vpop :response begin
-    :pct = 100 * length(:response) / nrow(calibrated_vpop)
+ilp_distribution = @by ilp_vpop :response begin
+    :pct = 100 * length(:response) / nrow(ilp_vpop)
 end
 simple_table(
-    calibrated_vpop_distribution, [:response => "Response", :pct => "Vpop (%)"],
+    ilp_distribution, [:response => "Response", :pct => "Vpop (%)"],
 )
 ```
 
 We compare it with the target distribution of response rates:
 
 ```{julia}
-comparison_df = leftjoin(target_distribution, calibrated_vpop_distribution; on = :response, renamecols = "_target" => "_vpop")
-@rtransform! comparison_df :pct_vpop = @coalesce(:pct_vpop, 0.0)
-@rtransform! comparison_df :diff = :pct_vpop - :pct_target
-
+ilp_comparison_df = leftjoin(target_distribution, ilp_distribution; on = :response, renamecols = "_target" => "_vpop")
+@rtransform! ilp_comparison_df :pct_vpop = @coalesce(:pct_vpop, 0.0)
+@rtransform! ilp_comparison_df :pct_diff = :pct_vpop - :pct_target
 simple_table(
-    comparison_df,
-    [:response => "Response", :pct_vpop => "Vpop (%)", :pct_target => "Target (%)", :diff => "Difference (%)"]
+    ilp_comparison_df,
+    [:response => "Response", :pct_vpop => "Vpop (%)", :pct_target => "Target (%)", :pct_diff => "Difference (%)"]
 )
 ```
 
 ### Evaluating Distribution Error
 
-To quantify the overall quality of the calibration,
-we compute the **mean total error** across all response categories [@cortes2025HBV]:
+The ILP constrains the maximum per-category proportion error to $\epsilon$,
+so the natural evaluation metric is the realized **maximum absolute error**:
 
-$$ \text{MTE} = \frac{1}{C} \sum_c \left| \frac{N_c}{N_{\text{total}}} - p_c \right| $$
+$$ \epsilon_{\max} = \max_c \left| \frac{N_c}{N_{\text{total}}} - p_c \right| $$
 
-where $C$ is the number of categories.
-This measures the average absolute deviation between the observed and target proportions.
-
-:::{.callout-note}
-## Relationship to Total Variation Distance
-
-The **total variation distance** between two discrete probability distributions is a standard metric
-defined as:
-
-$$ \text{TV} = \frac{1}{2} \sum_c |q_c - p_c| $$
-
-where $q_c$ and $p_c$ are the observed and target proportions.
-TV is always in $[0, 1]$ regardless of the number of categories.
-
-The mean total error is simply a rescaled version: $\text{MTE} = 2 \cdot \text{TV} / C$.
-In particular, this implies that the MTE is always in $[0, 2/C]$.
-
-We use MTE here because it is more directly interpretable ("on average,
-each category proportion is off by X")
-and matches the evaluation metric used in the reference paper.
-:::
+This tells us how far the worst-matching category deviates from its target.
 
 ```{julia}
-C = nrow(target_distribution)
-ilp_nselected = nrow(calibrated_vpop)
-ilp_error = L1dist(comparison_df.pct_target, comparison_df.pct_vpop) / (100 * C)
+ilp_max_error = maximum(abs, ilp_comparison_df.pct_diff) / 100
 ```
 
 ### Visualizing the Calibration Result
@@ -597,7 +575,7 @@ ilp_error = L1dist(comparison_df.pct_target, comparison_df.pct_vpop) / (100 * C)
 ```{julia}
 #| fig-cap: "Before and after calibration: response distribution comparison. The calibrated virtual population closely matches the target distribution."
 original_comparison_df = vcat(target_distribution, vpop_distribution; source = "type" => ["Target", "VPop"])
-calibrated_comparison_df = vcat(target_distribution, calibrated_vpop_distribution; source = "type" => ["Target", "VPop"])
+calibrated_comparison_df = vcat(target_distribution, ilp_distribution; source = "type" => ["Target", "VPop"])
 comparison_df = vcat(original_comparison_df, calibrated_comparison_df; source = "source" => ["Original", "Calibrated"])
 
 response_mapping = renamer(
@@ -619,19 +597,235 @@ specs = data(comparison_df) *
 draw(specs; axis = (; xticklabelrotation = π / 4))
 ```
 
-## Part 4: MILP with Distribution Error Bound
+## Part 4: Multi-Objective Optimization
 
-### Why Allow Inter-Category Trade-offs?
+### Motivation
 
-The per-category $\epsilon$ constraint from Part 3 treats each response category independently:
-each category's proportion must be within $\epsilon$ of its target.
-This means that even if one category matches perfectly,
-that "surplus accuracy" cannot compensate for a slightly larger error in another category.
+The ILP from Part 3 requires choosing $\epsilon$ before solving.
+What if we want to explore the full trade-off between population size
+and per-category accuracy without committing to a specific tolerance?
 
-An alternative is to constrain the **mean total error** directly,
-allowing trade-offs between categories.
+**Multi-objective optimization** lets us find the entire Pareto front directly,
+revealing all optimal trade-offs between two competing objectives:
+
+1. **Maximize** $N_{\text{total}} = \sum x_i$ (number of selected VPs)
+2. **Minimize** the maximum per-category error (the same quantity $\epsilon$ constrains)
+
+### Mathematical Formulation
+
+We introduce a single continuous variable $\Delta \geq 0$ representing the
+**maximum absolute count displacement** across all categories:
+
+$$ \begin{align} \min \quad & [-N_{\text{total}},\; \Delta] \\
+\text{s.t.} \quad & N_c - p_c \cdot N_{\text{total}} \leq \Delta & \forall\, c \\
+& p_c \cdot N_{\text{total}} - N_c \leq \Delta & \forall\, c \\
+& x_j \in \{0, 1\} \\
+& \Delta \geq 0 \end{align} $$
+
+The key relationship is $\Delta / N_{\text{total}} = \max_c |N_c / N_{\text{total}} - p_c|$,
+which is exactly the quantity that $\epsilon$ constrains in the ILP.
+So this formulation directly explores the Pareto front of $(N_{\text{total}},\, \epsilon_{\max})$.
+
+### Recovering the $\epsilon_{\max}$-Pareto Front
+
+Using $\Delta$ as the second objective keeps the problem as a **MILP**,
+solvable efficiently by HiGHS.
+But $\Delta$ is not the metric we ultimately care about — $\epsilon_{\max}$ is.
+The Pareto fronts in $(N_\text{total}, \Delta)$
+and $(N_\text{total}, \epsilon_{\max})$ space are generally not identical.
+
+Fortunately, the $\Delta$-Pareto front is guaranteed to contain all $\epsilon_{\max}$-Pareto-optimal
+solutions:
+
+:::{.callout-note}
+## $\Delta$-Dominance Implies $\epsilon_{\max}$-Dominance
+
+If solution $T$ dominates $S$ in $(N_\text{total}, \Delta)$ space (i.e.,
+$N_T \geq N_S$ and $\Delta_T \leq \Delta_S$, with at least one strict inequality), then:
+
+$$ \epsilon_{\max,T} = \frac{\Delta_T}{N_T} \leq \frac{\Delta_S}{N_S} = \epsilon_{\max,S} $$
+
+This holds because $\Delta_T \leq \Delta_S$ and $\frac{1}{N_T} \leq \frac{1}{N_S}$,
+so their product satisfies $\frac{\Delta_T}{N_T} \leq \frac{\Delta_S}{N_S}$.
+
+**Consequence:** every $\epsilon_{\max}$-Pareto-optimal solution is also $\Delta$-Pareto-optimal.
+We can therefore find the $\Delta$-Pareto front efficiently (as a MILP),
+compute $\epsilon_{\max} = \Delta / N_\text{total}$ for each solution,
+and **post-filter** for $\epsilon_{\max}$-dominance to recover the exact $\epsilon_{\max}$-Pareto
+front.
+:::
+
+### Multi-Objective Formulation with MultiObjectiveAlgorithms.jl
+
+[MultiObjectiveAlgorithms.jl](https://github.com/jump-dev/MultiObjectiveAlgorithms.jl) (MOA) extends
+JuMP with multi-objective optimization algorithms.
+It wraps a single-objective solver (here,
+HiGHS) and orchestrates multiple subproblem solves to trace the Pareto front.
+
+We use the **ε-constraint method** (`MOA.EpsilonConstraint`),
+which is well-suited for bi-objective integer programs.
+It iterates over the range of one objective,
+constraining it at each step while optimizing the other,
+systematically enumerating nondominated solutions.
+
+:::{.callout-tip}
+## Choosing the MOA Algorithm
+
+For bi-objective problems, MOA offers several algorithms:
+
+| Algorithm | What it finds | Best for |
+|:----------|:--------------|:---------|
+| `EpsilonConstraint()` | All nondominated points | General bi-objective (recommended) |
+| `Chalmet()` | All nondominated points | Bi-criterion integer programs |
+| `Dichotomy()` | Supported extreme points | Quick overview (may miss points) |
+| `TambyVanderpooten()` | All nondominated points | Multi-objective (p ≥ 2) discrete programs |
+
+`EpsilonConstraint` is the most intuitive
+and gives fine-grained control over the number of Pareto points via `MOA.SolutionLimit()`.
+:::
+
+```{julia}
+moa_model = Model(() -> MOA.Optimizer(HiGHS.Optimizer))
+set_attribute(moa_model, MOA.Algorithm(), MOA.EpsilonConstraint())
+set_attribute(moa_model, MOA.SolutionLimit(), 50)
+set_silent(moa_model)
+
+# Binary selection variables
+@variable(moa_model, y[1:nrow(vpop)], Bin)
+
+# Single continuous variable: maximum absolute count displacement
+@variable(moa_model, Δ >= 0)
+
+# Total selected VPs
+N_total = sum(y)
+
+# Bi-objective: minimize [-N_total, Δ]
+# (negate N_total since JuMP requires a uniform optimization sense)
+@objective(moa_model, Min, [-N_total, Δ])
+
+# Maximum displacement constraints
+for row in eachrow(target_distribution)
+    p_c = row.pct / 100
+    N_c = sum(y[vpop.response .== row.response])
+    @constraint(moa_model, N_c - p_c * N_total <= Δ)
+    @constraint(moa_model, p_c * N_total - N_c <= Δ)
+end
+
+moa_model
+```
+
+```{julia}
+optimize!(moa_model)
+```
+
+```{julia}
+assert_is_solved_and_feasible(moa_model)
+```
+
+### Extracting and Filtering the Pareto Front
+
+We extract all nondominated solutions found by the ε-constraint method,
+compute the maximum absolute error for each, and filter for $\epsilon_{\max}$-Pareto-optimality:
+
+```{julia}
+#| output: false
+n_solutions = result_count(moa_model)
+
+moa_solutions_df = map(1:n_solutions) do i
+    obj = objective_value(moa_model; result = i)
+    nselected = round(Int, -obj[1])
+    delta = obj[2]
+
+    # Recover max absolute error: ε_max = Δ / N_total
+    max_error = nselected > 0 ? delta / nselected : NaN
+
+    (; nselected, max_error)
+end |> DataFrame
+```
+
+We filter for $\epsilon_{\max}$-Pareto-optimality by removing solutions
+that are dominated in $(N_\text{total}, \epsilon_{\max})$ space:
+
+```{julia}
+sort!(moa_solutions_df, [order(:nselected; rev = true), :max_error])
+moa_solutions_df.pareto_optimal .= false
+moa_solutions_df.pareto_optimal[begin] = true
+dominating_error = moa_solutions_df.max_error[begin]
+for row in eachrow(moa_solutions_df)
+    if row.max_error < dominating_error
+        row.pareto_optimal = true
+        dominating_error = row.max_error
+    end
+end
+
+sort!(moa_solutions_df, :nselected; rev = true)
+simple_table(
+    moa_solutions_df,
+    [
+        :nselected => "# selected VPs",
+        :max_error => "Max. absolute error",
+        :pareto_optimal => "Pareto-Optimal",
+    ],
+)
+```
+
+### Visualization
+
+We visualize the Pareto front and overlay the ILP solution from Part 3:
+
+```{julia}
+#| fig-cap: "Multi-objective Pareto front showing the trade-off between population size and maximum per-category error. The ILP solution from Part 3 is overlaid for comparison."
+specs = (
+    data(@rsubset(moa_solutions_df, :pareto_optimal)) * mapping(color = direct("Pareto front")) +
+        data((; max_error = [ilp_max_error], nselected = [nrow(ilp_vpop)])) * mapping(color = direct("ILP solution (ϵ = 0.05)"))
+) * mapping(:max_error => "Max. absolute error", :nselected => "# selected VPs") * visual(Scatter)
+draw(specs)
+```
+
+The Pareto front reveals the full trade-off between population size and maximum per-category error.
+The ILP solution from Part 3 is a single point on (or near) this front,
+corresponding to the specific choice of $\epsilon = 0.05$.
+The multi-objective approach recovers the entire curve without requiring $\epsilon$ to be chosen a
+priori.
+
+## Part 5: Inter-Category Trade-offs
+
+### Why Allow Trade-offs Between Categories?
+
+The per-category formulation from Part 3 (and its multi-objective extension in Part 4) treats all
+categories equally: no single category's proportion can deviate from its target by more than
+$\epsilon$.
+But what if you are willing to accept a slightly larger error in one category,
+as long as other categories compensate?
+
+Constraining the **mean total error** (MTE) instead of the per-category maximum allows this
+trade-off.
 This leads to a **mixed-integer linear program** (MILP)
 that is strictly more flexible than the per-category ILP.
+
+### Mean Total Error
+
+The **mean total error** across all response categories [@cortes2025HBV] is defined as:
+
+$$ \text{MTE} = \frac{1}{C} \sum_c \left| \frac{N_c}{N_{\text{total}}} - p_c \right| $$
+
+where $C$ is the number of categories.
+This measures the average absolute deviation between the observed and target proportions.
+
+:::{.callout-note}
+## Relationship to Total Variation Distance
+
+The **total variation distance** between two discrete probability distributions is a standard metric
+defined as:
+
+$$ \text{TV} = \frac{1}{2} \sum_c |q_c - p_c| $$
+
+where $q_c$ and $p_c$ are the observed and target proportions.
+TV is always in $[0, 1]$ regardless of the number of categories.
+
+The mean total error is simply a rescaled version: $\text{MTE} = 2 \cdot \text{TV} / C$.
+In particular, this implies that the MTE is always in $[0, 2/C]$.
+:::
 
 ### Mathematical Formulation
 
@@ -665,7 +859,7 @@ $$ \sum_c \delta_c \leq C \cdot \epsilon \cdot N_\text{total} $$
 :::{.callout-tip}
 ## Same Epsilon, Different Guarantees
 
-Both formulations use the same $\epsilon$ value with the same interpretation (MTE $\leq \epsilon$):
+Both formulations use $\epsilon$ but with different interpretations:
 
 - The **ILP** (Part 3) enforces $|q_c - p_c| \leq \epsilon$ for every category,
   which guarantees $\text{MTE} \leq \epsilon$.
@@ -704,7 +898,7 @@ end
 
 # Upper bound on mean total error: MTE ≤ ε
 # Since sum(δ) = C · MTE · N_total, this is equivalent to: sum(δ) ≤ C · ε · N_total
-@constraint(model_milp, sum(δ) <= C * epsilon * N_total)
+@constraint(model_milp, sum(δ) <= nrow(target_distribution) * epsilon * N_total)
 
 model_milp
 ```
@@ -720,9 +914,9 @@ assert_is_solved_and_feasible(model_milp)
 ### Results and Comparison with ILP
 
 ```{julia}
+#| output: false
 milp_selected = findall(xi -> value(xi) == 1, x_milp)
 milp_vpop = vpop[milp_selected, :]
-milp_nselected = nrow(milp_vpop)
 ```
 
 ```{julia}
@@ -731,66 +925,60 @@ milp_distribution = @by milp_vpop :response begin
 end
 milp_comparison_df = leftjoin(target_distribution, milp_distribution; on = :response, renamecols = "_target" => "_vpop")
 @rtransform! milp_comparison_df :pct_vpop = @coalesce(:pct_vpop, 0.0)
-@rtransform! milp_comparison_df :diff = :pct_vpop - :pct_target
-milp_error = L1dist(milp_comparison_df.pct_target, milp_comparison_df.pct_vpop) / (100 * C)
+@rtransform! milp_comparison_df :pct_diff = :pct_vpop - :pct_target
 
 simple_table(
     milp_comparison_df,
-    [:response => "Response", :pct_vpop => "Vpop (%)", :pct_target => "Target (%)", :diff => "Difference (%)"]
+    [:response => "Response", :pct_vpop => "Vpop (%)", :pct_target => "Target (%)", :pct_diff => "Difference (%)"]
 )
+```
+
+```{julia}
+milp_mte = mean(abs, milp_comparison_df.pct_diff) / 100
 ```
 
 We compare the ILP and MILP solutions:
 
 ```{julia}
+ilp_mte = mean(abs, ilp_comparison_df.pct_diff) / 100
+milp_max_error = maximum(abs, milp_comparison_df.pct_diff) / 100
 summary_df = DataFrame(
-    Formulation = ["ILP (per-category ε=$epsilon)", "MILP (MTE ≤ $epsilon)"],
-    Selected_VPs = [ilp_nselected, milp_nselected],
-    Distribution_Error = [ilp_error, milp_error],
+    method = ["ILP (max. absolute error ≤ $epsilon)", "MILP (mean total error ≤ $epsilon)"],
+    nselected = [nrow(ilp_vpop), nrow(milp_vpop)],
+    max_error = [ilp_max_error, milp_max_error],
+    mte = [ilp_mte, milp_mte],
 )
 simple_table(
     summary_df,
-    [:Formulation => "Formulation", :Selected_VPs => "# Selected VPs", :Distribution_Error => "Distribution Error (MTE)"]
+    [
+        :method => "Method", :nselected => "# selected VPs",
+        :max_error => "Max. absolute error", :mte => "Mean total error",
+    ]
 )
 ```
 
 The MILP selects at least as many virtual patients as the ILP,
 because its feasible space is strictly larger.
 The inter-category trade-off allows the solver to find calibrated populations
-that per-category constraints would reject.
+that per-category constraints would reject —
+but note that the maximum per-category error may exceed $\epsilon$.
 
-However, both formulations still require choosing $\epsilon$ a priori.
-In the next section, we remove this requirement entirely using multi-objective optimization.
+### Multi-Objective Optimization with MTE
 
-## Part 5: Multi-Objective Optimization
+Just as we used multi-objective optimization in Part 4 to explore the per-category error trade-off,
+we can do the same for the MTE-based formulation.
+Instead of a single $\Delta$ variable,
+we use per-category count deviations $\delta_c$ and minimize their sum $D = \sum_c \delta_c$
+as the second objective:
 
-### Motivation
+#### From MTE to Count Deviations
 
-Both the ILP (Part 3) and the MILP (Part 4) require choosing $\epsilon$ before solving.
-An alternative is to formulate the problem as a **bi-objective mixed-integer program**
-and let a dedicated multi-objective solver find the Pareto front directly,
-revealing the full trade-off between population size and distribution accuracy.
-
-Our two competing objectives are:
-
-1. **Maximize** $N_{\text{total}} = \sum x_i$ (number of selected VPs)
-2. **Minimize** the distribution error (MTE) of the selected population
-
-### From MTE to Count Deviations
-
-As derived in Part 4, we cannot use MTE directly as an optimization objective
+We cannot use MTE directly as an optimization objective
 because it involves a ratio of decision variables.
 Instead, we minimize the total count deviation $D = \sum_c \delta_c$,
 which is related to MTE by $D = C \cdot \text{MTE} \cdot N_\text{total}$.
 
-### Recovering the MTE-Pareto Front
-
-Using $D$ as the second objective keeps the problem as a **MILP**, solvable efficiently by HiGHS.
-But $D$ is not the metric we ultimately care about — MTE is.
-The Pareto fronts in $(N_\text{total}, D)$
-and $(N_\text{total}, \text{MTE})$ space are generally not identical.
-
-Fortunately, the $D$-Pareto front is guaranteed to contain all MTE-Pareto-optimal solutions:
+#### Recovering the MTE-Pareto Front
 
 :::{.callout-note}
 ## $D$-Dominance Implies MTE-Dominance
@@ -809,173 +997,134 @@ compute $\text{MTE} = D / (C \cdot N_\text{total})$ for each solution,
 and **post-filter** for MTE-dominance to recover the exact MTE-Pareto front.
 :::
 
-### Multi-Objective Formulation with MultiObjectiveAlgorithms.jl
-
-[MultiObjectiveAlgorithms.jl](https://github.com/jump-dev/MultiObjectiveAlgorithms.jl) (MOA) extends
-JuMP with multi-objective optimization algorithms.
-It wraps a single-objective solver (here,
-HiGHS) and orchestrates multiple subproblem solves to trace the Pareto front.
-
-We use the **ε-constraint method** (`MOA.EpsilonConstraint`),
-which is well-suited for bi-objective integer programs.
-It iterates over the range of one objective,
-constraining it at each step while optimizing the other,
-systematically enumerating nondominated solutions.
-
-:::{.callout-tip}
-## Choosing the MOA Algorithm
-
-For bi-objective problems, MOA offers several algorithms:
-
-| Algorithm | What it finds | Best for |
-|:----------|:--------------|:---------|
-| `EpsilonConstraint()` | All nondominated points | General bi-objective (recommended) |
-| `Chalmet()` | All nondominated points | Bi-criterion integer programs |
-| `Dichotomy()` | Supported extreme points | Quick overview (may miss points) |
-| `TambyVanderpooten()` | All nondominated points | Multi-objective (p ≥ 2) discrete programs |
-
-`EpsilonConstraint` is the most intuitive
-and gives fine-grained control over the number of Pareto points via `MOA.SolutionLimit()`.
-:::
-
 ```{julia}
-moa_model = Model(() -> MOA.Optimizer(HiGHS.Optimizer))
-set_attribute(moa_model, MOA.Algorithm(), MOA.EpsilonConstraint())
-set_attribute(moa_model, MOA.SolutionLimit(), 50)
-set_silent(moa_model)
+moa_mte_model = Model(() -> MOA.Optimizer(HiGHS.Optimizer))
+set_attribute(moa_mte_model, MOA.Algorithm(), MOA.EpsilonConstraint())
+set_attribute(moa_mte_model, MOA.SolutionLimit(), 50)
+set_silent(moa_mte_model)
 
-# Binary selection variables (same as before)
-@variable(moa_model, y[1:nrow(vpop)], Bin)
+# Binary selection variables
+@variable(moa_mte_model, y_mte[1:nrow(vpop)], Bin)
 
 # Continuous count deviation variables (one per category)
-@variable(moa_model, δ[1:nrow(target_distribution)] >= 0)
+@variable(moa_mte_model, δ_mte[1:nrow(target_distribution)] >= 0)
 
 # Total selected VPs
-N_total = sum(y)
+N_total = sum(y_mte)
 
 # Bi-objective: minimize [-N_total, D]
 # (negate N_total since JuMP requires a uniform optimization sense)
-@objective(moa_model, Min, [-N_total, sum(δ)])
+@objective(moa_mte_model, Min, [-N_total, sum(δ_mte)])
 
 # Count deviation constraints
-for (δ_c, row) in zip(δ, eachrow(target_distribution))
+for (δ_c, row) in zip(δ_mte, eachrow(target_distribution))
     p_c = row.pct / 100
-    N_c = sum(y[vpop.response .== row.response])
-    @constraint(moa_model, δ_c >= N_c - p_c * N_total)
-    @constraint(moa_model, δ_c >= p_c * N_total - N_c)
+    N_c = sum(y_mte[vpop.response .== row.response])
+    @constraint(moa_mte_model, δ_c >= N_c - p_c * N_total)
+    @constraint(moa_mte_model, δ_c >= p_c * N_total - N_c)
 end
 
-moa_model
+moa_mte_model
 ```
 
 ```{julia}
-optimize!(moa_model)
+optimize!(moa_mte_model)
 ```
 
 ```{julia}
-assert_is_solved_and_feasible(moa_model)
+assert_is_solved_and_feasible(moa_mte_model)
 ```
 
-### Extracting and Filtering the Pareto Front
-
-We extract all nondominated solutions found by the ε-constraint method,
-compute the distribution error (MTE) for each, and filter for MTE-Pareto-optimality:
+### Extracting and Filtering the MTE-Pareto Front
 
 ```{julia}
 #| output: false
-n_solutions = result_count(moa_model)
+n_mte_solutions = result_count(moa_mte_model)
 
-moa_solutions_df = map(1:n_solutions) do i
-    obj = objective_value(moa_model; result = i)
+moa_mte_solutions_df = map(1:n_mte_solutions) do i
+    obj = objective_value(moa_mte_model; result = i)
     nselected = round(Int, -obj[1])
     count_dev = obj[2]
 
     # Recover MTE from count deviation: MTE = D / (C · N_total)
-    error = nselected > 0 ? count_dev / (C * nselected) : NaN
+    mte = nselected > 0 ? count_dev / (nrow(target_distribution) * nselected) : NaN
 
-    # Extract selected VPs
-    selected = findall(yj -> value(yj) == 1, y)
-
-    (; nselected, error, selected)
+    (; nselected, mte)
 end |> DataFrame
 ```
 
-We filter for MTE-Pareto-optimality by removing solutions
-that are dominated in $(N_\text{total}, \text{MTE})$ space:
-
 ```{julia}
 # Remove MTE-dominated solutions
-sort!(moa_solutions_df, [order(:nselected; rev = true), :error])
-moa_solutions_df.pareto_optimal .= false
-moa_solutions_df.pareto_optimal[begin] = true
-dominating_error = moa_solutions_df.error[begin]
-for row in eachrow(moa_solutions_df)
-    if row.error < dominating_error
+sort!(moa_mte_solutions_df, [order(:nselected; rev = true), :mte])
+moa_mte_solutions_df.pareto_optimal .= false
+moa_mte_solutions_df.pareto_optimal[begin] = true
+dominating_error = moa_mte_solutions_df.mte[begin]
+for row in eachrow(moa_mte_solutions_df)
+    if row.mte < dominating_error
         row.pareto_optimal = true
-        dominating_error = row.error
+        dominating_error = row.mte
     end
 end
 
-sort!(moa_solutions_df, :nselected; rev = true)
+sort!(moa_mte_solutions_df, :nselected; rev = true)
 simple_table(
-    moa_solutions_df,
+    moa_mte_solutions_df,
     [
-        :nselected => "# Selected VPs",
-        :error => "Distribution Error (MTE)",
-        :pareto_optimal => "Pareto-Optimal",
+        :nselected => "# selected VPs",
+        :mte => "Mean total error",
+        :pareto_optimal => "Pareto-optimal",
     ],
 )
 ```
 
-### Visualization
+#### Visualization
 
-We visualize the Pareto front and overlay the single-$\epsilon$ solutions from Parts 3 and 4:
+We visualize the MTE-Pareto front and overlay the MILP solution:
 
 ```{julia}
-#| fig-cap: "Multi-objective Pareto front with ILP and MILP solutions from Parts 3 and 4 overlaid for comparison."
-comparison_df = vcat(
-    @select!(@rsubset(moa_solutions_df, :pareto_optimal), :error, :nselected),
-    DataFrame(error = ilp_error, nselected = ilp_nselected),
-    DataFrame(error = milp_error, nselected = milp_nselected);
-    source = "Method" => ["MOA Pareto Front", "ILP (Part 3)", "MILP (Part 4)"],
-)
-specs = data(comparison_df) *
-    mapping(:error => "Distribution Error (MTE)", :nselected => "# Selected VPs", color = :Method, marker = :Method) * visual(Scatter)
+#| fig-cap: "Multi-objective Pareto front showing the trade-off between population size and mean total error. The MILP solution is overlaid for comparison."
+specs = (
+    data(@rsubset(moa_mte_solutions_df, :pareto_optimal)) * mapping(color = direct("Pareto front (mean total error ≤ $epsilon)")) +
+        data((; mte = [milp_mte], nselected = [nrow(milp_vpop)])) * mapping(color = direct("MILP solution (mean total error ≤ $epsilon)"))
+) * mapping(:mte => "Mean total error", :nselected => "# selected VPs") * visual(Scatter)
 draw(specs)
 ```
 
-The Pareto front reveals the full trade-off between population size and distribution accuracy.
-The ILP and MILP solutions from Parts 3 and 4 are single points on (or near) this front,
-each corresponding to a specific choice of $\epsilon$.
-The multi-objective approach recovers the entire curve without requiring $\epsilon$ to be chosen a
-priori.
+The MTE-Pareto front shows the trade-off when inter-category trade-offs are allowed.
+The MILP solution from earlier in this section is a single point on (or near) this front.
+Comparing with the max-displacement Pareto front from Part 4 shows how the two different error
+metrics lead to different trade-off landscapes.
 
 ## Part 6: Practical Recommendations
 
 :::{.callout-tip}
 ## Choosing a Calibration Strategy
 
-The three calibration approaches offer different trade-offs:
+The calibration approaches offer different trade-offs:
 
 - **Per-category ε constraints** (Part 3): Simple, interpretable,
   and guarantees that each response category individually matches the target within ε.
   Use this when per-category accuracy matters (e.g., matching the CR rate within 5%).
-- **MILP with MTE bound** (Part 4): More flexible,
+- **Multi-objective with max displacement** (Part 4):
+  Finds the full Pareto front of population size vs. maximum per-category error without choosing ε a
+  priori.
+  Use this to explore the trade-off space before committing to a tolerance.
+- **MILP with MTE bound** (Part 5): More flexible,
   allows inter-category trade-offs while bounding the overall distribution error.
   This is the recommended approach
   for VCT simulations (see [Tutorial 6](tb_06_vct_simulation_tutorial.qmd)).
-- **Multi-objective optimization** (Part 5):
-  Finds the entire Pareto front without choosing ε a priori.
-  Use this to explore the full trade-off between population size and distribution accuracy.
+- **Multi-objective with MTE** (Part 5):
+  Explores the MTE-based trade-off without choosing ε a priori.
 :::
 
 :::{.callout-tip}
 ## Choosing Epsilon
 
-When using per-category ε constraints (Part 3) or MTE-bounded MILP (Part 4),
+When using per-category ε constraints (Part 3) or MTE-bounded MILP (Part 5),
 start with ε = 0.10 (10% tolerance).
-Note that ε means the same thing in both formulations (MTE ≤ ε),
-but the ILP guarantees this per-category while the MILP enforces it on average:
+Note that ε has different interpretations:
+the ILP guarantees $|q_c - p_c| \leq \epsilon$ per category,
+while the MILP enforces $\text{MTE} \leq \epsilon$ on average:
 
 | Epsilon | Effect |
 |:--------|:-------|
@@ -1017,11 +1166,15 @@ If your Vpop has very few VPs in a target category (e.g., only 2% CR but target 
 2. **ILP optimization** provides precise control over distribution matching
    through binary selection variables and per-category constraints
 
-3. **MILP with MTE bound** allows inter-category trade-offs
+3. **Multi-objective optimization with max displacement** finds
+   the full Pareto front of population size vs. maximum per-category error
+   without pre-specifying ε
+
+4. **MILP with MTE bound** allows inter-category trade-offs
    by constraining the mean total error rather than individual categories
 
-4. **Multi-objective optimization** with count-based deviation and MTE post-filtering
-   finds the full Pareto front without pre-specifying ε
+5. **Multi-objective optimization with MTE** explores the MTE-based trade-off
+   using count-deviation objectives and MTE post-filtering
 
 ### Quick Reference: Steps
 
