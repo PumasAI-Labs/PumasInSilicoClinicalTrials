@@ -3,6 +3,8 @@ title: "Global Sensitivity Analysis"
 subtitle: "Identifying Key Drivers of Treatment Response"
 author:
   - Vijay Ivaturi
+julia:
+  exeflags: ["--threads=auto"]
 ---
 
 :::{.callout-note}
@@ -69,17 +71,17 @@ For GSA, we define ranges for the 9 estimated parameters:
 ```{julia}
 # HBV parameter ranges for GSA (log10 scale)
 # Range: [tv - 2σ, tv + 2σ] covers ~95% of population
-const HBV_GSA_PARAMS = [
+hbv_gsa_params = [
     (name = "beta", lower = -6.0, upper = -4.0),    # Infection rate
     (name = "p_S", lower = 7.2, upper = 8.8),     # HBsAg production
     (name = "m", lower = 1.9, upper = 3.1),     # Immune killing
     (name = "k_Z", lower = -5.8, upper = -4.2),    # ALT production
     (name = "convE", lower = 1.9, upper = 3.1),     # Effector conversion
-    (name = "epsNUC", lower = -3.0, upper = -1.0),    # NUC efficacy
+    (name = "epsNA", lower = -3.0, upper = -1.0),    # NA efficacy
     (name = "epsIFN", lower = -2.7, upper = -0.3),    # IFN efficacy
     (name = "r_E_IFN", lower = -0.5, upper = 1.1),     # IFN immune boost
     (name = "k_D", lower = -4.8, upper = -3.2),     # DC activation
-]
+] |> DataFrame
 ```
 
 ### Simplified HBV Dynamics
@@ -98,7 +100,7 @@ Treatment effect on HBsAg decline:
 where k_decline depends on treatment efficacy and immune parameters.
 """
 function simulate_hbsag_simple(params; t_final::Float64 = 365.0, treatment::Symbol = :combo)
-    beta, p_S, m, k_Z, convE, epsNUC, epsIFN, r_E_IFN, k_D = params
+    beta, p_S, m, k_Z, convE, epsNA, epsIFN, r_E_IFN, k_D = params
 
     # Initial HBsAg (depends on p_S)
     log_S0 = 3.0 + 0.3 * (p_S - 8.0)  # log10 IU/mL
@@ -107,14 +109,14 @@ function simulate_hbsag_simple(params; t_final::Float64 = 365.0, treatment::Symb
     base_decline = 0.001 * 10^(m - 2.5) * 10^(convE - 2.5)
 
     # Treatment effect
-    if treatment == :nuc
-        treatment_factor = 10^(-epsNUC - 2.0)
+    if treatment == :na
+        treatment_factor = 10^(-epsNA - 2.0)
     elseif treatment == :ifn
         treatment_factor = 10^(-epsIFN - 1.5) * 10^(r_E_IFN)
     elseif treatment == :combo
-        treatment_factor = 10^(-epsNUC - 2.0) * 10^(-epsIFN - 1.5) * 10^(r_E_IFN)
+        treatment_factor = 10^(-epsNA - 2.0) * 10^(-epsIFN - 1.5) * 10^(r_E_IFN)
     else
-        treatment_factor = 0.0
+        error("unknown treatment")
     end
 
     # Total decline rate
@@ -145,35 +147,17 @@ println("  Decline rate: $(round(test_result.decline_rate, digits = 5)) /day")
 
 ## Part 2: Running Sobol Analysis
 
-### Define the GSA Problem
-
 ```{julia}
-# Define bounds as vector of tuples (lower, upper) for each parameter
-# GlobalSensitivity.jl expects bounds in this format
-n_params = length(HBV_GSA_PARAMS)
-bounds = [(p.lower, p.upper) for p in HBV_GSA_PARAMS]
-
-# Number of samples
-n_samples = 500
-println("Running Sobol analysis with $(n_samples) samples...")
-println("Total model evaluations: $(n_samples * (2 * n_params + 2))")
-println("\nParameter bounds:")
-for (i, p) in enumerate(HBV_GSA_PARAMS)
-    println("  $(p.name): [$(bounds[i][1]), $(bounds[i][2])]")
-end
-```
-
-### Run Analysis for Final HBsAg
-
-```{julia}
+#| warning: false
 # Model function for final HBsAg - must return a scalar for GlobalSensitivity.gsa()
 function model_final_hbsag(params)
     result = simulate_hbsag_simple(params; treatment = :combo)
     return result.log_HBsAg_final
 end
 
-# Parameter names for reference
-param_names = [p.name for p in HBV_GSA_PARAMS]
+# Define bounds as vector of tuples (lower, upper) for each parameter
+# GlobalSensitivity.jl expects bounds in this format
+bounds = map(tuple, hbv_gsa_params.lower, hbv_gsa_params.upper)
 
 # Run Sobol analysis using GlobalSensitivity.jl API
 # Note: gsa() takes f, method, bounds_vector where bounds is [(lb1,ub1), (lb2,ub2), ...]
@@ -182,23 +166,17 @@ sobol_result = GlobalSensitivity.gsa(
     model_final_hbsag,
     Sobol(),
     bounds;
-    samples = n_samples
+    samples = 2^10,
 )
 
 # Extract indices - GlobalSensitivity returns vectors directly
-S1 = sobol_result.S1
-ST = sobol_result.ST
-
-println("\nSobol Indices for Final HBsAg (Combo Treatment):")
-println("="^50)
-
 sobol_df = DataFrame(
-    parameter = param_names,
-    S1 = round.(S1, digits = 3),
-    ST = round.(ST, digits = 3),
-    interaction = round.(ST .- S1, digits = 3)
+    parameter = hbv_gsa_params.name,
+    first_order = sobol_result.S1,
+    total_order = sobol_result.ST,
+    interaction = sobol_result.ST - sobol_result.S1
 )
-sort!(sobol_df, :ST, rev = true)
+sort!(sobol_df, :total_order, rev = true)
 simple_table(sobol_df)
 ```
 
@@ -207,41 +185,27 @@ simple_table(sobol_df)
 ```{julia}
 #| fig-cap: "Sobol sensitivity indices for HBV model. First-order (S₁) shows direct effects; Total-order (Sₜ) includes interactions."
 
-# Create DataFrame for AoG plotting
-sorted_idx = sortperm(ST, rev = true)
-sorted_names = param_names[sorted_idx]
-
-sobol_plot_df = DataFrame(
-    parameter = repeat(sorted_names, 2),
-    sensitivity = vcat(S1[sorted_idx], ST[sorted_idx]),
-    index_type = vcat(fill("First-order (S₁)", n_params), fill("Total-order (Sₜ)", n_params))
+# Convert to long format for plotting
+sobol_plot_df = stack(
+    sobol_df[:, [:parameter, :first_order, :interaction]],
+    [:first_order, :interaction];
+    value_name = :index,
+    variable_name = :type,
 )
 
-# Set parameter order for x-axis
-sobol_plot_df.parameter = categorical(sobol_plot_df.parameter, levels = sorted_names)
-
-# Create AoG plot
-plt = data(sobol_plot_df) *
-    mapping(:parameter, :sensitivity, color = :index_type, dodge = :index_type) *
+# Create plot
+parameter_labels = ["epsIFN" => rich("ϵ", subscript("IFN")), "r_E_IFN" => rich("r", subsup("IFN", "E")), "epsNA" => rich("ϵ", subscript("NA")), "beta" => "β", "p_S" => rich("p", subscript("S")), "m" => "m", "k_Z" => rich("k", subscript("Z")), "convE" => rich("conv", subscript("E")), "k_D" => rich("k", subscript("D"))]
+parameter_mapping = :parameter => sorter(map(first, parameter_labels)) => "Parameter"
+specs = data(sobol_plot_df) *
+    mapping(
+    parameter_mapping,
+    :index => "Sensitivity",
+    stack = parameter_mapping,
+    color = :type => renamer("first_order" => "First-order (Sᵢ)", "interaction" => "Interaction (Sₜᵢ - Sᵢ)") => "Type",
+) *
     visual(BarPlot)
-
-fig = Figure(size = (900, 500))
-ax = Axis(
-    fig[1, 1],
-    title = "Sensitivity of Final HBsAg to Model Parameters",
-    xlabel = "Parameter",
-    ylabel = "Sensitivity Index"
-)
-
-ag = draw!(ax, plt, scales(Color = (; palette = [:steelblue, :orange])))
-
-# Reference line (Makie annotation)
-hlines!(ax, [0.1], color = :red, linestyle = :dash, linewidth = 2)
-
-# Legend outside plot
-legend!(fig[1, 2], ag, framevisible = false)
-
-fig
+specs_threshold = mapping([0.1], color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
+draw(specs + specs_threshold, scales(ColorLine = (; palette = [:red])); legend = (; position = :bottom), axis = (; xticks = (1:length(parameter_labels), map(last, parameter_labels)), xticklabelrotation = π / 4))
 ```
 
 :::{.callout-note}
@@ -266,84 +230,62 @@ fig
 Let's compare sensitivity across treatment scenarios.
 
 ```{julia}
-# Run GSA for each treatment
-treatments = [:nuc, :ifn, :combo]
-treatment_results = Dict{Symbol, NamedTuple}()
-
-for tx in treatments
-    model_fn = params -> simulate_hbsag_simple(params; treatment = tx).log_HBsAg_final
-    result = GlobalSensitivity.gsa(model_fn, Sobol(), bounds; samples = 300)
-    treatment_results[tx] = (S1 = result.S1, ST = result.ST)
+#| warning: false
+#| output: false
+results_df = mapreduce(vcat, [:na, :ifn, :combo]) do treatment
+    model_fn = params -> simulate_hbsag_simple(params; treatment).log_HBsAg_final
+    result = GlobalSensitivity.gsa(model_fn, Sobol(), bounds; samples = 2^10)
+    return DataFrame(;
+        parameter = hbv_gsa_params.name,
+        first_order = result.S1,
+        total_order = result.ST,
+        arm = string(treatment),
+    )
 end
+```
 
-# Create comparison DataFrame
-comparison_df = DataFrame(parameter = param_names)
-for tx in treatments
-    comparison_df[!, Symbol("ST_$(tx)")] = round.(treatment_results[tx].ST, digits = 3)
-end
+Comparison of first-order indices:
 
-println("Total-Order Sensitivity by Treatment:")
-simple_table(comparison_df)
+```{julia}
+simple_table(
+    unstack(results_df, :parameter, :arm, :first_order),
+    [:parameter => "Parameter", :na => "NA", :ifn => "IFN", :combo => "NA + IFN"],
+)
+```
+
+Comparison of total-order indices:
+
+```{julia}
+simple_table(
+    unstack(results_df, :parameter, :arm, :total_order),
+    [:parameter => "Parameter", :na => "NA", :ifn => "IFN", :combo => "NA + IFN"],
+)
 ```
 
 ```{julia}
-#| fig-cap: "Comparison of parameter sensitivity across treatment scenarios. Different treatments rely on different parameter combinations."
-
-# Create DataFrame for AoG plotting
-treatment_plot_df = DataFrame(
-    parameter = String[],
-    sensitivity = Float64[],
-    treatment = String[]
-)
-
-treatment_labels = Dict(:nuc => "NUC", :ifn => "IFN", :combo => "Combo")
-
-for tx in treatments
-    for (i, pname) in enumerate(param_names)
-        push!(
-            treatment_plot_df, (
-                parameter = pname,
-                sensitivity = treatment_results[tx].ST[i],
-                treatment = treatment_labels[tx],
-            )
-        )
-    end
-end
-
-# Set parameter order for x-axis
-treatment_plot_df.parameter = categorical(treatment_plot_df.parameter, levels = param_names)
-treatment_plot_df.treatment = categorical(treatment_plot_df.treatment, levels = ["NUC", "IFN", "Combo"])
-
-# Create AoG plot
-plt = data(treatment_plot_df) *
-    mapping(:parameter, :sensitivity, color = :treatment, dodge = :treatment) *
+#| fig-cap: "Comparison of total-order sensitivity indices across treatment scenarios. Different treatments rely on different parameter combinations."
+parameter_labels = ["epsIFN" => rich("ϵ", subscript("IFN")), "r_E_IFN" => rich("r", subsup("IFN", "E")), "epsNA" => rich("ϵ", subscript("NA")), "beta" => "β", "p_S" => rich("p", subscript("S")), "m" => "m", "k_Z" => rich("k", subscript("Z")), "convE" => rich("conv", subscript("E")), "k_D" => rich("k", subscript("D"))]
+parameter_mapping = :parameter => sorter(map(first, parameter_labels)) => "Parameter"
+arm_mapping = :arm => renamer("na" => "NA", "ifn" => "IFN", "combo" => "NA + IFN") => "Treatment"
+specs = data(results_df) *
+    mapping(
+    parameter_mapping,
+    :total_order => "Total-order sensitivity index (Sₜ)",
+    stack = parameter_mapping,
+    color = arm_mapping,
+    dodge = arm_mapping,
+) *
     visual(BarPlot)
-
-fig = Figure(size = (1000, 500))
-ax = Axis(
-    fig[1, 1],
-    title = "Parameter Sensitivity by Treatment Arm",
-    xlabel = "Parameter",
-    ylabel = "Total-Order Sensitivity (Sₜ)"
-)
-
-ag = draw!(ax, plt, scales(Color = (; palette = [:blue, :green, :purple])))
-
-# Reference line (Makie annotation)
-hlines!(ax, [0.1], color = :red, linestyle = :dash, linewidth = 2)
-
-# Legend outside plot
-legend!(fig[1, 2], ag, framevisible = false)
-
-fig
+specs_threshold = mapping([0.1], color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
+draw(specs + specs_threshold, scales(ColorLine = (; palette = [:red])); legend = (; position = :bottom), axis = (; xticks = (1:length(parameter_labels), map(last, parameter_labels)), xticklabelrotation = π / 4))
 ```
 
 :::{.callout-note}
 ## Treatment-Specific Insights
 
-**NUC treatment:**
+**NA treatment:**
 
-- Dominated by epsNUC (viral suppression)
+- Dominated by epsNA (viral suppression)
 - p_S important for baseline
 
 **IFN treatment:**
@@ -362,52 +304,43 @@ fig
 For comparison, let's run eFAST (extended Fourier Amplitude Sensitivity Test):
 
 ```{julia}
-# eFAST analysis
-println("\nRunning eFAST analysis...")
-
+function model_final_hbsag(params)
+    result = simulate_hbsag_simple(params; treatment = :combo)
+    return result.log_HBsAg_final
+end
 efast_result = GlobalSensitivity.gsa(
     model_final_hbsag,
     eFAST(),
     bounds;
-    samples = 500
+    samples = 1_000,
 )
 
-# eFAST returns ST as a matrix (parameters x outputs), extract first column for single output
-# Use vec() to convert 1-column matrix to vector
-efast_ST = vec(efast_result.ST)
+# eFAST returns S1 and ST as a matrix (outputs x parameters)
+efast_df = DataFrame(
+    parameter = hbv_gsa_params.name,
+    first_order = vec(efast_result.S1),
+    total_order = vec(efast_result.ST),
+)
 
 # Compare methods
-comparison_methods = DataFrame(
-    parameter = param_names,
-    Sobol_ST = round.(ST, digits = 3),
-    eFAST_ST = round.(efast_ST, digits = 3)
-)
-
-println("\nComparison: Sobol vs eFAST")
-simple_table(comparison_methods)
+comparison_methods = leftjoin(sobol_df, efast_df; on = :parameter, renamecols = "_sobol" => "_efast")
+simple_table(comparison_methods, [:parameter => "Parameter", :first_order_sobol => "First-order (Sobol)", :first_order_efast => "First-order (eFAST)", :total_order_sobol => "Total-order (Sobol)", :total_order_efast => "Total-order (eFAST)"])
 ```
 
 ## Part 5: Recommendations
 
 ### Key Findings
 
+Influential parameters:
+
 ```{julia}
-# Identify influential parameters
-influential = param_names[ST .> 0.1]
-non_influential = param_names[ST .< 0.05]
+sobol_df[sobol_df.total_order .> 0.1, :parameter]
+```
 
-println("="^50)
-println("GSA RECOMMENDATIONS")
-println("="^50)
-println("\nInfluential parameters (Sₜ > 0.1):")
-for p in influential
-    println("  • $p - Focus estimation efforts here")
-end
+Non-influential parameters:
 
-println("\nLess influential parameters (Sₜ < 0.05):")
-for p in non_influential
-    println("  • $p - Consider fixing to typical values")
-end
+```{julia}
+sobol_df[sobol_df.total_order .< 0.05, :parameter]
 ```
 
 ### Practical Implications

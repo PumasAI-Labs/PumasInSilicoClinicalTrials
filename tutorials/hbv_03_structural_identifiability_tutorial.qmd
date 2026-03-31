@@ -3,6 +3,8 @@ title: "Structural Identifiability Analysis"
 subtitle: "Which Parameters Can We Estimate from Clinical Measurements?"
 author:
   - Vijay Ivaturi
+julia:
+  exeflags: ["--threads=auto"]
 ---
 
 :::{.callout-note}

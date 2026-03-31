@@ -3,6 +3,8 @@ title: "Model Introduction"
 subtitle: "Understanding the HBV QSP Model and Treatment Mechanisms"
 author:
   - Vijay Ivaturi
+julia:
+  exeflags: ["--threads=auto"]
 ---
 
 :::{.callout-note}
@@ -70,7 +72,7 @@ Current treatments aim for different levels of control:
 
 | Endpoint | Definition | Clinical Meaning |
 |:---------|:-----------|:-----------------|
-| **Viral Suppression** | HBV DNA < 25 copies/mL | Virus under control (but not eliminated) |
+| **Viral Suppression** | HBV DNA < 10^1.4 copies/mL | Virus under control (but not eliminated) |
 | **HBsAg Loss** | HBsAg < 0.05 IU/mL | Surface antigen cleared |
 | **Functional Cure** | HBsAg Loss + Viral Suppression for ≥24 weeks off-treatment | Durable control without ongoing treatment |
 
@@ -636,10 +638,10 @@ draw(specs; axis = (; xticks = [0, 24, 48, 72]), facet = (; linkxaxes = true, li
 
 Common clinical endpoints are:
 
-1. *HBsAg loss*: HBsAg < 0.05 IU/mL at 24 weeks post-treatment.
+1. *HBsAg loss*: HBsAg < 0.05 IU/mL for 24 weeks post-treatment.
 
 2. *Functional cure*: Undetectable HBV DNA < 10^1.4 copies/mL
-   and HBsAg < 0.05 IU/mL at 24 weeks post-treatment.
+   and HBsAg < 0.05 IU/mL for 24 weeks post-treatment.
 
 :::{.callout-important}
 ## Why does the typical patient not achieve functional cure?

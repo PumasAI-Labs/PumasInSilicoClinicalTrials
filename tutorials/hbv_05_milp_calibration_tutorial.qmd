@@ -3,6 +3,8 @@ title: "MILP-Based Virtual Population Calibration"
 subtitle: "Matching Virtual Population to Clinical Trial Characteristics"
 author:
   - Vijay Ivaturi
+julia:
+  exeflags: ["--threads=auto"]
 ---
 
 :::{.callout-note}
@@ -97,8 +99,8 @@ simple_table(everest_target, [:hbsag_range => "HBsAg", :pct => "Target (%)"])
 ## Part 2: Generate HBV Virtual Population
 
 We generate a virtual population using the Gaussian copula approach from
-[HBV-04](hbv_04_copula_vpop_tutorial.qmd), then simulate 5 years of untreated chronic infection to
-obtain each patient's baseline HBsAg at steady state.
+[HBV-04](hbv_04_copula_vpop_tutorial.qmd), then simulate 5 years of untreated chronic infection
+followed by 4 years of NA suppression to obtain each patient's baseline HBsAg.
 
 ### Model and Parameters
 
@@ -386,7 +388,6 @@ Rho = [
     0.0    0.0    0.0    0.0    0.0    0.0    0.0    0.0      1.0;  # conv_E
 ]
 
-n_vps = 5000
 copula = GaussianCopula(Rho)
 correlated_randeffs_dist = SklarDist(
     copula, (
@@ -403,32 +404,53 @@ correlated_randeffs_dist = SklarDist(
 )
 ```
 
-Baseline HBsAg is the steady-state level reached
-after 5 years of untreated chronic infection [@cortes2025HBV].
+The Everest trial enrolls NA-suppressed patients,
+so baseline HBsAg is the level reached
+after 5 years of untreated chronic infection followed by 4 years of NA suppression therapy
+[@cortes2025HBV].
+To reduce computation time in this tutorial, we only generate 500 virtual patients.
 Some random effect combinations lead to integration errors,
 so we resample until each simulation succeeds:
 
 ```{julia}
 #| output: false
+#| warning: false
 t_chronic = 5 * 365
-sims = map(1:n_vps) do id
-    subj = Subject(; id, time = [t_chronic], covariates = (; NA = false, IFN = false))
-    randeffs = (; η = rand(correlated_randeffs_dist))
-    sim = simobs(hbv_model, subj, hbv_params, randeffs; simulate_error = false)
-    while !isvalid(sim)
-        randeffs = (; η = rand(correlated_randeffs_dist))
-        sim = simobs(hbv_model, subj, hbv_params, randeffs; simulate_error = false)
-    end
-    return sim
+t_na_suppression = 4 * 365
+
+# Sample `nvps` virtual patients
+nvps = 500
+baseline_pop = map(1:nvps) do id
+    Subject(;
+        id,
+        covariates = (; NA = [false, true], IFN = [false, false]),
+        covariates_time = [0, t_chronic],
+    )
 end
-```
+baseline_vrandeffs = map(baseline_pop) do _
+    return (; η = rand(correlated_randeffs_dist))
+end
 
-```{julia}
-vpop = postprocess(sims) do generated, _
-    (; log10_HBsAg_baseline = only(generated.log10_HBsAg))
-end |> DataFrame
+# Compute baseline HBsAg (after 5 yr chronic infection + 4 year NA suppression)
+baseline_obstimes = [t_chronic + t_na_suppression]
+baseline_sims = simobs(hbv_model, baseline_pop, hbv_params, baseline_vrandeffs; simulate_error = false, obstimes = baseline_obstimes)
 
-overview_table(vpop)
+while true
+    # Check whether all simulations succeeded
+    baseline_invalid = findall(!isvalid, baseline_sims)
+    isempty(baseline_invalid) && break
+
+    # Resample random effects for failed simulation
+    pop = @view(baseline_pop[baseline_invalid])
+    vrandeffs = @view(baseline_vrandeffs[baseline_invalid])
+    map!(vrandeffs, pop) do _
+        return (; η = rand(correlated_randeffs_dist))
+    end
+    baseline_sims[baseline_invalid] = simobs(hbv_model, pop, hbv_params, vrandeffs; simulate_error = false, obstimes = baseline_obstimes)
+end
+
+# Extract vector of baseline HBsAg
+baseline_log10_HBsAg = postprocess((gen, _) -> only(gen.log10_HBsAg), baseline_sims)
 ```
 
 ## Part 3: ILP Calibration
@@ -439,7 +461,7 @@ Check current distribution vs target:
 
 ```{julia}
 current_counts = zeros(Int, nrow(everest_target))
-for val in vpop.log10_HBsAg_baseline
+for val in baseline_log10_HBsAg
     for b in 1:nrow(everest_target)
         if everest_target[b, :log10_lower] <= val < everest_target[b, :log10_upper]
             current_counts[b] += 1
@@ -447,7 +469,7 @@ for val in vpop.log10_HBsAg_baseline
         end
     end
 end
-current_pcts = 100.0 .* current_counts ./ n_vps
+current_pcts = 100 .* current_counts ./ length(baseline_log10_HBsAg)
 
 comparison = DataFrame(
     range = everest_target.hbsag_range,
@@ -473,7 +495,7 @@ set_attribute(model, "presolve", "on")
 set_time_limit_sec(model, 60.0)
 
 # Decision variables
-@variable(model, x[1:nrow(vpop)], Bin)
+@variable(model, x[1:length(baseline_log10_HBsAg)], Bin)
 
 # Objective: maximize number of selected VPs
 ntotal = sum(x)
@@ -485,7 +507,7 @@ for row in eachrow(everest_target)
     pc = row.pct / 100
 
     # Count of selected VPs in this category
-    nc = sum(x[row.log10_lower .<= vpop.log10_HBsAg_baseline .< row.log10_upper])
+    nc = sum(x[row.log10_lower .<= baseline_log10_HBsAg .< row.log10_upper])
 
     # Upper bound
     @constraint(model, nc <= (pc + epsilon) * ntotal)
@@ -517,7 +539,7 @@ We extract the selected virtual patients:
 
 ```{julia}
 selected_vps = findall(xi -> value(xi) == 1, x)
-calibrated_vpop = vpop[selected_vps, :]
+calibrated_log10_HBsAg = baseline_log10_HBsAg[selected_vps]
 ```
 
 ## Part 4: Validate Calibration
@@ -528,7 +550,7 @@ Check calibrated distributions vs target:
 
 ```{julia}
 calibrated_counts = zeros(Int, nrow(everest_target))
-for val in calibrated_vpop.log10_HBsAg_baseline
+for val in calibrated_log10_HBsAg
     for b in 1:nrow(everest_target)
         if everest_target[b, :log10_lower] <= val < everest_target[b, :log10_upper]
             calibrated_counts[b] += 1
@@ -536,7 +558,7 @@ for val in calibrated_vpop.log10_HBsAg_baseline
         end
     end
 end
-calibrated_pcts = 100.0 .* calibrated_counts ./ nrow(calibrated_vpop)
+calibrated_pcts = 100 .* calibrated_counts ./ length(calibrated_log10_HBsAg)
 
 comparison = DataFrame(
     range = everest_target.hbsag_range,
@@ -551,9 +573,13 @@ simple_table(comparison, [:range => "HBsAg", :target_pct => "Target (%)", :calib
 
 ```{julia}
 #| fig-cap: "Before and after ILP calibration to Everest trial baseline HBsAg distribution. The calibrated population (right) closely matches the target."
-df = vcat(vpop, calibrated_vpop; source = "stage" => ["Original", "Calibrated"])
-data_specs = data(df) * mapping(:log10_HBsAg_baseline, col = :stage => sorter("Original", "Calibrated")) * histogram(; bins = vcat(everest_target.log10_lower, everest_target.log10_upper[end]), normalization = :probability)
-target_specs = mapping(collect(Iterators.flatten((row.log10_lower, row.log10_upper) for row in eachrow(everest_target))), repeat(everest_target.pct; inner = 2) ./ 100, group = repeat(1:nrow(everest_target); inner = 2)) * visual(Lines; label = "Everest Target")
+df = vcat(
+    DataFrame(; log10_HBsAg = baseline_log10_HBsAg),
+    DataFrame(; log10_HBsAg = calibrated_log10_HBsAg);
+    source = "stage" => ["Original", "Calibrated"],
+)
+data_specs = data(df) * mapping(:log10_HBsAg, col = :stage => sorter("Original", "Calibrated")) * histogram(; bins = vcat(everest_target.log10_lower, everest_target.log10_upper[end]), normalization = :probability)
+target_specs = mapping(collect(Iterators.flatten((row.log10_lower, row.log10_upper) for row in eachrow(everest_target))), repeat(everest_target.pct; inner = 2) ./ 100, group = repeat(1:nrow(everest_target); inner = 2)) * visual(Lines; label = "Everest target")
 draw(data_specs + target_specs; axis = (; xlabel = "Baseline HBsAg (log₁₀ IU/mL)", ylabel = "Proportion"))
 ```
 
@@ -575,7 +601,7 @@ set_attribute(moa_model, MOA.SolutionLimit(), 50)
 set_silent(moa_model)
 
 # Binary selection variables
-@variable(moa_model, y[1:nrow(vpop)], Bin)
+@variable(moa_model, y[1:length(baseline_log10_HBsAg)], Bin)
 
 # Continuous count deviation variables (one per HBsAg category)
 @variable(moa_model, δ[1:nrow(everest_target)] >= 0)
@@ -590,7 +616,7 @@ N_total = sum(y)
 # Count deviation constraints
 for (δ_c, row) in zip(δ, eachrow(everest_target))
     p_c = row.pct / 100
-    N_c = sum(y[row.log10_lower .<= vpop.log10_HBsAg_baseline .< row.log10_upper])
+    N_c = sum(y[row.log10_lower .<= baseline_log10_HBsAg .< row.log10_upper])
     @constraint(moa_model, δ_c >= N_c - p_c * N_total)
     @constraint(moa_model, δ_c >= p_c * N_total - N_c)
 end
