@@ -2,6 +2,8 @@
 title: "Model Introduction"
 author:
   - Vijay Ivaturi
+julia:
+  exeflags: ["--threads=auto"]
 ---
 
 :::{.callout-note}

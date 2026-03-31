@@ -3,6 +3,8 @@ title: "Global Sensitivity Analysis"
 author:
   - Narsimhan Sriram
   - Vijay Ivaturi
+julia:
+  exeflags: ["--threads=auto"]
 ---
 
 :::{.callout-note}
@@ -585,7 +587,7 @@ parameter_mapping = :parameter => renamer("tvf" => "sensitive fraction (tvf)", "
 specs_gsa = data(long_df) * mapping(parameter_mapping, :index => "Sensitivity", stack = :parameter, color = :type => renamer("first_order" => "First-order (Sᵢ)", "interaction" => "Interaction (Sₜᵢ - Sᵢ)") => "Type") * visual(BarPlot)
 specs_threshold = mapping([threshold], color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
 
-draw(specs_gsa + specs_threshold, AlgebraOfGraphics.scales(; ColorLine = (; palette = [:red])), legend = (; position = :bottom))
+draw(specs_gsa + specs_threshold, AlgebraOfGraphics.scales(; ColorLine = (; palette = [:red])), legend = (; position = :bottom), axis = (; xticklabelrotation = π / 4))
 ```
 
 :::{.callout-note}
@@ -632,7 +634,7 @@ specs_gsa = data(ranked_gsa_sobol_df) *
     visual(BarPlot)
 specs_threshold = mapping([threshold], color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
 
-draw(specs_gsa + specs_threshold, AlgebraOfGraphics.scales(; ColorLine = (; palette = [:red])), legend = (; position = :bottom))
+draw(specs_gsa + specs_threshold, AlgebraOfGraphics.scales(; ColorLine = (; palette = [:red])), legend = (; position = :bottom), axis = (; xticklabelrotation = π / 4))
 ```
 
 ### Comparison: First-Order vs Total-Order
@@ -827,18 +829,23 @@ simple_table(influential_gsa_sobol_df)
 ```{julia}
 #| fig-cap: "How parameter importance changes across treatment timepoints. Early: death rate matters for active killing. Late: sensitive fraction dominates as resistant cells determine outcome."
 
+long_df = stack(
+    gsa_sobol_df[:, [:parameter, :first_order, :interaction, :time]], [:first_order, :interaction];
+    variable_name = :type, value_name = :index,
+)
+
 parameter_mapping = :parameter => renamer("tvf" => "sensitive fraction (tvf)", "tvg" => "growth rate (tvg)", "tvk" => "death rate (tvk)") => "Parameter"
-specs_gsa = data(gsa_sobol_df) *
+specs_gsa = data(long_df) *
     mapping(
     parameter_mapping,
-    :total_order => "Total-order sensitivity index (Sₜᵢ)",
-    color = parameter_mapping,
-    col = :time => (t -> string("Week ", t ÷ 7))
-) *
-    visual(BarPlot)
+    :index => "Sensitivity",
+    stack = :parameter,
+    color = :type => renamer("first_order" => "First-order (Sᵢ)", "interaction" => "Interaction (Sₜᵢ - Sᵢ)") => "Type",
+    col = :time => (t -> string("Week ", t ÷ 7)),
+) * visual(BarPlot)
 specs_threshold = mapping([threshold], color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
 
-draw(specs_gsa + specs_threshold, scales(ColorLine = (; palette = [:red])); legend = (; position = :bottom))
+draw(specs_gsa + specs_threshold, scales(ColorLine = (; palette = [:red])); legend = (; position = :bottom), axis = (; xticklabelrotation = π / 4))
 ```
 
 ### Summary Table: Parameter Rankings Over Time

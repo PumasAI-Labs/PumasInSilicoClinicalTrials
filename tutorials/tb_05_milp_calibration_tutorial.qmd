@@ -3,6 +3,8 @@ title: "MILP-Based Virtual Population Calibration"
 subtitle: "Matching Response Rate Distributions with Optimization"
 author:
   - Vijay Ivaturi
+julia:
+  exeflags: ["--threads=auto"]
 ---
 
 :::{.callout-note}

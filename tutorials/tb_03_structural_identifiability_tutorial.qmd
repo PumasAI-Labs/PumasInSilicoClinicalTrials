@@ -4,6 +4,8 @@ subtitle: "Can We Actually Estimate These Parameters?"
 author:
   - Saugandhika Minnikanti
   - Vijay Ivaturi
+julia:
+  exeflags: ["--threads=auto"]
 ---
 
 :::{.callout-note}

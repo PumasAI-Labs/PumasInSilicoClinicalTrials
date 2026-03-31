@@ -3,8 +3,8 @@ title: "Virtual Clinical Trial Simulation"
 subtitle: "Running and Analyzing In Silico Clinical Trials"
 author:
   - Vijay Ivaturi
-execute:
-  error: true
+julia:
+  exeflags: ["--threads=auto"]
 ---
 
 :::{.callout-note}
@@ -280,7 +280,7 @@ Classify responses of virtual patients:
 
 ```{julia}
 #| output: false
-@transform! vpop :response = cut(:tumor_size, [0.14, 0.7, 1.0]; labels = ["CR", "PR", "SD", "PD"], extend = true)
+@transform! vpop :response = cut(:tumor_size_final, [0.14, 0.7, 1.0]; labels = ["CR", "PR", "SD", "PD"], extend = true)
 ```
 
 Define target response distribution:
@@ -415,7 +415,7 @@ simple_table(first(time_summary, 10), [:time, :arm => "Arm", :median => "Median"
 
 # Time summary
 specs_time_summary = data(time_summary) *
-    mapping(:time => (t -> t / 7) => "Time (weeks)", color = :arm => sorter("Treatment", "Control") => "Arm") * (
+    mapping(:time => (t -> t / 7) => "Time [week]", color = :arm => sorter("Treatment", "Control") => "Arm") * (
     # IQR band layer
     mapping(:q25, :q75) * visual(Band; alpha = 0.3) +
         # Median line layer
@@ -424,7 +424,7 @@ specs_time_summary = data(time_summary) *
 # Reference lines
 specs_references = mapping([1.0, 0.14], linestyle = ["Baseline", "Complete response"] => "Reference") * visual(HLines)
 
-draw(specs_time_summary + specs_references, scales(Color = (; palette = [:blue, :red])); axis = (; ylabel = "Normalized Tumor Size"))
+draw(specs_time_summary + specs_references, scales(Color = (; palette = [:blue, :red])); axis = (; ylabel = "Normalized tumor size"))
 ```
 
 ### Calibrated vs Uncalibrated Comparison
@@ -477,14 +477,14 @@ table_one(final, [:tumor_size => (col -> (median(col) => "Median",)) => "Final T
 ```
 
 ```{julia}
-#| fig-cap: "Comparison of tumor dynamics: uncalibrated (left) vs calibrated (right) virtual populations. Calibration adjusts the response rate distribution to match clinical targets."
+#| fig-cap: "Comparison of tumor dynamics: median and IQR range of uncalibrated (left) vs calibrated (right) virtual populations. Calibration adjusts the response rate distribution to match clinical targets."
 
 # Combine data for comparison
 comparison_time_summary = vcat(time_summary, uncalibrated_time_summary; source = "population" => ["Calibrated", "Uncalibrated"])
 
 # Time summary
 specs_time_summary = data(comparison_time_summary) *
-    mapping(:time => (t -> t / 7) => "Time (weeks)", color = :arm => sorter("Treatment", "Control") => "Arm", col = :population => sorter("Uncalibrated", "Calibrated")) * (
+    mapping(:time => (t -> t / 7) => "Time [week]", color = :arm => sorter("Treatment", "Control") => "Arm", col = :population => sorter("Uncalibrated", "Calibrated")) * (
     # IQR band layer
     mapping(:q25, :q75) * visual(Band; alpha = 0.3) +
         # Median line layer
@@ -493,7 +493,7 @@ specs_time_summary = data(comparison_time_summary) *
 # Reference lines
 specs_references = mapping([1.0, 0.14], linestyle = ["Baseline", "Complete response"] => "Reference") * visual(HLines)
 
-draw(specs_time_summary + specs_references, scales(Color = (; palette = [:blue, :red])); axis = (; ylabel = "Normalized Tumor Size"), legend = (; position = :bottom))
+draw(specs_time_summary + specs_references, scales(Color = (; palette = [:blue, :red])); axis = (; ylabel = "Normalized tumor size"), legend = (; position = :bottom))
 ```
 
 ### Individual Trajectories (Spaghetti Plot)
@@ -502,7 +502,7 @@ draw(specs_time_summary + specs_references, scales(Color = (; palette = [:blue, 
 #| fig-cap: "Individual patient trajectories (30 randomly selected). Green lines = complete responders; gray lines = others."
 
 # Sample 30 random patients
-sample_ids = sample(unique(treatment_results.id), 30, replace = false)
+sample_ids = sample(unique(treatment_results.id), 30; replace = false)
 
 # Prepare data with response classification
 all_data = @chain all_results begin
@@ -511,15 +511,15 @@ all_data = @chain all_results begin
     @groupby :id :arm
     @transform @astable begin
         final_tumor_size = :tumor_size[end]
-        :response = ifelse.(:arm .== "Treatment" .&& final_tumor_size < 0.14, "Complete Response", "Other")
+        :response = ifelse.(:arm .== "Treatment" .&& final_tumor_size < 0.14, "Complete response", "Other")
     end
 end
 
 # Treatment panel using AoG
 specs_data = data(all_data) *
     mapping(
-    :time => (t -> t / 7) => "Time (weeks)", :tumor_size => "Normalized Tumor Size",
-    color = :response => sorter("Complete Response", "Other") => "Response", group = :id,
+    :time => (t -> t / 7) => "Time [week]", :tumor_size => "Normalized tumor size",
+    color = :response => sorter("Complete response", "Other") => "Response", group = :id,
     col = :arm => "Arm",
 ) *
     visual(Lines, linewidth = 0.8)
@@ -537,7 +537,7 @@ Classify all patients:
 
 ```{julia}
 #| output: false
-final_classify = @transform final :response = classify_response(:tumor_size)
+final_classify = @transform final :response = cut(:tumor_size, [0.14, 0.7, 1.0]; labels = ["CR", "PR", "SD", "PD"], extend = true)
 ```
 
 Distribution of responses:
@@ -594,12 +594,12 @@ specs_data = data(waterfall_data) *
     mapping(
     :rank => "Patient (sorted by response)",
     :pct_change => "Change from baseline (%)",
-    color = :response => renamer("CR" => "Complete Response", "PR" => "Partial Response", "SD" => "Stable Disease", "PD" => "Progressive Disease") => "Response",
+    color = :response => renamer("CR" => "Complete response", "PR" => "Partial response", "SD" => "Stable disease", "PD" => "Progressive disease") => "Response",
     col = :arm => sorter("Control", "Treatment") => "Arm",
 ) *
     visual(BarPlot, gap = 0, fillto = minimum(waterfall_data.tumor_size) / 2)
 # Reference lines
-specs_references = mapping([0, -86], linestyle = ["Baseline", "Complete Response"] => "Reference") * visual(HLines)
+specs_references = mapping([0, -86], linestyle = ["Baseline", "Complete response"] => "Reference") * visual(HLines)
 
 draw(
     specs_data + specs_references,
