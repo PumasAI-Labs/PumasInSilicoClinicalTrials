@@ -4,4 +4,4 @@ extend-glob = ["*.bib"]
 Fonctions = "Fonctions"
 
 [files]
-extend-exclude = ["src/", "Manifest.toml"]
+extend-exclude = ["src/", "Manifest.toml", "Project.toml"]

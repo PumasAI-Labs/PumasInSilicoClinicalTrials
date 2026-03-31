@@ -668,7 +668,7 @@ This section demonstrates how
 ### Model with Multiple Timepoint Outputs
 
 ```{julia}
-tumor_burden_model_gsa_multiple = @model begin
+tumor_burden_model = @model begin
     @metadata begin
         desc = "Tumor Burden Model for NSCLC Chemotherapy"
         timeu = u"d"  # Time unit is days
@@ -727,12 +727,8 @@ tumor_burden_model_gsa_multiple = @model begin
         Nt := @. N_sens + N_res
 
         # Observation with residual error
-        tumor_size ~ @. Normal(Nt, σ)
-    end
-
-    @observed begin
         # Endpoints for GSA: Total normalized tumor size at different time points
-        tumor_size_t = tumor_size
+        tumor_size ~ @. Normal(Nt, σ)
     end
 end
 ```
@@ -748,11 +744,11 @@ subject = Subject(
     time = [4 * 7, 8 * 7, 18 * 7],
 )
 gsa_sobol = gsa(
-    tumor_burden_model_gsa_multiple,
+    tumor_burden_model,
     subject,
     base_params,
     Sobol(nboot = 100),
-    [:tumor_size_t],
+    [:tumor_size],
     p_range_low,
     p_range_high;
     constantcoef = (:Ω, :σ),
@@ -799,7 +795,7 @@ gsa_sobol_df = outerjoin(
 @rtransform! gsa_sobol_df :interaction = :total_order - :first_order
 
 # Parse time
-@rtransform! gsa_sobol_df :time = subject.time[parse(Int, match(r"tumor_size_t\[(\d+)\]", :dv_name).captures[1])]
+@rtransform! gsa_sobol_df :time = subject.time[parse(Int, match(r"tumor_size\[(\d+)\]", :dv_name).captures[1])]
 
 simple_table(gsa_sobol_df)
 ```

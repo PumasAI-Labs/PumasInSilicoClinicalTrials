@@ -60,7 +60,7 @@ and treatment arms.
 
 ### Requirements
 
-- **Pumas 2.8.0** — see `Project.toml` for the complete dependency list
+- **Pumas 2.8.1** — see `Project.toml` for the complete dependency list
 
 ### Installation
 

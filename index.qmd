@@ -50,7 +50,7 @@ An 11-ODE hepatitis B virus QSP model that demonstrates the workflow on a more c
 
 ## Getting Started
 
-This project requires **Pumas 2.8.0**.
+This project requires **Pumas 2.8.1**.
 See `Project.toml` for the complete list of dependencies.
 
 To render the site locally:

@@ -8,3 +8,8 @@
 .DS_Store
 
 **/*.quarto_ipynb
+
+# PumasProductManager
+/key.pub
+/Manifest.toml.sign
+/Project.toml.sign
