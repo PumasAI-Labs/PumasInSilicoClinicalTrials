@@ -25,26 +25,29 @@ This is **Tutorial 2 of 6** in the HBV series.
 
 ## Learning Outcomes
 
-Global Sensitivity Analysis (GSA) helps identify which parameters most influence model outputs,
-guiding parameter estimation and experimental design [@saltelli2010].
+Global Sensitivity Analysis (GSA) identifies which parameters most influence model outputs,
+guiding parameter estimation and experimental design [@cortes2025].
+For the theory behind GSA (Sobol indices, eFAST, variance decomposition),
+see [TB-02: Global Sensitivity Analysis](tb_02_gsa_tutorial.qmd).
 
 In this tutorial, you will learn:
 
-- How to apply GSA to the HBV model
-- Which parameters drive HBsAg dynamics vs viral load
-- How to interpret Sobol indices for complex QSP models
-- How treatment efficacy parameters influence outcomes
+- How to set up and run GSA on the HBV QSP model
+- How to use batch simulation for efficient GSA evaluation
+- Which parameters drive HBsAg dynamics [@cortes2025HBV]
+- How to interpret sensitivity indices for complex QSP models
 
 :::{.callout-tip}
 ## Prerequisites
 
 This tutorial builds on:
 
-- **[HBV-01](hbv_01_model_introduction_tutorial.qmd)**: HBV model structure
-- **[TB-02](tb_02_gsa_tutorial.qmd)**: Detailed GSA theory (Sobol indices,
-  eFAST)
+- **[HBV-01](hbv_01_model_introduction_tutorial.qmd)**:
+  HBV model structure and parameters
+- **[TB-02](tb_02_gsa_tutorial.qmd)**:
+  Detailed GSA theory (Sobol indices, eFAST, variance decomposition)
 
-We'll apply the GSA concepts from TB-02 to the HBV model without repeating the theory.
+We apply the GSA workflow from TB-02 to the HBV model without repeating the theory.
 :::
 
 ## Libraries
@@ -53,342 +56,529 @@ We'll apply the GSA concepts from TB-02 to the HBV model without repeating the t
 #| output: false
 using Pumas
 using GlobalSensitivity
-using DataFramesMeta
-using Statistics
 using AlgebraOfGraphics
 using CairoMakie
-using CategoricalArrays
+using DataFramesMeta
 using SummaryTables
-using Random
+
+using LinearAlgebra
+using Statistics
 ```
 
-## Part 1: HBV GSA Setup
+## Part 1: HBV Model Setup for GSA
 
-### Parameter Ranges
+### Model
 
-For GSA, we define ranges for the 9 estimated parameters:
-
-```{julia}
-# HBV parameter ranges for GSA (log10 scale)
-# Range: [tv - 2σ, tv + 2σ] covers ~95% of population
-hbv_gsa_params = [
-    (name = "beta", lower = -6.0, upper = -4.0),    # Infection rate
-    (name = "p_S", lower = 7.2, upper = 8.8),     # HBsAg production
-    (name = "m", lower = 1.9, upper = 3.1),     # Immune killing
-    (name = "k_Z", lower = -5.8, upper = -4.2),    # ALT production
-    (name = "convE", lower = 1.9, upper = 3.1),     # Effector conversion
-    (name = "epsNA", lower = -3.0, upper = -1.0),    # NA efficacy
-    (name = "epsIFN", lower = -2.7, upper = -0.3),    # IFN efficacy
-    (name = "r_E_IFN", lower = -0.5, upper = 1.1),     # IFN immune boost
-    (name = "k_D", lower = -4.8, upper = -3.2),     # DC activation
-] |> DataFrame
-```
-
-### Simplified HBV Dynamics
-
-For GSA, we use a simplified analytical approximation of HBsAg dynamics:
+We use the HBV model from [HBV-01](hbv_01_model_introduction_tutorial.qmd),
+with two modifications for GSA: an `@observed` block for endpoints,
+and the `Ieff`/`Peff` threshold switch removed (matching the MATLAB implementation in
+@cortes2025HBV, which uses `I` and `P` directly without a discontinuous switch).
 
 ```{julia}
-"""
-    simulate_hbsag_simple(params; t_final=365.0, treatment=:combo)
+hbv_model = @model begin
+    @param begin
+        # Estimated parameters (log10 scale)
+        "Production/synthesis rate of HBsAg subviral particles from infected hepatocytes [molec./cell/d]"
+        tv_log10_p_S ∈ RealDomain(; lower = 2, upper = 12)
+        "HBV infectivity [mL/virus/d]"
+        tv_log10_β ∈ RealDomain(; lower = -10, upper = 0)
+        "Killing rate of infected hepatocytes by cellular immunity [mL/cells/d]"
+        tv_log10_m ∈ RealDomain(; lower = -3, upper = 5)
+        "Synthesis rate of antigen presenting cells [cells/d]"
+        tv_log10_k_P ∈ RealDomain()
+        "Synthesis rate of ALT from debris hepatocytes [10^3 U/cells/d]"
+        tv_log10_k_A ∈ RealDomain()
+        "PD efficacy of NA on HBV production []"
+        tv_log10_ϵ_NA ∈ RealDomain(; lower = -5, upper = 0)
+        "PD efficacy of IFNα on HBV production []"
+        tv_log10_ϵ_IFN ∈ RealDomain(; lower = -5, upper = 0)
+        "PD efficacy of IFNα on activation of cellular immunity []"
+        tv_log10_r_E_IFN ∈ RealDomain(; lower = 0, upper = 4)
+        "Scaling factor for observed effector CD4/8 T cell numbers []"
+        tv_log10_conv_E ∈ RealDomain()
 
-Simplified HBsAg dynamics for GSA.
+        # IIV of estimated parameters in log10 scale
+        Ω ∈ PDiagDomain(9)
 
-Treatment effect on HBsAg decline:
-  HBsAg(t) ≈ S0 × exp(-k_decline × t)
+        # Fixed parameters
+        "Baseline of HBV [copies/mL]"
+        ini_V ∈ RealDomain(; lower = 0.0)
+        "Baseline of ALT [U/L]"
+        ini_A ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of uninfected hepatocytes [1/d]"
+        r_T ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of cellular immunity [1/d]"
+        r_E ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of innate immunity [1/d]"
+        r_X ∈ RealDomain(; lower = 0.0)
+        "Fraction of cellular immunity that killing uninfected and refractory cells []"
+        n ∈ RealDomain(; lower = 0.0)
+        "Max. rate of conversion of infected cells to refractory cells due to the action of innate immunity [1/d]"
+        ρ ∈ RealDomain(; lower = 0.0)
+        "Max. rate of conversion of refractory cells back to target cells in the absence of innate immune responses []"
+        ρ_o_ρ_r ∈ RealDomain(; lower = 0.0)
+        "Production/synthesis rate of HBV from infected hepatocytes [virus/cell/d]"
+        p_V ∈ RealDomain(; lower = 0.0)
+        "Death rate of infected hepatocytes [1/d]"
+        d_TI ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of HBV HBsAg subviral particles [1/d]"
+        d_V ∈ RealDomain(; lower = 0.0)
+        "Rate of systemic induction/recovery from exhaustion [1/d]"
+        d_Q ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of innate immunity [1/d]"
+        d_X ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of cellular immunity [1/d]"
+        d_E ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of antigen presenting cells [1/d]"
+        d_P ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of debris [1/d]"
+        d_D ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of ALT [1/d]"
+        d_A ∈ RealDomain(; lower = 0.0)
+        "Max. rate of exhastion [1/d]"
+        d_E_Q ∈ RealDomain(; lower = 0.0)
+        "Hepatocyte carrying capacity in the liver [cells/mL]"
+        T_max ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for the effect of systemic exhaustion []"
+        ϕ_Q ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for the activation of cellular immunity [cells/mL]"
+        ϕ_E ∈ RealDomain(; lower = 0.0)
+        "Max. inhibitory effect of HBsAg subviral particles on innate immunity []"
+        S_max ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for inhibitory effect of HBsAg subviral particles on the generation of innate immunity [μg/mL]"
+        ϕ_S ∈ RealDomain(; lower = 0.0)
+        "Hill coefficient for describing HBsAg-induced inhibition of innate immunity []"
+        nS ∈ RealDomain()
 
-where k_decline depends on treatment efficacy and immune parameters.
-"""
-function simulate_hbsag_simple(params; t_final::Float64 = 365.0, treatment::Symbol = :combo)
-    beta, p_S, m, k_Z, convE, epsNA, epsIFN, r_E_IFN, k_D = params
-
-    # Initial HBsAg (depends on p_S)
-    log_S0 = 3.0 + 0.3 * (p_S - 8.0)  # log10 IU/mL
-
-    # Base decline rate (from immune killing m and effector conversion)
-    base_decline = 0.001 * 10^(m - 2.5) * 10^(convE - 2.5)
-
-    # Treatment effect
-    if treatment == :na
-        treatment_factor = 10^(-epsNA - 2.0)
-    elseif treatment == :ifn
-        treatment_factor = 10^(-epsIFN - 1.5) * 10^(r_E_IFN)
-    elseif treatment == :combo
-        treatment_factor = 10^(-epsNA - 2.0) * 10^(-epsIFN - 1.5) * 10^(r_E_IFN)
-    else
-        error("unknown treatment")
+        # Residual errors
+        σ_add_log10_HBsAg ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_HBsAg ∈ RealDomain(lower = 0.0)
+        σ_add_log10_HBV ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_HBV ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_ALT ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_CD8 ∈ RealDomain(lower = 0.0)
     end
 
-    # Total decline rate
-    k_decline = base_decline + 0.005 * treatment_factor
+    @random begin
+        η ~ MvNormal(Ω)
+    end
 
-    # Final HBsAg
-    log_HBsAg_final = log_S0 - k_decline * t_final / log(10)
+    # Time-varying covariates for treatment phases
+    @covariates NA IFN
 
-    # Nadir (lowest point)
-    log_HBsAg_nadir = log_S0 - k_decline * t_final * 1.2 / log(10)
+    @pre begin
+        # Individual parameters
+        # Logit-normal distribution of log10(p_S), scaled to range [2, 12]
+        p_S = exp10(10 * logistic(logit((tv_log10_p_S - 2) / 10) + η[1]) + 2)
+        # Logit-normal distribution of log10(β), scaled to range [-10, 0]
+        β = exp10(10 * (logistic(logit(tv_log10_β / 10 + 1) + η[2]) - 1))
+        # Logit-normal distribution of log10(m), scaled to range [-3, 5]
+        m = exp10(8 * logistic(logit((tv_log10_m + 3) / 8) + η[3]) - 3)
+        # Normal distribution of log10(k_P)
+        k_P = exp10(tv_log10_k_P + η[4])
+        # Normal distribution of log10(k_A)
+        k_A = exp10(tv_log10_k_A + η[5])
+        # Logit-normal distribution of log10(ϵ_NA), scaled to range [-5, 0]
+        ϵ_NA = exp10(NA * 5 * (logistic(logit(tv_log10_ϵ_NA / 5 + 1) + η[6]) - 1))
+        # Logit-normal distribution of log10(ϵ_IFN), scaled to range [-5, 0]
+        ϵ_IFN = exp10(IFN * 5 * (logistic(logit(tv_log10_ϵ_IFN / 5 + 1) + η[7]) - 1))
+        # Logit-normal distribution of log10(r_E_IFN), scaled to range [0, 4]
+        r_E_IFN = exp10(IFN * 4 * logistic(logit(tv_log10_r_E_IFN / 4) + η[8]))
+        # Normal distribution
+        conv_E = exp10(tv_log10_conv_E + η[9])
+    end
 
-    return (
-        log_HBsAg_final = log_HBsAg_final,
-        log_HBsAg_nadir = log_HBsAg_nadir,
-        initial_hbsag = log_S0,
-        decline_rate = k_decline,
+    # Initial conditions
+    @init begin
+        V = ini_V
+        I = d_V * V / p_V
+        T = T_max - I
+        S = p_S * I / d_V
+        A = ini_A
+    end
+
+    @dynamics begin
+        # Target uninfected hepatocytes
+        T' = -β * V * T + r_T * T * (1 - (T + I + R) / T_max) -
+            d_TI * T + ρ_o_ρ_r * R - (m / n) * r_E_IFN * E * T
+
+        # Infected hepatocytes
+        I' = β * V * T + r_T * I * (1 - (T + I + R) / T_max) -
+            ρ * X * I - d_TI * I - m * r_E_IFN * E * I
+
+        # Resistant hepatocytes
+        R' = ρ * X * I - ρ_o_ρ_r * R + r_T * R * (1 - (T + I + R) / T_max) -
+            d_TI * R - (m / n) * r_E_IFN * E * R
+
+        # Dead cell marker
+        D' = m * r_E_IFN * E * I + (m / n) * r_E_IFN * E * (T + R) - d_D * D
+
+        # Immune response (ALT proxy)
+        A' = d_A * (ini_A - A) + k_A * D
+
+        # HBsAg dynamics
+        S' = p_S * I - d_V * S
+
+        # Viral load (NA and IFN reduce production)
+        V' = p_V * I * ϵ_NA * ϵ_IFN - d_V * V
+
+        # Dendritic cell activation
+        P' = k_P * (I / (ϕ_E + I)) - d_P * P
+
+        # Effector T cells
+        E' = (d_E + r_E * E) * P - d_E_Q * E * (Q^4 / (ϕ_Q^4 + Q^4)) - d_E * E
+
+        # Delayed effector signal
+        Q' = d_Q * (P - Q)
+
+        # Cytotoxic effect
+        X' = r_X * (1 - X) * (I / (ϕ_E + I)) *
+            (1 - S_max * (HBsAg_ug_mL^nS / (ϕ_S^nS + HBsAg_ug_mL^nS))) - d_X * X
+    end
+
+    @vars begin
+        # HBsAg [μg/mL]: Each particle of V and S is assumed to harbor 96 molecules of S envelope protein
+        f_molec2ug := 24000 * 1.0e6 / 6.022e23
+        HBsAg_ug_mL := 96 * (V + S) * f_molec2ug
+    end
+
+    # Error models: Values are log10-transformed
+    @derived begin
+        "HBsAg [IU/mL]"
+        log10_HBsAg ~ @. CombinedNormal(log10(max(0, HBsAg_ug_mL) / 0.98e-3), σ_add_log10_HBsAg, σ_prop_log10_HBsAg)
+
+        "Viral load [copies/mL]"
+        log10_HBV ~ @. CombinedNormal(log10(max(0, V)), σ_add_log10_HBV, σ_prop_log10_HBV)
+
+        "ALT [U/L]"
+        log10_ALT ~ @. ProportionalNormal(log10(max(0, A)), σ_prop_log10_ALT)
+
+        "CD8+ T cell counts [cells/mL]"
+        log10_CD8 ~ @. ProportionalNormal(log10(conv_E * max(0, E)), σ_prop_log10_CD8)
+    end
+end
+```
+
+### Parameter Values
+
+```{julia}
+#| output: false
+hbv_fixed_params = (
+    ini_V = exp10(-0.481),
+    ini_A = exp10(1.25),
+    r_T = 1.0,
+    r_E = 0.1,
+    r_X = 1.0,
+    n = 100,
+    ρ = 0.001,
+    ρ_o_ρ_r = 1.0e-5,
+    p_V = 100.0,
+    d_TI = 0.0039,
+    d_V = 0.67,
+    d_Q = 0.00385,
+    d_X = 0.2,
+    d_E = 0.01,
+    d_P = 0.239,
+    d_D = 1.66,
+    d_A = 0.47,
+    d_E_Q = 0.3,
+    T_max = 1.36e7,
+    ϕ_Q = 0.8,
+    ϕ_E = 100.0,
+    S_max = 1.0,
+    ϕ_S = 0.1473,
+    nS = 0.486,
+)
+```
+
+```{julia}
+#| output: false
+hbv_estimated_params = (;
+    tv_log10_p_S = 7.643,
+    tv_log10_β = -4.358,
+    tv_log10_m = 1.618,
+    tv_log10_k_P = -3.968,
+    tv_log10_k_A = -4.869,
+    tv_log10_ϵ_NA = -1.485,
+    tv_log10_ϵ_IFN = -1.466,
+    tv_log10_r_E_IFN = 0.313,
+    tv_log10_conv_E = 2.745,
+
+    Ω = Diagonal([0.632^2, 2.489^2, 0.827^2, 1.292^2, 1.156^2, 1.583^2, 1.626^2, 2.739^2, 1.248^2]),
+
+    σ_add_log10_HBsAg = 0.0972,
+    σ_prop_log10_HBsAg = 2.2204e-16,
+    σ_add_log10_HBV = 0.3206,
+    σ_prop_log10_HBV = 0.0838,
+    σ_prop_log10_ALT = 0.0478,
+    σ_prop_log10_CD8 = 0.4149,
+)
+```
+
+```{julia}
+#| output: false
+hbv_params = merge(hbv_fixed_params, hbv_estimated_params)
+```
+
+### Base Parameters for GSA
+
+For GSA, we fix random effects and residual error to zero (see [TB-02](tb_02_gsa_tutorial.qmd)
+for why):
+
+```{julia}
+#| output: false
+base_params = merge(
+    hbv_params,
+    (;
+        Ω = zero(hbv_params.Ω),
+        σ_add_log10_HBsAg = 0.0,
+        σ_prop_log10_HBsAg = 0.0,
+        σ_add_log10_HBV = 0.0,
+        σ_prop_log10_HBV = 0.0,
+        σ_prop_log10_ALT = 0.0,
+        σ_prop_log10_CD8 = 0.0,
     )
-end
-
-# Test with typical values
-typical_params = [-5.0, 8.0, 2.5, -5.0, 2.5, -2.0, -1.5, 0.3, -4.0]
-test_result = simulate_hbsag_simple(typical_params)
-println("\nTypical patient (combo treatment, 1 year):")
-println("  Initial HBsAg: $(round(test_result.initial_hbsag, digits = 2)) log10 IU/mL")
-println("  Final HBsAg: $(round(test_result.log_HBsAg_final, digits = 2)) log10 IU/mL")
-println("  Decline rate: $(round(test_result.decline_rate, digits = 5)) /day")
+)
 ```
 
-## Part 2: Running Sobol Analysis
+### Clinical Protocol
+
+Following @cortes2025HBV, GSA is performed on **NA-suppressed patients** —
+chronic HBV patients who received 4 years of NA background therapy before the treatment period.
 
 ```{julia}
-#| warning: false
-# Model function for final HBsAg - must return a scalar for GlobalSensitivity.gsa()
-function model_final_hbsag(params)
-    result = simulate_hbsag_simple(params; treatment = :combo)
-    return result.log_HBsAg_final
-end
-
-# Define bounds as vector of tuples (lower, upper) for each parameter
-# GlobalSensitivity.jl expects bounds in this format
-bounds = map(tuple, hbv_gsa_params.lower, hbv_gsa_params.upper)
-
-# Run Sobol analysis using GlobalSensitivity.jl API
-# Note: gsa() takes f, method, bounds_vector where bounds is [(lb1,ub1), (lb2,ub2), ...]
-Random.seed!(42)
-sobol_result = GlobalSensitivity.gsa(
-    model_final_hbsag,
-    Sobol(),
-    bounds;
-    samples = 2^10,
-)
-
-# Extract indices - GlobalSensitivity returns vectors directly
-sobol_df = DataFrame(
-    parameter = hbv_gsa_params.name,
-    first_order = sobol_result.S1,
-    total_order = sobol_result.ST,
-    interaction = sobol_result.ST - sobol_result.S1
-)
-sort!(sobol_df, :total_order, rev = true)
-simple_table(sobol_df)
+#| output: false
+t_chronic = 5 * 365                     # End of chronic infection phase
+t_na_suppressed = t_chronic + 4 * 365   # End of 4-year NA suppression
+t_eot = t_na_suppressed + 48 * 7        # End of 48-week treatment
+t_end = t_eot + 24 * 7                  # End of 24-week off-treatment follow-up
 ```
 
-### Interpretation
+We study the sensitivity of HBsAg levels at different time points: at the initial time point,
+after 5 years of chronic infection, after 4 years of NA suppression,
+after 48 weeks of treatment with a combination treatment with IFN and NA,
+and after 24 weeks of off-treatment follow-up.
 
 ```{julia}
-#| fig-cap: "Sobol sensitivity indices for HBV model. First-order (S₁) shows direct effects; Total-order (Sₜ) includes interactions."
+gsa_obstimes = [0.0, t_chronic, t_na_suppressed, t_eot, t_end]
+gsa_covariates_time = [0.0, t_chronic, t_na_suppressed, t_eot]
+gsa_covariates = (; NA = [false, true, true, false], IFN = [false, false, true, false])
+```
 
-# Convert to long format for plotting
-sobol_plot_df = stack(
-    sobol_df[:, [:parameter, :first_order, :interaction]],
-    [:first_order, :interaction];
-    value_name = :index,
-    variable_name = :type,
+### Parameter Domains
+
+We analyze all 9 estimated parameters.
+As seen in [HBV-01](hbv_01_model_introduction_tutorial.qmd),
+extreme parameter values can lead to simulation failures.
+For the global sensitivity analysis,
+we have to ensure that the model is simulated only at parameter values for
+which no integration errors occur,
+as otherwise HBsAg levels are predicted as `NaN` which contaminates the analysis
+and yields `NaN` sensitivity indices.
+
+As a simple heuristic in this tutorial,
+we choose parameter domains based on the estimated random effect distributions,
+ensuring that the model can be simulated successfully with both the minimal
+and maximal values in the parameter domains:
+
+```{julia}
+#| output: false
+# Lower bound of parameter values
+sim_lower = simobs(
+    hbv_model,
+    Subject(; time = gsa_obstimes, covariates_time = gsa_covariates_time, covariates = gsa_covariates),
+    base_params,
+    (; η = -sqrt.(diag(hbv_params.Ω)) / 3);
+    simulate_error = false,
+)
+params_lower = postprocess(sim_lower) do gen, _
+    idx = only(findall(gen.IFN .&& gen.NA))
+    return (; tv_log10_p_S = log10(gen.p_S[idx]), tv_log10_β = log10(gen.β[idx]), tv_log10_m = log10(gen.m[idx]), tv_log10_k_P = log10(gen.k_P[idx]), tv_log10_k_A = log10(gen.k_A[idx]), tv_log10_ϵ_NA = log10(gen.ϵ_NA[idx]), tv_log10_ϵ_IFN = log10(gen.ϵ_IFN[idx]), tv_log10_r_E_IFN = log10(gen.r_E_IFN[idx]), tv_log10_conv_E = log10(gen.conv_E[idx]))
+end
+
+# Upper bound of parameter values
+sim_upper = simobs(
+    hbv_model,
+    Subject(; time = gsa_obstimes, covariates_time = gsa_covariates_time, covariates = gsa_covariates),
+    base_params,
+    (; η = sqrt.(diag(hbv_params.Ω)) / 3);
+    simulate_error = false,
+)
+params_upper = postprocess(sim_upper) do gen, _
+    idx = only(findall(gen.IFN .&& gen.NA))
+    return (; tv_log10_p_S = log10(gen.p_S[idx]), tv_log10_β = log10(gen.β[idx]), tv_log10_m = log10(gen.m[idx]), tv_log10_k_P = log10(gen.k_P[idx]), tv_log10_k_A = log10(gen.k_A[idx]), tv_log10_ϵ_NA = log10(gen.ϵ_NA[idx]), tv_log10_ϵ_IFN = log10(gen.ϵ_IFN[idx]), tv_log10_r_E_IFN = log10(gen.r_E_IFN[idx]), tv_log10_conv_E = log10(gen.conv_E[idx]))
+end
+```
+
+All other parameters are fixed to their base values:
+
+```{julia}
+gsa_constantcoef = (
+    keys(hbv_fixed_params)...,
+    :Ω, :σ_add_log10_HBsAg, :σ_prop_log10_HBsAg, :σ_add_log10_HBV, :σ_prop_log10_HBV, :σ_prop_log10_ALT, :σ_prop_log10_CD8,
+)
+```
+
+### Run eFAST
+
+For demonstration purposes and to keep computation times in this tutorial small,
+we perform sensitivity analysis with eFAST and with only 75 samples.
+Moreover, we parallelize simulations using multithreading by specifying `batch = true`
+and `ensemblealg = EnsembleThreads()` keyword arguments:
+
+```{julia}
+#| output: false
+gsa_efast = gsa(
+    hbv_model,
+    Subject(; time = gsa_obstimes, covariates_time = gsa_covariates_time, covariates = gsa_covariates),
+    base_params,
+    eFAST(),
+    [:log10_HBsAg],
+    params_lower,
+    params_upper;
+    samples = 75,
+    constantcoef = gsa_constantcoef,
+    ensemblealg = EnsembleThreads(),
+    batch = true,
+)
+```
+
+## Part 3: Interpreting Results
+
+### Extract Indices
+
+We combine first- and total-order indices in a single `DataFrame` for easier downstream processing:
+
+```{julia}
+#| output: false
+gsa_efast_first_order = stack(
+    gsa_efast.first_order,
+    Not(:dv_name);
+    variable_name = :parameter,
+    value_name = :first_order,
+)
+gsa_efast_total_order = stack(
+    gsa_efast.total_order,
+    Not(:dv_name);
+    variable_name = :parameter,
+    value_name = :total_order,
+)
+gsa_efast_df = outerjoin(
+    gsa_efast_first_order,
+    gsa_efast_total_order; on = [:dv_name, :parameter],
 )
 
-# Create plot
-parameter_labels = ["epsIFN" => rich("ϵ", subscript("IFN")), "r_E_IFN" => rich("r", subsup("IFN", "E")), "epsNA" => rich("ϵ", subscript("NA")), "beta" => "β", "p_S" => rich("p", subscript("S")), "m" => "m", "k_Z" => rich("k", subscript("Z")), "convE" => rich("conv", subscript("E")), "k_D" => rich("k", subscript("D"))]
-parameter_mapping = :parameter => sorter(map(first, parameter_labels)) => "Parameter"
-specs = data(sobol_plot_df) *
-    mapping(
-    parameter_mapping,
-    :index => "Sensitivity",
-    stack = parameter_mapping,
-    color = :type => renamer("first_order" => "First-order (Sᵢ)", "interaction" => "Interaction (Sₜᵢ - Sᵢ)") => "Type",
-) *
-    visual(BarPlot)
-specs_threshold = mapping([0.1], color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
-draw(specs + specs_threshold, scales(ColorLine = (; palette = [:red])); legend = (; position = :bottom), axis = (; xticks = (1:length(parameter_labels), map(last, parameter_labels)), xticklabelrotation = π / 4))
+# Compute interaction (difference between total- and first-order indices)
+@rtransform! gsa_efast_df :interaction = :total_order - :first_order
+
+# Parse time
+@rtransform! gsa_efast_df @astable begin
+    m = match(r"(?<dv>[^\[]+)\[(?<t>\d+)\]", :dv_name)
+    :dv = m["dv"]
+    :time = gsa_obstimes[parse(Int, m["t"])]
+end
+@select! gsa_efast_df Not(:dv_name)
+
+simple_table(gsa_efast_df, [:time => "Time [d]", :parameter => "Parameter", :first_order => "First order", :total_order => "Total order", :interaction => "Interaction"])
+```
+
+### Identify Influential Parameters
+
+```{julia}
+threshold = 0.1
+influential_gsa_efast_df = @chain gsa_efast_df begin
+    @rtransform :interpretation = :total_order >= threshold ? "INFLUENTIAL" : "minor"
+    sort!(_, [:dv, :time, order(:total_order; rev = true)])
+end
+
+simple_table(influential_gsa_efast_df, [:dv => "Output", :time => "Time [d]", :parameter => "Parameter", :total_order => "Total order", :interpretation => "Interpretation"])
 ```
 
 :::{.callout-note}
 ## Interpreting HBV GSA Results
 
-**Most influential parameters (Sₜ > 0.1):**
+Unlike the tumor burden model where a single parameter (f) dominates,
+the HBV QSP model has a richer sensitivity structure due to its complex interactions between viral
+dynamics, immune response, and treatment.
 
-1. **p_S (HBsAg production)**: Directly determines baseline HBsAg level
-2. **epsNUC (NUC efficacy)**: Key treatment parameter for viral suppression
-3. **epsIFN (IFN efficacy)**: IFN contribution to decline
-4. **r_E_IFN (IFN immune boost)**: Enhances immune-mediated clearance
+Key questions to consider:
 
-**Lower influence:**
-
-- **m (immune killing)**: Important but secondary to treatment efficacy
-- **convE**: Effector conversion has moderate effect
-- **beta, k_Z, k_D**: Minimal direct effect on HBsAg dynamics
+- Which parameters are **influential** (Sₜ > 0.1)?
+  These require careful estimation from clinical data.
+- Which parameters show large **interactions** (Sₜ - S₁ > 0.1)?
+  These suggest nonlinear coupling between model components.
+- Which parameters are **minor** (Sₜ < 0.1)?
+  These can potentially be fixed to literature values.
 :::
 
-## Part 3: Comparing Treatments
+## Part 4: Visualization
 
-Let's compare sensitivity across treatment scenarios.
-
-```{julia}
-#| warning: false
-#| output: false
-results_df = mapreduce(vcat, [:na, :ifn, :combo]) do treatment
-    model_fn = params -> simulate_hbsag_simple(params; treatment).log_HBsAg_final
-    result = GlobalSensitivity.gsa(model_fn, Sobol(), bounds; samples = 2^10)
-    return DataFrame(;
-        parameter = hbv_gsa_params.name,
-        first_order = result.S1,
-        total_order = result.ST,
-        arm = string(treatment),
-    )
-end
-```
-
-Comparison of first-order indices:
+### Bar Chart: First-Order vs Total-Order
 
 ```{julia}
-simple_table(
-    unstack(results_df, :parameter, :arm, :first_order),
-    [:parameter => "Parameter", :na => "NA", :ifn => "IFN", :combo => "NA + IFN"],
+#| fig-cap: "Sensitivity indices for HBsAg at end of off-treatment (NA+IFN combo). Dark bars show first-order (direct) effects; light extensions show contributions from interactions."
+long_df = stack(
+    gsa_efast_df[gsa_efast_df.time .== gsa_obstimes[end], [:parameter, :first_order, :interaction]],
+    [:first_order, :interaction];
+    variable_name = :type,
+    value_name = :index,
 )
-```
-
-Comparison of total-order indices:
-
-```{julia}
-simple_table(
-    unstack(results_df, :parameter, :arm, :total_order),
-    [:parameter => "Parameter", :na => "NA", :ifn => "IFN", :combo => "NA + IFN"],
-)
-```
-
-```{julia}
-#| fig-cap: "Comparison of total-order sensitivity indices across treatment scenarios. Different treatments rely on different parameter combinations."
-parameter_labels = ["epsIFN" => rich("ϵ", subscript("IFN")), "r_E_IFN" => rich("r", subsup("IFN", "E")), "epsNA" => rich("ϵ", subscript("NA")), "beta" => "β", "p_S" => rich("p", subscript("S")), "m" => "m", "k_Z" => rich("k", subscript("Z")), "convE" => rich("conv", subscript("E")), "k_D" => rich("k", subscript("D"))]
-parameter_mapping = :parameter => sorter(map(first, parameter_labels)) => "Parameter"
-arm_mapping = :arm => renamer("na" => "NA", "ifn" => "IFN", "combo" => "NA + IFN") => "Treatment"
-specs = data(results_df) *
+parameter_labels = [
+    "tv_log10_p_S" => rich("p", subscript("S")),
+    "tv_log10_β" => "β",
+    "tv_log10_m" => "m",
+    "tv_log10_k_P" => rich("k", subscript("P")),
+    "tv_log10_k_A" => rich("k", subscript("A")),
+    "tv_log10_ϵ_NA" => rich("ϵ", subscript("NA")),
+    "tv_log10_ϵ_IFN" => rich("ϵ", subscript("IFN")),
+    "tv_log10_r_E_IFN" => rich("r", subsup("IFN", "E")),
+    "tv_log10_conv_E" => rich("conv", subscript("E")),
+]
+specs_gsa = data(long_df) *
     mapping(
-    parameter_mapping,
-    :total_order => "Total-order sensitivity index (Sₜ)",
-    stack = parameter_mapping,
-    color = arm_mapping,
-    dodge = arm_mapping,
-) *
-    visual(BarPlot)
-specs_threshold = mapping([0.1], color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
-draw(specs + specs_threshold, scales(ColorLine = (; palette = [:red])); legend = (; position = :bottom), axis = (; xticks = (1:length(parameter_labels), map(last, parameter_labels)), xticklabelrotation = π / 4))
-```
-
-:::{.callout-note}
-## Treatment-Specific Insights
-
-**NA treatment:**
-
-- Dominated by epsNA (viral suppression)
-- p_S important for baseline
-
-**IFN treatment:**
-
-- epsIFN and r_E_IFN both important
-- Immune parameters (m, convE) more relevant
-
-**Combination:**
-
-- Both treatment efficacy parameters matter
-- Best overall response when both are favorable
-:::
-
-## Part 4: eFAST Analysis
-
-For comparison, let's run eFAST (extended Fourier Amplitude Sensitivity Test):
-
-```{julia}
-function model_final_hbsag(params)
-    result = simulate_hbsag_simple(params; treatment = :combo)
-    return result.log_HBsAg_final
-end
-efast_result = GlobalSensitivity.gsa(
-    model_final_hbsag,
-    eFAST(),
-    bounds;
-    samples = 1_000,
+    :parameter => sorter(map(first, parameter_labels)) => "Parameter",
+    :index => "Sensitivity",
+    stack = :parameter,
+    color = :type => renamer(["first_order" => "First-order (Sᵢ)", "interaction" => "Interaction (Sₜᵢ - Sᵢ)"]) => "Type",
+) * visual(BarPlot)
+specs_threshold = mapping([0.1], color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines; linestyle = :dash)
+draw(
+    specs_gsa + specs_threshold, scales(ColorLine = (; palette = [:red]));
+    axis = (; xticks = (1:length(parameter_labels), map(last, parameter_labels))), legend = (; position = :bottom)
 )
-
-# eFAST returns S1 and ST as a matrix (outputs x parameters)
-efast_df = DataFrame(
-    parameter = hbv_gsa_params.name,
-    first_order = vec(efast_result.S1),
-    total_order = vec(efast_result.ST),
-)
-
-# Compare methods
-comparison_methods = leftjoin(sobol_df, efast_df; on = :parameter, renamecols = "_sobol" => "_efast")
-simple_table(comparison_methods, [:parameter => "Parameter", :first_order_sobol => "First-order (Sobol)", :first_order_efast => "First-order (eFAST)", :total_order_sobol => "Total-order (Sobol)", :total_order_efast => "Total-order (eFAST)"])
 ```
-
-## Part 5: Recommendations
-
-### Key Findings
-
-Influential parameters:
-
-```{julia}
-sobol_df[sobol_df.total_order .> 0.1, :parameter]
-```
-
-Non-influential parameters:
-
-```{julia}
-sobol_df[sobol_df.total_order .< 0.05, :parameter]
-```
-
-### Practical Implications
-
-:::{.callout-tip}
-## For Model Development
-
-1. **Prioritize data collection** for HBsAg production (p_S)
-   and treatment efficacy (epsNUC, epsIFN)
-2. **Consider fixing** k_Z and k_D if data is limited
-3. **Treatment response prediction** depends most on efficacy parameters
-:::
-
-:::{.callout-tip}
-## For VCT Design
-
-1. **Stratify by p_S** (baseline HBsAg) for subgroup analysis
-2. **Treatment arm comparisons** sensitive to efficacy parameter distributions
-3. **Combination therapy** benefits from favorable values of both epsNUC
-   and epsIFN
-:::
 
 ## Summary
 
-### Key Results
+### Key Takeaways
 
-| Parameter | Role | Sensitivity | Recommendation |
-|:----------|:-----|:------------|:---------------|
-| p_S | HBsAg production | High | Focus estimation |
-| epsNUC | NUC efficacy | High | Key for NUC arm |
-| epsIFN | IFN efficacy | High | Key for IFN arm |
-| r_E_IFN | IFN immune boost | Moderate | Important for combo |
-| m | Immune killing | Moderate | Characterize |
-| convE | Effector conversion | Low-Moderate | Less critical |
-| beta | Infection rate | Low | Consider fixing |
-| k_Z | ALT production | Low | Can fix |
-| k_D | DC activation | Low | Can fix |
+1. **GSA on HBV varies random effects (η)**, not typical values —
+   this matches the NLME framework and ensures the model's logit-normal/log-normal
+   transformations constrain parameters to physiologically plausible ranges
 
-### Methods Used
+2. **Batch simulation** via `simobs` on a population enables efficient
+   evaluation of the many model runs required for GSA
 
-| Method | Samples | Key Output |
-|:-------|:--------|:-----------|
-| Sobol | 500 | S₁, Sₜ, interactions |
-| eFAST | 500 | Comparable Sₜ |
+3. **The HBV QSP model has a richer sensitivity structure** than the simpler
+   tumor burden model, with multiple potentially influential parameters
+
+4. For comprehensive multi-output, multi-timepoint results,
+   see @cortes2025HBV Figure S10
+
+For general GSA methodology (sample size selection, interpretation guidelines, common pitfalls),
+see [TB-02](tb_02_gsa_tutorial.qmd).
+
+### Quick Reference: Key Functions
+
+| Function | Package | Purpose |
+|:---------|:--------|:--------|
+| `GlobalSensitivity.gsa(f, method, bounds; batch, samples)` | GlobalSensitivity | Run GSA with batch evaluation |
+| `eFAST()` | GlobalSensitivity | eFAST method (fast screening) |
+| `simobs(model, pop, params, vrandeffs)` | Pumas | Parallel population simulation |
 
 ### What's Next?
 
-In [Tutorial 3: Structural Identifiability](hbv_03_structural_identifiability_tutorial.qmd),
+In **[Tutorial 3: Structural Identifiability](hbv_03_structural_identifiability_tutorial.qmd)**,
 we'll analyze which HBV parameters can be identified from different measurement scenarios.
 
 ### References

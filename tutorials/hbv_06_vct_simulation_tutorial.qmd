@@ -117,25 +117,25 @@ See those tutorials for details on the model structure and parameter estimation.
 #| code-summary: "HBV model definition (same as HBV-01 and HBV-05)"
 hbv_model = @model begin
     @param begin
-        # Estimated parameters
+        # Estimated parameters (log10 scale)
         "Production/synthesis rate of HBsAg subviral particles from infected hepatocytes [molec./cell/d]"
-        tv_p_S ∈ RealDomain(; lower = exp10(2), upper = exp10(12))
+        tv_log10_p_S ∈ RealDomain(; lower = 2, upper = 12)
         "HBV infectivity [mL/virus/d]"
-        tv_β ∈ RealDomain(; lower = exp10(-10), upper = 1)
+        tv_log10_β ∈ RealDomain(; lower = -10, upper = 0)
         "Killing rate of infected hepatocytes by cellular immunity [mL/cells/d]"
-        tv_m ∈ RealDomain(; lower = exp10(-3), upper = exp10(5))
+        tv_log10_m ∈ RealDomain(; lower = -3, upper = 5)
         "Synthesis rate of antigen presenting cells [cells/d]"
-        tv_k_P ∈ RealDomain(; lower = 0.0)
+        tv_log10_k_P ∈ RealDomain()
         "Synthesis rate of ALT from debris hepatocytes [10^3 U/cells/d]"
-        tv_k_A ∈ RealDomain(; lower = 0.0)
+        tv_log10_k_A ∈ RealDomain()
         "PD efficacy of NA on HBV production []"
-        tv_ϵ_NA ∈ RealDomain(; lower = exp10(-5), upper = 1)
+        tv_log10_ϵ_NA ∈ RealDomain(; lower = -5, upper = 0)
         "PD efficacy of IFNα on HBV production []"
-        tv_ϵ_IFN ∈ RealDomain(; lower = exp10(-5), upper = 1)
+        tv_log10_ϵ_IFN ∈ RealDomain(; lower = -5, upper = 0)
         "PD efficacy of IFNα on activation of cellular immunity []"
-        tv_r_E_IFN ∈ RealDomain(; lower = 1, upper = exp10(4))
+        tv_log10_r_E_IFN ∈ RealDomain(; lower = 0, upper = 4)
         "Scaling factor for observed effector CD4/8 T cell numbers []"
-        tv_conv_E ∈ RealDomain(; lower = 0.0)
+        tv_log10_conv_E ∈ RealDomain()
 
         # IIV of estimated parameters in log10 scale
         Ω ∈ PDiagDomain(9)
@@ -211,23 +211,23 @@ hbv_model = @model begin
     @pre begin
         # Individual parameters
         # Logit-normal distribution of log10(p_S), scaled to range [2, 12]
-        p_S = exp10(10 * logistic(logit((log10(tv_p_S) - 2) / 10) + η[1]) + 2)
+        p_S = exp10(10 * logistic(logit((tv_log10_p_S - 2) / 10) + η[1]) + 2)
         # Logit-normal distribution of log10(β), scaled to range [-10, 0]
-        β = exp10(10 * (logistic(logit(log10(tv_β) / 10 + 1) + η[2]) - 1))
+        β = exp10(10 * (logistic(logit(tv_log10_β / 10 + 1) + η[2]) - 1))
         # Logit-normal distribution of log10(m), scaled to range [-3, 5]
-        m = exp10(8 * logistic(logit((log10(tv_m) + 3) / 8) + η[3]) - 3)
+        m = exp10(8 * logistic(logit((tv_log10_m + 3) / 8) + η[3]) - 3)
         # Normal distribution of log10(k_P)
-        k_P = tv_k_P * exp10(η[4])
+        k_P = exp10(tv_log10_k_P + η[4])
         # Normal distribution of log10(k_A)
-        k_A = tv_k_A * exp10(η[5])
+        k_A = exp10(tv_log10_k_A + η[5])
         # Logit-normal distribution of log10(ϵ_NA), scaled to range [-5, 0]
-        ϵ_NA = exp10(NA * 5 * (logistic(logit(log10(tv_ϵ_NA) / 5 + 1) + η[6]) - 1))
+        ϵ_NA = exp10(NA * 5 * (logistic(logit(tv_log10_ϵ_NA / 5 + 1) + η[6]) - 1))
         # Logit-normal distribution of log10(ϵ_IFN), scaled to range [-5, 0]
-        ϵ_IFN = exp10(IFN * 5 * (logistic(logit(log10(tv_ϵ_IFN) / 5 + 1) + η[7]) - 1))
+        ϵ_IFN = exp10(IFN * 5 * (logistic(logit(tv_log10_ϵ_IFN / 5 + 1) + η[7]) - 1))
         # Logit-normal distribution of log10(r_E_IFN), scaled to range [0, 4]
-        r_E_IFN = exp10(IFN * 4 * logistic(logit(log10(tv_r_E_IFN) / 4) + η[8]))
+        r_E_IFN = exp10(IFN * 4 * logistic(logit(tv_log10_r_E_IFN / 4) + η[8]))
         # Normal distribution
-        conv_E = tv_conv_E * exp10(η[9])
+        conv_E = exp10(tv_log10_conv_E + η[9])
     end
 
     # Initial conditions
@@ -351,15 +351,15 @@ hbv_fixed_params = (
 ω_conv_E = 1.248
 
 hbv_estimated_params = (;
-    tv_p_S = exp10(7.643),
-    tv_β = exp10(-4.358),
-    tv_m = exp10(1.618),
-    tv_k_P = exp10(-3.968),
-    tv_k_A = exp10(-4.869),
-    tv_ϵ_NA = exp10(-1.485),
-    tv_ϵ_IFN = exp10(-1.466),
-    tv_r_E_IFN = exp10(0.313),
-    tv_conv_E = exp10(2.745),
+    tv_log10_p_S = 7.643,
+    tv_log10_β = -4.358,
+    tv_log10_m = 1.618,
+    tv_log10_k_P = -3.968,
+    tv_log10_k_A = -4.869,
+    tv_log10_ϵ_NA = -1.485,
+    tv_log10_ϵ_IFN = -1.466,
+    tv_log10_r_E_IFN = 0.313,
+    tv_log10_conv_E = 2.745,
 
     Ω = Diagonal([ω_p_S^2, ω_β^2, ω_m^2, ω_k_P^2, ω_k_A^2, ω_ϵ_NA^2, ω_ϵ_IFN^2, ω_r_E_IFN^2, ω_conv_E^2]),
 
@@ -400,13 +400,13 @@ correlated_randeffs_dist = SklarDist(
     copula, (
         Normal(0, ω_p_S),
         Normal(0, ω_β),
-        Normal(0, ω_m), #truncated(Normal(0, ω_m); lower = -ω_m, upper = ω_m),
-        Normal(0, ω_k_P), #truncated(Normal(0, ω_k_P); lower = -ω_k_P, upper = ω_k_P),
-        Normal(0, ω_k_A), #truncated(Normal(0, ω_k_A); lower = -ω_k_A, upper = ω_k_A),
-        Normal(0, ω_ϵ_NA), #truncated(Normal(0, ω_ϵ_NA); lower = -ω_ϵ_NA, upper = ω_ϵ_NA),
-        Normal(0, ω_ϵ_IFN), #truncated(Normal(0, ω_ϵ_IFN); lower = -ω_ϵ_IFN, upper = ω_ϵ_IFN),
-        Normal(0, ω_r_E_IFN), #truncated(Normal(0, ω_r_E_IFN); lower = -ω_r_E_IFN, upper = ω_r_E_IFN),
-        Normal(0, ω_conv_E), #truncated(Normal(0, ω_conv_E); lower = -ω_conv_E, upper = ω_conv_E),
+        Normal(0, ω_m),
+        Normal(0, ω_k_P),
+        Normal(0, ω_k_A),
+        Normal(0, ω_ϵ_NA),
+        Normal(0, ω_ϵ_IFN),
+        Normal(0, ω_r_E_IFN),
+        Normal(0, ω_conv_E),
     )
 )
 ```
@@ -465,8 +465,8 @@ We calibrate the virtual population to match the baseline HBsAg distribution fro
 # Everest trial baseline HBsAg distribution
 everest_target = DataFrame(
     hbsag_range = ["<100", "[100, 200)", "[200, 500)", "[500, 1000)", "≥1000"],
-    log10_lower = [log10(0.05), log10(100), log10(200), log10(500), log10(1000)],
-    log10_upper = [log10(100), log10(200), log10(500), log10(1000), log10(10000)],
+    log10_lower = [-Inf, log10(100), log10(200), log10(500), log10(1000)],
+    log10_upper = [log10(100), log10(200), log10(500), log10(1000), Inf],
     pct = [37.5, 10.9, 19.1, 21.5, 11.0]
 )
 
