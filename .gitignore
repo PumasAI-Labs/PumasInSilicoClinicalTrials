@@ -11,5 +11,7 @@
 
 # PumasProductManager
 /key.pub
+/Manifest.toml
 /Manifest.toml.sign
+/Project.toml
 /Project.toml.sign

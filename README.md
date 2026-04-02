@@ -60,21 +60,26 @@ and treatment arms.
 
 ### Requirements
 
-- **Pumas 2.8.1** — see `Project.toml` for the complete dependency list
+- VSCode with [Pumas extension](https://marketplace.visualstudio.com/items?itemName=PumasAI.pumas)
+- **Pumas 2.8.1**
 
 ### Installation
 
-```julia
-using Pkg
-Pkg.activate(".")
-Pkg.instantiate()
-```
+1. Open this folder in VSCode
 
-### Preview the documentation site
+2. Install Pumas 2.8.1 in this folder:
+   - Open the VSCode command palette by pressing `Ctrl + Shift + P` (Windows/Linux)
+     or `Cmd + Shift + P` (Mac)
+   - Type in `Pumas` and click on `Pumas: List Versions`
+   - Click on `Pumas@2.8.1`
+   - Click on `Install To Project`
+   - Select this folder
 
-```bash
-quarto preview
-```
+3. Install additional Julia packages used in the tutorials:
+   - Open the VSCode command palette
+   - Type in `Julia REPL` and click on `Julia: Start REPL`
+   - In the Julia REPL, enter
+     `] add GlobalSensitivity JuMP HiGHS HypothesisTests MultiObjectiveAlgorithms StructuralIdentifiability`
 
 ## Module Components
 
