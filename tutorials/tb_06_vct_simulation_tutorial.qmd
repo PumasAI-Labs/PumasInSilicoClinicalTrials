@@ -27,7 +27,7 @@ This is **Tutorial 6 of 6** in the Tumor Burden series.
 
 Virtual Clinical Trials (VCTs) allow us to simulate clinical studies *in silico*,
 testing treatment scenarios before running expensive real-world trials [@cortes2025].
-This tutorial covers Step 6-7 of the ISCT workflow.
+This tutorial covers Step 6 of the ISCT workflow.
 
 In this tutorial, you will learn:
 
@@ -672,10 +672,11 @@ Always set `Random.seed!()` at the start of VCT simulations for reproducible res
 ```{mermaid}
 %%| echo: false
 flowchart LR
-    A["Step 1-2:<br/>Model & Fitting"] --> B["Step 3:<br/>Sensitivity"]
-    B --> C["Step 4:<br/>Vpop Generation"]
-    C --> D["Step 5:<br/>MILP Calibration"]
-    D --> E["Step 6-7:<br/>VCT & Analysis<br/>(This Tutorial)"]
+    A["Step 1:<br/>Model"] --> B["Step 2:<br/>Sensitivity"]
+    B --> C["Step 3:<br/>Identifiability"]
+    C --> C2["Step 4:<br/>Vpop Generation"]
+    C2 --> D["Step 5:<br/>MILP Calibration"]
+    D --> E["Step 6:<br/>VCT & Analysis<br/>(This Tutorial)"]
 
     style E fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px
 ```

@@ -135,7 +135,7 @@ hbv_model = @model begin
         d_D ∈ RealDomain(; lower = 0.0)
         "Degradation/clearance of ALT [1/d]"
         d_A ∈ RealDomain(; lower = 0.0)
-        "Max. rate of exhastion [1/d]"
+        "Max. rate of exhaustion [1/d]"
         d_E_Q ∈ RealDomain(; lower = 0.0)
         "Hepatocyte carrying capacity in the liver [cells/mL]"
         T_max ∈ RealDomain(; lower = 0.0)

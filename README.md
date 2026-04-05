@@ -10,10 +10,12 @@ Julia/Pumas implementation of the In Silico Clinical Trial (ISCT) workflow from 
 
 The package implements the six-step ISCT workflow from the paper:
 
-1. **Model definition** — Define the pharmacometric or QSP model in Pumas
-2. **Sensitivity analysis** — Identify influential parameters via Sobol and eFAST methods
-3. **Structural identifiability** — Assess whether model parameters are identifiable from outputs
-4. **Virtual population generation** — Sample plausible parameter sets using Gaussian copulas
+1. **Model introduction** — Define the pharmacometric or QSP model in Pumas
+2. **Global sensitivity analysis** — Identify influential parameters via Sobol and eFAST methods
+3. **Structural identifiability analysis** —
+   Assess whether model parameters are identifiable from outputs
+4. **Copula-based virtual population generation** —
+   Sample plausible parameter sets using Gaussian copulas
 5. **MILP calibration** — Calibrate the virtual population to clinical distributions using mixed
    integer linear programming
 6. **Virtual clinical trial simulation** —
