@@ -293,6 +293,14 @@ sampled from $\mathcal{N}(0, \Omega)$ for each virtual patient:
 - `η[2]`: affects `g` (growth rate)
 - `η[3]`: affects `k` (death rate)
 
+#### The `@covariates` Block
+
+`@covariates treatment` declares that the model expects a `treatment` covariate from each `Subject`.
+This is a binary covariate (`true`/`false`) that toggles the drug effect in the `@pre` block —
+specifically, it multiplies the death rate `k`,
+so `treatment = false` yields `k = 0` (no killing)
+while `treatment = true` yields the estimated death rate.
+
 #### The `@pre` Block: Parameter Transformations
 
 The `@pre` block contains the **key transformations** that convert population parameters
@@ -319,7 +327,18 @@ The transformations ensure:
    - Logit-normal for fractions (appropriate for bounded parameters)
 :::
 
-### The `@dynamics` Block
+#### The `@init` Block
+
+The `@init` block sets the initial conditions for the ODE compartments at time zero:
+
+- `N_sens = f` — sensitive cells start as fraction `f` of the normalized tumor
+- `N_res = 1 - f` — resistant cells make up the remaining fraction
+
+Together they sum to 1 (the normalized baseline tumor size $N_0 = 1$).
+Note that `@init` can reference variables computed in `@pre` — here it uses `f`,
+which means each virtual patient gets individualized initial conditions.
+
+#### The `@dynamics` Block
 
 ODE dynamics of treatment-sensitive cells:
 
@@ -343,6 +362,21 @@ N_res' = g * N_res
 These two ODEs implement the mathematical model for the total number of cells $N(t)$:
 
 $$N(t) = N_0 f \exp{(-kt)} + N_0 (1-f) \exp{(gt)}$$
+
+#### The `@derived` Block
+
+The `@derived` block defines the model outputs and error models:
+
+- `Nt := @.
+  N_sens + N_res` — the total tumor size, computed as an intermediate variable.
+  The `:=` operator marks it as block-internal,
+  so `Nt` is **not** included in the simulation output.
+- `tumor_size ~ @.
+  Normal(Nt, σ)` — the error model for the observed tumor size.
+  The `~` operator defines a distribution-based output:
+  each simulated observation is drawn from a normal distribution centered on `Nt` with standard
+  deviation `σ`.
+  Variables defined with `~` appear in the simulation results.
 
 ## Part 3: Simulating a Typical Patient
 

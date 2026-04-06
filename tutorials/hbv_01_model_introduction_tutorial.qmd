@@ -136,21 +136,35 @@ flowchart LR
 
     subgraph Immune ["Immune Response"]
         E["E<br/>Effector T-cells"]
-        D["D<br/>Dendritic cells"]
+        P["P<br/>Dendritic cells"]
         Q["Q<br/>Delayed signal"]
         X["X<br/>Cytotoxic effect"]
-        Y["Y<br/>Dead cell marker"]
-        Z["Z<br/>ALT proxy"]
+        D["D<br/>Dead cell marker"]
+        A["A<br/>ALT proxy"]
     end
 
-    T -->|"infection<br/>β×T×V"| I
-    I -->|"virus production<br/>p_V"| V
+    %% Mass flow (solid): production, conversion, transfer
+    T -->|"infection"| I
+    I -->|"converts"| R
+    R -->|"reverts<br/>ρ_o_ρ_r"| T
+    I -->|"virus production<br/>p_V×ϵ_NA×ϵ_IFN"| V
     I -->|"HBsAg production<br/>p_S"| S
-    I -->|"activates"| D
-    D -->|"stimulates"| E
-    E -->|"kills"| I
-    I -->|"converts to"| R
-    X -->|"promotes<br/>resistance"| R
+    D -->|"drives"| A
+
+    %% Modulation (dashed): catalysis, activation, inhibition
+    V -.->|"drives<br/>infection"| I
+    E -.->|"kills"| I
+    E -.->|"kills (m/n)"| T
+    E -.->|"kills (m/n)"| R
+    X -.->|"promotes<br/>conversion"| R
+    E -.->|"produces<br/>debris"| D
+    I -.->|"activates"| P
+    P -.->|"stimulates"| E
+    P -.->|"delays into"| Q
+    Q -.->|"exhausts"| E
+    I -.->|"activates"| X
+    S -.->|"inhibits<br/>(via HBsAg)"| X
+    V -.->|"inhibits<br/>(via HBsAg)"| X
 
     style T fill:#ccffcc,stroke:#00cc00
     style I fill:#ffcccc,stroke:#cc0000

@@ -904,7 +904,6 @@ simple_table(
         :interpretation => "Interpretation",
     ],
 )
-
 ```
 
 ### Visualize Parameter Importance Over Time
@@ -950,7 +949,15 @@ gsa_sobol_total_order_wide = unstack(
     :total_order;
     renamecols = (t -> string("Week ", t ÷ 7)),
 )
-simple_table(gsa_sobol_total_order_wide)
+simple_table(
+    gsa_sobol_total_order_wide,
+    [
+        :parameter => "Parameter",
+        "Week 4",
+        "Week 8",
+        "Week 18",
+    ],
+)
 ```
 
 :::{.callout-important}
