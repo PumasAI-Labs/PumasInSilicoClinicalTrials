@@ -3,6 +3,7 @@ title: "Virtual Clinical Trial Simulation"
 subtitle: "Multi-Arm HBV Treatment Comparison with Functional Cure Endpoints"
 author:
   - Vijay Ivaturi
+  - David Müller-Widmann
 julia:
   exeflags: ["+Pumas@2.8.1", "--project=@.", "--threads=auto"]
 ---

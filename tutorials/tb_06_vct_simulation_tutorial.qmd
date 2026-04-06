@@ -3,6 +3,7 @@ title: "Virtual Clinical Trial Simulation"
 subtitle: "Running and Analyzing In Silico Clinical Trials"
 author:
   - Vijay Ivaturi
+  - David Müller-Widmann
 julia:
   exeflags: ["+Pumas@2.8.1", "--project=@.", "--threads=auto"]
 ---

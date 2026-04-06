@@ -3,6 +3,7 @@ title: "Global Sensitivity Analysis"
 subtitle: "Identifying Key Drivers of Treatment Response"
 author:
   - Vijay Ivaturi
+  - David Müller-Widmann
 julia:
   exeflags: ["+Pumas@2.8.1", "--project=@.", "--threads=auto"]
 ---

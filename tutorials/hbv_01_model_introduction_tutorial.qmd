@@ -3,6 +3,7 @@ title: "Model Introduction"
 subtitle: "Understanding the HBV QSP Model and Treatment Mechanisms"
 author:
   - Vijay Ivaturi
+  - David Müller-Widmann
 julia:
   exeflags: ["+Pumas@2.8.1", "--project=@.", "--threads=auto"]
 ---

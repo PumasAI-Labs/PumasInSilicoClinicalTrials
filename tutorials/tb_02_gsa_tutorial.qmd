@@ -3,6 +3,7 @@ title: "Global Sensitivity Analysis"
 author:
   - Narsimhan Sriram
   - Vijay Ivaturi
+  - David Müller-Widmann
 julia:
   exeflags: ["+Pumas@2.8.1", "--project=@.", "--threads=auto"]
 ---

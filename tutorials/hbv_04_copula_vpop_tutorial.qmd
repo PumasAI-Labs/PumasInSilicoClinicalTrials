@@ -3,6 +3,7 @@ title: "Virtual Population Generation using Gaussian Copulas"
 subtitle: "Generating Realistic HBV Virtual Patients"
 author:
   - Vijay Ivaturi
+  - David Müller-Widmann
 julia:
   exeflags: ["+Pumas@2.8.1", "--project=@.", "--threads=auto"]
 ---

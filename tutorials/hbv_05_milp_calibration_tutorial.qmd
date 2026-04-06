@@ -3,6 +3,7 @@ title: "MILP-Based Virtual Population Calibration"
 subtitle: "Matching Virtual Population to Clinical Trial Characteristics"
 author:
   - Vijay Ivaturi
+  - David Müller-Widmann
 julia:
   exeflags: ["+Pumas@2.8.1", "--project=@.", "--threads=auto"]
 ---
