@@ -148,7 +148,7 @@ averaging over all other parameters.
 The **total-order index** $S_{ti}$ measures the total effect of a parameter $X_i$,
 including all interactions with other parameters [@saltelli2010]:
 
-$$S_{ti} = 1 - \frac{V[\mathbb{E}[Y|X_{\sim i}]]}{V[Y]}$$
+$$S_{ti} = \frac{\mathbb{E}[V[Y|X_{\sim i}]]}{V[Y]} = 1 - \frac{V[\mathbb{E}[Y|X_{\sim i}]]}{V[Y]}$$
 
 where $X_{\sim i}$ represents all parameters except $X_i$.
 
@@ -182,10 +182,19 @@ Two popular methods for computing sensitivity indices:
 
 **Practical guidance:**
 
-- **Sobol:** More accurate, especially for total-order indices.
-  Use for final analysis.
-- **eFAST:** Faster, good for initial exploration.
-  Use for screening.
+- **Sobol:** Quasi-Monte Carlo-based.
+  Asymptotically unbiased with well-characterized convergence.
+  Can optionally compute higher-order interaction indices (e.g., second-order interactions),
+  though by default only $S_i$ and $S_{ti}$ are computed.
+  Requires larger sample sizes for stable estimates.
+- **eFAST:** Fourier-based.
+  More sample-efficient at small sample sizes,
+  but introduces a small systematic bias from spectral aliasing
+  that does not fully vanish with increasing $N$ [@saltelli2008].
+  Computes $S_i$ and $S_{ti}$ only.
+- Both methods compute $S_i$ and $S_{ti}$. eFAST is typically more sample-efficient for these.
+  Choose Sobol when you need higher-order interaction indices
+  or more accurate results at the expense of larger sample budgets.
 
 ## Libraries
 
@@ -203,12 +212,12 @@ using Statistics
 
 **What each package does:**
 
-- `Pumas`: Pharmacometric modeling with `Pumas.gsa()` for sensitivity analysis
+- `Pumas`: Pharmacometric modeling and simulation
 - `GlobalSensitivity`: Provides Sobol and eFAST methods (Sobol, eFAST)
 - `AlgebraOfGraphics` + `CairoMakie`: Publication-quality visualizations
 - `DataFramesMeta`: Organize and manipulate data frames
 - `SummaryTables`: Clean rendering of data frames in documents
-- `Statistics`: Julia standard library for statistics
+- `Statistics`: Julia standard library for statistics (`mean`, `std`, etc.)
 
 ## Part 1: Model Setup for GSA
 
@@ -869,8 +878,8 @@ for treatment efficacy.
 
 | Method | Recommended Samples | Use Case |
 |:-------|:--------------------|:---------|
-| eFAST | 300-500 | Quick screening, exploration |
-| Sobol | 500-2000 | Final analysis, publication |
+| eFAST | 300-500 | Sample-efficient S₁ and Sₜ |
+| Sobol | 500-2000 | S₁, Sₜ, and optionally higher-order indices |
 
 :::
 
@@ -940,8 +949,8 @@ final tumor size.
 2. **First-order indices (S₁)** measure direct effects;
    **total-order indices (Sₜ)** include interactions
 
-3. **eFAST is faster**, good for screening; **Sobol is more accurate**,
-   use for final analysis
+3. **eFAST** is more sample-efficient for S₁ and Sₜ; **Sobol** can additionally
+   compute higher-order interaction indices but needs larger samples
 
 4. **Fix Ω and σ** via `constantcoef = (:Ω, :σ)` (tuple of symbols) to ensure
    deterministic simulations
@@ -966,7 +975,7 @@ In **Tutorial 3: Structural Identifiability**, we will:
 |:---------|:--------|:--------|
 | `gsa(model, subject, params, method, outputs, p_low, p_high; constantcoef, samples)` | Pumas | Run GSA |
 | `Sobol()` | GlobalSensitivity | Sobol method |
-| `eFAST()` | GlobalSensitivity | eFAST method (faster screening) |
+| `eFAST()` | GlobalSensitivity | eFAST method (S₁/Sₜ, sample-efficient) |
 
 ### References
 

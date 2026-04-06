@@ -123,10 +123,10 @@ Random.seed!(1234)
 - `Pumas`: Pharmacometric modeling and simulation
 - `AlgebraOfGraphics` + `CairoMakie`: Publication-quality visualizations
 - `DataFramesMeta`: DataFrame manipulation
-- `SummaryTable`: Publication-quality tables
-- `Statistics`: Julia standard library for statistics (`mean`, `std`, etc.)
+- `SummaryTables`: Clean rendering of data frames in documents
 - `Random`: Julia standard library for random number generation (`randn`,
   `randn!`, `seed!`, etc.)
+- `Statistics`: Julia standard library for statistics (`mean`, `std`, etc.)
 
 ## Part 1: The Model Equation
 

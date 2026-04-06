@@ -143,6 +143,7 @@ Random.seed!(42)
 
 **What each package does:**
 
+- `Pumas`: Pharmacometric modeling and simulation
 - `Copulas`: Implements various copula families including Gaussian copulas
 - `StatsBase`: Spearman correlation computation
 - `AlgebraOfGraphics` + `CairoMakie`: Publication-quality visualizations

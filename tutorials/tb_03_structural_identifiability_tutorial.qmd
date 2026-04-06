@@ -147,8 +147,7 @@ import Logging
 
 **What each package does:**
 
-- `Pumas`: Pharmacometric modeling framework —
-  we'll extract the ODE system from Pumas models
+- `Pumas`: Pharmacometric modeling and simulation
 - `StructuralIdentifiability`: The core analysis package —
   implements algorithms to determine identifiability [@dong2023]
 - `ModelingToolkit`: Symbolic math framework —
