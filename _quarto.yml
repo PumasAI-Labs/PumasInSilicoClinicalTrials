@@ -39,6 +39,8 @@ format:
     theme:
       light: cosmo
       dark: darkly
+    mermaid:
+      theme: default
     code-fold: false
     lightbox: true
     anchor-sections: true

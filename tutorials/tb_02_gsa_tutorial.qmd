@@ -416,13 +416,19 @@ gsa_efast = gsa(
 First-order indices:
 
 ```{julia}
-gsa_efast.first_order
+simple_table(
+    gsa_efast.first_order,
+    [:dv_name => "Output", :tvf, :tvg, :tvk],
+)
 ```
 
 Total-order indices:
 
 ```{julia}
-gsa_efast.total_order
+simple_table(
+    gsa_efast.total_order,
+    [:dv_name => "Output", :tvf, :tvg, :tvk],
+)
 ```
 
 ### Run Sobol (More Accurate)
@@ -440,21 +446,27 @@ gsa_sobol = gsa(
     [:final_tumor],
     p_range_low,
     p_range_high;
-    constantcoef = (:Ω, :σ),       # Parameters NOT to vary (tuple of symbols)
-    samples = 2^10                 # Number of samples
+    constantcoef = (:Ω, :σ),
+    samples = 2^10
 )
 ```
 
 First-order indices:
 
 ```{julia}
-gsa_sobol.first_order
+simple_table(
+    gsa_sobol.first_order,
+    [:dv_name => "Output", :tvf, :tvg, :tvk],
+)
 ```
 
 Total-order indices:
 
 ```{julia}
-gsa_sobol.total_order
+simple_table(
+    gsa_sobol.total_order,
+    [:dv_name => "Output", :tvf, :tvg, :tvk],
+)
 ```
 
 ::: {.callout-warning}
@@ -518,7 +530,16 @@ gsa_sobol_df = outerjoin(
 # Compute interaction (difference between total- and first-order indices)
 @rtransform! gsa_sobol_df :interaction = :total_order - :first_order
 
-simple_table(gsa_sobol_df)
+simple_table(
+    gsa_sobol_df,
+    [
+        :dv_name => "Output",
+        :parameter => "Parameter",
+        :first_order => "First order",
+        :total_order => "Total order",
+        :interaction => "Interaction",
+    ],
+)
 ```
 
 ### Rank Parameters by Importance
@@ -532,7 +553,17 @@ ranked_gsa_sobol_df = @chain gsa_sobol_df begin
     sort!(_, [:dv_name, :rank])
 end
 
-simple_table(ranked_gsa_sobol_df)
+simple_table(
+    ranked_gsa_sobol_df,
+    [
+        :dv_name => "Output",
+        :parameter => "Parameter",
+        :first_order => "First order",
+        :total_order => "Total order",
+        :interaction => "Interaction",
+        :rank => "Rank",
+    ],
+)
 ```
 
 ### Identify Influential Parameters
@@ -546,7 +577,17 @@ influential_gsa_sobol_df = @chain gsa_sobol_df begin
     sort!(_, [:dv_name, order(:total_order; rev = true)])
 end
 
-simple_table(influential_gsa_sobol_df)
+simple_table(
+    influential_gsa_sobol_df,
+    [
+        :dv_name => "Output",
+        :parameter => "Parameter",
+        :first_order => "First order",
+        :total_order => "Total order",
+        :interaction => "Interaction",
+        :interpretation => "Interpretation",
+    ],
+)
 ```
 
 :::{.callout-note}
@@ -588,16 +629,27 @@ This depends strongly on f and g, but not k.
 #| fig-cap: "Sensitivity indices for final tumor size. Dark bars show first-order (direct) effects; light extensions show contributions of interactions. The red line indicates the importance threshold (Sₜᵢ > 0.1)."
 
 # Create long data frame for AlgebraOfGraphics
-long_df = stack(
-    ranked_gsa_sobol_df[:, [:parameter, :first_order, :interaction]], [:first_order, :interaction];
-    variable_name = :type, value_name = :index,
+long_df = @chain gsa_sobol_df begin
+    @select :parameter :first_order :interaction
+    stack(_, ["first_order", "interaction"]; variable_name = "type", value_name = "index")
+end
+
+specs_gsa = data(long_df) * mapping(
+    :parameter => renamer("tvf" => "sensitive fraction (tvf)", "tvg" => "growth rate (tvg)", "tvk" => "death rate (tvk)") => "Parameter",
+    :index => "Sensitivity",
+    stack = :parameter,
+    color = :type => renamer("first_order" => "First-order (Sᵢ)", "interaction" => "Interaction (Sₜᵢ - Sᵢ)") => "Type",
+) * visual(BarPlot)
+specs_threshold = mapping(
+    [threshold],
+    color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLines),
+) * visual(HLines; linestyle = :dash)
+draw(
+    specs_gsa + specs_threshold,
+    AlgebraOfGraphics.scales(; ColorLines = (; palette = [:red]));
+    legend = (; position = :bottom),
+    axis = (; xticklabelrotation = π / 4),
 )
-
-parameter_mapping = :parameter => renamer("tvf" => "sensitive fraction (tvf)", "tvg" => "growth rate (tvg)", "tvk" => "death rate (tvk)") => "Parameter"
-specs_gsa = data(long_df) * mapping(parameter_mapping, :index => "Sensitivity", stack = :parameter, color = :type => renamer("first_order" => "First-order (Sᵢ)", "interaction" => "Interaction (Sₜᵢ - Sᵢ)") => "Type") * visual(BarPlot)
-specs_threshold = mapping([threshold], color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
-
-draw(specs_gsa + specs_threshold, AlgebraOfGraphics.scales(; ColorLine = (; palette = [:red])), legend = (; position = :bottom), axis = (; xticklabelrotation = π / 4))
 ```
 
 :::{.callout-note}
@@ -634,17 +686,21 @@ those below can potentially be fixed to literature values.
 
 ```{julia}
 #| fig-cap: "Parameters ranked by total-order sensitivity index for final tumor size."
-parameter_mapping = :parameter => renamer("tvf" => "sensitive fraction (tvf)", "tvg" => "growth rate (tvg)", "tvk" => "death rate (tvk)") => "Parameter"
-specs_gsa = data(ranked_gsa_sobol_df) *
-    mapping(
-    parameter_mapping,
+specs_gsa = data(ranked_gsa_sobol_df) * mapping(
+    :parameter => renamer("tvf" => "sensitive fraction (tvf)", "tvg" => "growth rate (tvg)", "tvk" => "death rate (tvk)") => "Parameter",
     :total_order => "Total-order sensitivity index (Sₜᵢ)",
     color = :rank => nonnumeric => "Rank",
-) *
-    visual(BarPlot)
-specs_threshold = mapping([threshold], color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
-
-draw(specs_gsa + specs_threshold, AlgebraOfGraphics.scales(; ColorLine = (; palette = [:red])), legend = (; position = :bottom), axis = (; xticklabelrotation = π / 4))
+) * visual(BarPlot)
+specs_threshold = mapping(
+    [threshold],
+    color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLines),
+) * visual(HLines; linestyle = :dash)
+draw(
+    specs_gsa + specs_threshold,
+    AlgebraOfGraphics.scales(; ColorLines = (; palette = [:red]));
+    legend = (; position = :bottom),
+    axis = (; xticklabelrotation = π / 4),
+)
 ```
 
 ## Part 5: GSA Across Timepoints
@@ -750,13 +806,19 @@ gsa_sobol = gsa(
 First-order indices:
 
 ```{julia}
-gsa_sobol.first_order
+simple_table(
+    gsa_sobol.first_order,
+    [:dv_name => "Output", :tvf, :tvg, :tvk],
+)
 ```
 
 Total-order indices:
 
 ```{julia}
-gsa_sobol.total_order
+simple_table(
+    gsa_sobol.total_order,
+    [:dv_name => "Output", :tvf, :tvg, :tvk],
+)
 ```
 
 ### Extract and Compare Results
@@ -788,7 +850,18 @@ gsa_sobol_df = outerjoin(
 # Parse time
 @rtransform! gsa_sobol_df :time = subject.time[parse(Int, match(r"tumor_size\[(\d+)\]", :dv_name).captures[1])]
 
-simple_table(gsa_sobol_df)
+
+simple_table(
+    gsa_sobol_df,
+    [
+        :dv_name => "Output",
+        :time => "Time [day]",
+        :parameter => "Parameter",
+        :first_order => "First order",
+        :total_order => "Total order",
+        :interaction => "Interaction",
+    ],
+)
 ```
 
 ```{julia}
@@ -798,7 +871,18 @@ ranked_gsa_sobol_df = @chain gsa_sobol_df begin
     sort!(_, [:dv_name, :rank])
 end
 
-simple_table(ranked_gsa_sobol_df)
+simple_table(
+    ranked_gsa_sobol_df,
+    [
+        :dv_name => "Output",
+        :time => "Time",
+        :parameter => "Parameter",
+        :first_order => "First order",
+        :total_order => "Total order",
+        :interaction => "Interaction",
+        :rank => "Rank",
+    ],
+)
 ```
 
 ```{julia}
@@ -808,31 +892,50 @@ influential_gsa_sobol_df = @chain gsa_sobol_df begin
     sort!(_, [:dv_name, order(:total_order; rev = true)])
 end
 
-simple_table(influential_gsa_sobol_df)
+simple_table(
+    influential_gsa_sobol_df,
+    [
+        :dv_name => "Output",
+        :time => "Time",
+        :parameter => "Parameter",
+        :first_order => "First order",
+        :total_order => "Total order",
+        :interaction => "Interaction",
+        :interpretation => "Interpretation",
+    ],
+)
+
 ```
 
 ### Visualize Parameter Importance Over Time
 
 ```{julia}
 #| fig-cap: "How parameter importance changes across treatment timepoints. Early: death rate matters for active killing. Late: sensitive fraction dominates as resistant cells determine outcome."
+long_df = @chain gsa_sobol_df begin
+    @select :parameter :first_order :interaction :time
+    stack(
+        _, ["first_order", "interaction"];
+        variable_name = "type", value_name = "index"
+    )
+end
 
-long_df = stack(
-    gsa_sobol_df[:, [:parameter, :first_order, :interaction, :time]], [:first_order, :interaction];
-    variable_name = :type, value_name = :index,
-)
-
-parameter_mapping = :parameter => renamer("tvf" => "sensitive fraction (tvf)", "tvg" => "growth rate (tvg)", "tvk" => "death rate (tvk)") => "Parameter"
-specs_gsa = data(long_df) *
-    mapping(
-    parameter_mapping,
+specs_gsa = data(long_df) * mapping(
+    :parameter => renamer("tvf" => "sensitive fraction (tvf)", "tvg" => "growth rate (tvg)", "tvk" => "death rate (tvk)") => "Parameter",
     :index => "Sensitivity",
     stack = :parameter,
     color = :type => renamer("first_order" => "First-order (Sᵢ)", "interaction" => "Interaction (Sₜᵢ - Sᵢ)") => "Type",
     col = :time => (t -> string("Week ", t ÷ 7)),
 ) * visual(BarPlot)
-specs_threshold = mapping([threshold], color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLine)) * visual(HLines)
-
-draw(specs_gsa + specs_threshold, scales(ColorLine = (; palette = [:red])); legend = (; position = :bottom), axis = (; xticklabelrotation = π / 4))
+specs_threshold = mapping(
+    [threshold],
+    color = "Sₜᵢ = 0.1" => "Importance threshold" => AlgebraOfGraphics.scale(:ColorLines),
+) * visual(HLines; linestyle = :dash)
+draw(
+    specs_gsa + specs_threshold,
+    scales(ColorLines = (; palette = [:red]));
+    legend = (; position = :bottom),
+    axis = (; xticklabelrotation = π / 4),
+)
 ```
 
 ### Summary Table: Parameter Rankings Over Time
@@ -840,7 +943,13 @@ draw(specs_gsa + specs_threshold, scales(ColorLine = (; palette = [:red])); lege
 Create a summary table of total-order sensitivity indices for each parameter:
 
 ```{julia}
-gsa_sobol_total_order_wide = unstack(gsa_sobol_df, [:parameter], :time, :total_order; renamecols = (t -> string("Week ", t ÷ 7)))
+gsa_sobol_total_order_wide = unstack(
+    gsa_sobol_df,
+    [:parameter],
+    :time,
+    :total_order;
+    renamecols = (t -> string("Week ", t ÷ 7)),
+)
 simple_table(gsa_sobol_total_order_wide)
 ```
 
@@ -875,33 +984,22 @@ for treatment efficacy.
 ## Practical Recommendations
 
 :::{.callout-tip}
-## 1. Choosing Sample Size
-
-| Method | Recommended Samples | Use Case |
-|:-------|:--------------------|:---------|
-| eFAST | 300-500 | Sample-efficient S₁ and Sₜ |
-| Sobol | 500-2000 | S₁, Sₜ, and optionally higher-order indices |
-
-:::
-
-:::{.callout-tip}
-## 2. Selecting Parameter Ranges
+## 1. Selecting Parameter Ranges
 
 - Cover the **physiologically plausible** range
 - Use **literature values** for bounds when available
-- For population parameters, use **typical ± 3×CV** as a rule of thumb
 - Avoid ranges where the model becomes unstable
 :::
 
 :::{.callout-tip}
-## 3. Using GSA to Guide Model Development
+## 2. Using GSA to Guide Model Development
 
 | GSA Finding | Action |
 |:------------|:-------|
-| Sₜ < 0.01 | Parameter can be fixed to any reasonable value |
-| 0.01 < Sₜ < 0.1 | Parameter can be fixed to literature value |
-| Sₜ > 0.1 | Parameter should be estimated from data |
-| Sₜ - S₁ > 0.1 | Important interactions; consider interaction terms |
+| $S_{ti} < 0.01$ | Parameter can be fixed to any reasonable value |
+| $0.01 < S_{ti} < 0.1$ | Parameter can be fixed to literature value |
+| $S_{ti} > 0.1$ | Parameter should be estimated from data |
+| $S_{ti} - S_i > 0.1$ | Important interactions; consider interaction terms |
 
 :::
 
@@ -914,7 +1012,7 @@ for treatment efficacy.
    `(:Ω, :σ)`, NOT a NamedTuple with values.
 3. **Too narrow parameter ranges:** May miss important nonlinear effects
 4. **Too few samples:** Indices may be unstable;
-   increase N if results vary between runs
+   increase number of samples if results vary when increasing number of samples
 5. **Ignoring outputs:** Different outputs may have different influential
    parameters
 :::
@@ -947,19 +1045,19 @@ final tumor size.
 1. **GSA quantifies how outputs depend on inputs** across the entire parameter
    space, not just at a single point
 
-2. **First-order indices (S₁)** measure direct effects;
-   **total-order indices (Sₜ)** include interactions
+2. **First-order indices** measure direct effects;
+   **total-order indices** include interactions
 
-3. **eFAST** is more sample-efficient for S₁ and Sₜ; **Sobol** can additionally
+3. **eFAST** is more sample-efficient for first- and total-order indices; **Sobol** can additionally
    compute higher-order interaction indices but needs larger samples
 
 4. **Fix Ω and σ** via `constantcoef = (:Ω, :σ)` (tuple of symbols) to ensure
    deterministic simulations
 
-5. **Parameters with Sₜ < 0.1** can often be fixed to literature values without
+5. **Parameters with small total-order indices** can often be fixed to literature values without
    affecting predictions
 
-6. **Endpoint choice critically affects results:** k dropped from Sₜ = 0.37
+6. **Endpoint choice critically affects results:** total-order index of `k` dropped from 0.37
    (week 4) to 0.07 (week 18)
 
 ### What's Next
@@ -968,7 +1066,7 @@ In **Tutorial 3: Structural Identifiability**, we will:
 
 - Learn whether parameters CAN be uniquely estimated from data
 - Understand the difference between identifiable and non-identifiable parameters
-- Discover that f is non-identifiable from total tumor measurements alone
+- Discover that `f` is non-identifiable from total tumor measurements alone
 
 ### Quick Reference: Key Functions
 
@@ -976,7 +1074,7 @@ In **Tutorial 3: Structural Identifiability**, we will:
 |:---------|:--------|:--------|
 | `gsa(model, subject, params, method, outputs, p_low, p_high; constantcoef, samples)` | Pumas | Run GSA |
 | `Sobol()` | GlobalSensitivity | Sobol method |
-| `eFAST()` | GlobalSensitivity | eFAST method (S₁/Sₜ, sample-efficient) |
+| `eFAST()` | GlobalSensitivity | eFAST method |
 
 ### References
 
