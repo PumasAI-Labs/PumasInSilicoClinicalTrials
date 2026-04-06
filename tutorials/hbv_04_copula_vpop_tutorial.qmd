@@ -383,7 +383,10 @@ including the treatment-dependent ones ($\epsilon_{NA}$, $\epsilon_{IFN}$, $r^E_
 are expressed.
 
 ```{julia}
-patients = [Subject(; id, time = [0.0], covariates = (; NA = true, IFN = true)) for id in 1:10_000]
+patients = [
+    Subject(; id, time = [0.0], covariates = (; NA = true, IFN = true))
+    for id in 1:10_000
+]
 ```
 
 ### Step 2: Define the Correlation Matrix
@@ -452,29 +455,6 @@ correlated_randeffs_dist = SklarDist(
 correlated_randeffs = rand(correlated_randeffs_dist, length(patients))
 ```
 
-:::{.callout-note}
-## Understanding Copula Samples
-
-The matrix `correlated_randeffs` contains values
-where each random effect is distributed according to a normal distribution with the specified
-standard deviation:
-
-```{julia}
-mean(correlated_randeffs; dims = 2)
-```
-
-```{julia}
-std(correlated_randeffs; dims = 2)
-```
-
-Additionally, the samples are **correlated** according to our Gaussian copula:
-
-```{julia}
-corspearman(correlated_randeffs')
-```
-
-:::
-
 ### Step 6: Perform Model Simulation
 
 We now have correlated random effects that we can use for performing model simulations.
@@ -501,7 +481,7 @@ vpop = postprocess(sims) do generated, _
     )
 end |> DataFrame
 
-overview_table(vpop)
+table_one(vpop)
 ```
 
 :::{.callout-note}
@@ -600,7 +580,12 @@ specs_median = data(
     linestyle = AlgebraOfGraphics.direct("Expected median"),
 ) * visual(VLines)
 
-draw(specs_vpop + specs_median; axis = (; xlabel = "log₁₀ value", ylabel = "Density"), facet = (; linkxaxes = false, linkyaxes = false), legend = (; position = :bottom))
+draw(
+    specs_vpop + specs_median;
+    axis = (; xlabel = "log₁₀ value", ylabel = "Density"),
+    facet = (; linkxaxes = false, linkyaxes = false),
+    legend = (; position = :bottom),
+)
 ```
 
 ### Corner Plot: All Pairwise Relationships

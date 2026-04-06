@@ -478,7 +478,15 @@ comparison = DataFrame(
     current_pct = round.(current_pcts, digits = 1),
     difference = round.(current_pcts .- everest_target.pct, digits = 1)
 )
-simple_table(comparison, [:range => "HBsAg", :target_pct => "Target (%)", :current_pct => "VPop (%)", :difference => "Difference (%)"])
+simple_table(
+    comparison,
+    [
+        :range => "HBsAg",
+        :target_pct => "Target (%)",
+        :current_pct => "VPop (%)",
+        :difference => "Difference (%)",
+    ],
+)
 ```
 
 ### Build and Solve ILP Model
@@ -567,7 +575,15 @@ comparison = DataFrame(
     calibrated_pct = round.(calibrated_pcts, digits = 1),
     difference = round.(calibrated_pcts .- everest_target.pct, digits = 1)
 )
-simple_table(comparison, [:range => "HBsAg", :target_pct => "Target (%)", :calibrated_pct => "Calibrated VPop (%)", :difference => "Difference (%)"])
+simple_table(
+    comparison,
+    [
+        :range => "HBsAg",
+        :target_pct => "Target (%)",
+        :calibrated_pct => "Calibrated VPop (%)",
+        :difference => "Difference (%)",
+    ],
+)
 ```
 
 ### Visualization
@@ -579,7 +595,10 @@ df = vcat(
     DataFrame(; log10_HBsAg = calibrated_log10_HBsAg);
     source = "stage" => ["Original", "Calibrated"],
 )
-data_specs = data(df) * mapping(:log10_HBsAg, col = :stage => sorter("Original", "Calibrated")) * histogram(; bins = vcat(everest_target.log10_lower, everest_target.log10_upper[end]), normalization = :probability)
+data_specs = data(df) * mapping(
+    :log10_HBsAg,
+    col = :stage => sorter("Original", "Calibrated"),
+) * histogram(; bins = vcat(everest_target.log10_lower, everest_target.log10_upper[end]), normalization = :probability)
 target_specs = mapping(collect(Iterators.flatten((row.log10_lower, row.log10_upper) for row in eachrow(everest_target))), repeat(everest_target.pct; inner = 2) ./ 100, group = repeat(1:nrow(everest_target); inner = 2)) * visual(Lines; label = "Everest target")
 draw(data_specs + target_specs; axis = (; xlabel = "Baseline HBsAg (log₁₀ IU/mL)", ylabel = "Proportion"))
 ```

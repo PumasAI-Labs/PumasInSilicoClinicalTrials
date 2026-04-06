@@ -42,12 +42,7 @@ In this tutorial, you will learn:
 
 This tutorial builds on the Tumor Burden Model introduced in
 [Tutorial 1](tb_01_model_introduction_tutorial.qmd).
-We use the same parameter specifications:
-
-- **f** (sensitive fraction): median 0.27, bounds [0, 1]
-- **g** (growth rate): median 0.0013, bounds [0, 0.13] d⁻¹
-- **k** (death rate): median 0.0091, bounds [0, 1.6] d⁻¹
-- **Correlation:** r(f, g) = -0.64
+We use the same parameter specifications.
 
 ## Background
 
@@ -278,14 +273,31 @@ This correlation is crucial for realistic virtual population generation (Tutoria
 Let us demonstrate why independent sampling breaks the correlation structure.
 
 ```{julia}
-patients = [Subject(; id, time = [0.0], covariates = (; treatment = true)) for id in 1:10_000]
-param = (; tvf = pop_f, tvg = pop_g, tvk = pop_k, Ω = Diagonal([ω_f^2, ω_g^2, ω_k^2]), σ = resid_σ)
+patients = [
+    Subject(;
+            id,
+            time = [0.0],
+            covariates = (; treatment = true),
+        ) for id in 1:10_000
+]
+param = (;
+    tvf = pop_f,
+    tvg = pop_g,
+    tvk = pop_k,
+    Ω = Diagonal([ω_f^2, ω_g^2, ω_k^2]),
+    σ = resid_σ,
+)
 sims = simobs(tumor_burden_model, patients, param; simulate_error = false)
 ```
 
 ```{julia}
+#| output: false
 vpop_indep = postprocess(sims) do generated, _
-    (; f = only(unique(generated.f)), g = only(unique(generated.g)), k = only(unique(generated.k)))
+    (;
+        f = only(unique(generated.f)),
+        g = only(unique(generated.g)),
+        k = only(unique(generated.k)),
+    )
 end |> DataFrame
 ```
 
@@ -358,7 +370,10 @@ copula = GaussianCopula(Rho)
 ### Step 4: Create the Joint Distribution
 
 ```{julia}
-correlated_randeffs_dist = SklarDist(copula, (Normal(0, ω_f), Normal(0, ω_g), Normal(0, ω_k)))
+correlated_randeffs_dist = SklarDist(
+    copula,
+    (Normal(0, ω_f), Normal(0, ω_g), Normal(0, ω_k)),
+)
 ```
 
 ### Step 5: Sample Correlated Random Effects
@@ -397,17 +412,27 @@ We now have correlated random effects that we can use for performing model simul
 
 ```{julia}
 vrandeffs = [(; η) for η in eachcol(correlated_randeffs)]
-sims = simobs(tumor_burden_model, patients, param, vrandeffs; simulate_error = false)
+sims = simobs(
+    tumor_burden_model,
+    patients,
+    param,
+    vrandeffs;
+    simulate_error = false,
+)
 ```
 
 We create a DataFrame of the simulated parameters `f`, `g` and `k` of the dynamical system:
 
 ```{julia}
 vpop = postprocess(sims) do generated, _
-    (; f = only(unique(generated.f)), g = only(unique(generated.g)), k = only(unique(generated.k)))
+    (;
+        f = only(unique(generated.f)),
+        g = only(unique(generated.g)),
+        k = only(unique(generated.k)),
+    )
 end |> DataFrame
 
-overview_table(vpop)
+table_one(vpop)
 ```
 
 :::{.callout-note}
@@ -466,7 +491,13 @@ marginals_df = DataFrame(
 )
 simple_table(
     marginals_df,
-    [:parameter => "Parameter", :median_exp => "Median (expected)", :median_obs => "Median (observed)", :omega_exp => "ω (expected)", :omega_obs => "ω (observed)"]
+    [
+        :parameter => "Parameter",
+        :median_exp => "Median (expected)",
+        :median_obs => "Median (observed)",
+        :omega_exp => "ω (expected)",
+        :omega_obs => "ω (observed)",
+    ]
 )
 ```
 
@@ -476,32 +507,40 @@ simple_table(
 
 ```{julia}
 #| fig-cap: "Marginal distributions of virtual population parameters. Lines indicate expected medians from NLME estimation."
-specs_vpop = data(vpop) * mapping([:f, :g, :k] .=> ["f (sensitive fraction)", "g (growth rate, d⁻¹)", "k (death rate, d⁻¹)"], col = dims(1)) * histogram(; normalization = :pdf, datalimits = extrema)
-specs_median = data((; f = [pop_f], g = [pop_g], k = [pop_k])) * mapping([:f, :g, :k], col = dims(1), linestyle = AlgebraOfGraphics.direct("expected median")) * visual(VLines)
-
-draw(specs_vpop + specs_median; axis = (; xlabel = "Value", ylabel = "Density"), facet = (; linkxaxes = false, linkyaxes = false), legend = (; position = :bottom))
+specs = mapping(
+    [:f, :g, :k] .=> ["f (sensitive fraction)", "g (growth rate, d⁻¹)", "k (death rate, d⁻¹)"],
+    col = dims(1),
+) * (
+    data(vpop) * histogram(; normalization = :pdf, datalimits = extrema) +
+        data((; f = [pop_f], g = [pop_g], k = [pop_k])) * visual(VLines; label = "expected median")
+)
+draw(
+    specs;
+    axis = (; xlabel = "Value", ylabel = "Density"),
+    facet = (; linkxaxes = false, linkyaxes = false),
+    legend = (; position = :bottom),
+)
 ```
 
 ### Correlation Structure: Independent vs Copula Sampling
 
 ```{julia}
 #| fig-cap: "Comparison of correlation structure: independent sampling destroys the f-g correlation, while copula sampling preserves it."
-
 # Combine both methods into one DataFrame
-vpop_total = vcat(vpop_indep, vpop; source = "method" => ["Independent (r ≈ 0)", "Copula (r = -0.64)"])
+vpop_total = vcat(
+    vpop_indep,
+    vpop;
+    source = "method" => ["Independent (r ≈ 0)", "Copula (r = -0.64)"],
+)
 
 # Create scatter plot with faceting by method
-plt_scatter = data(vpop_total) *
-    mapping(
+plt_scatter = data(vpop_total) * mapping(
     :f => "f (sensitive fraction)",
     :g => "g (growth rate, d⁻¹)",
     layout = :method
-) *
-    visual(Scatter; marker = '○')
+) * visual(Scatter; marker = '○')
 
-draw(
-    plt_scatter
-)
+draw(plt_scatter)
 ```
 
 :::{.callout-note}

@@ -299,6 +299,19 @@ The same model can have different identifiability properties depending on what y
 Adding a new biomarker or measurement can make previously unidentifiable parameters identifiable.
 :::
 
+:::{.callout-warning}
+## Inputs (Doses) Also Affect Identifiability
+
+Which compartments receive inputs (doses) can also affect structural identifiability.
+In this tutorial, we do not consider inputs.
+To include them, you would define a separate ModelingToolkit ODE system where dose terms appear
+as variables that are neither ODE states nor outputs —
+StructuralIdentifiability.jl automatically treats these as known inputs.
+See the
+[StructuralIdentifiability.jl documentation](https://docs.sciml.ai/StructuralIdentifiability/stable/tutorials/creating_ode/)
+for details.
+:::
+
 We create symbolic variables for measurements.
 As the existing variables in the ODE system, they depend on time.
 
@@ -348,8 +361,8 @@ Now we ask the key question: **Can we estimate f, g, and k from total tumor meas
 
 ```{julia}
 result_total = assess_identifiability(
-    ode_system,
-    measured_quantities = measured_total_only;
+    ode_system;
+    measured_quantities = measured_total_only,
     loglevel = Logging.Warn,
 )
 ```
@@ -387,8 +400,8 @@ Let's see if measuring both populations separately helps:
 
 ```{julia}
 result_both = assess_identifiability(
-    ode_system,
-    measured_quantities = measured_both;
+    ode_system;
+    measured_quantities = measured_both,
     loglevel = Logging.Warn,
 )
 ```
@@ -424,7 +437,7 @@ N_res(0) = 1 - f
 ```
 
 If we measure both N_sens and N_res at time 0, we directly observe `f`!
-The issue is that `f` isn't really a dynamic parameter— it's embedded in the initial conditions.
+The issue is that `f` isn't really a dynamic parameter — it's embedded in the initial conditions.
 The analysis treats initial conditions and parameters differently.
 
 In practice, you would either:
@@ -496,20 +509,46 @@ result_both_df = DataFrame(
     parameter = [string(p) for p in keys(result_both)],
     status = map(string, values(result_both))
 )
+tumor_results = outerjoin(
+    result_total_df,
+    result_both_df;
+    on = :parameter,
+    renamecols = "_total" => "_both",
+)
 
-tumor_results = vcat(result_total_df, result_both_df; source = "scenario" => ["Total Only", "Both Populations"])
-
-simple_table(tumor_results)
+simple_table(
+    tumor_results,
+    [
+        :parameter => "Parameter",
+        :status_total => "Status (total only)",
+        :status_both => "Status (both populations)",
+    ],
+)
 ```
 
 ### Identifiability Status Chart
 
 ```{julia}
 #| fig-cap: "Tumor Burden Model: How measurement choice affects identifiability. Green = globally identifiable (unique solution), Orange = locally identifiable (finite solutions), Red = non-identifiable (infinite solutions)."
-specs = data(tumor_results) *
-    mapping(:parameter => "Parameter", :scenario => "Measurement Scenario", color = :status => renamer("globally" => "Globally identifiable", "locally" => "Locally identifiable", "nonidentifiable" => "Non-identifiable") => "Status") *
-    visual(Scatter; markersize = 30, marker = :rect)
-draw(specs, scales(Color = (; palette = [:green, :orange, :red])); axis = (; xticklabelrotation = π / 4, yticklabelrotation = π / 2))
+long_tumor_results = vcat(
+    result_total_df,
+    result_both_df;
+    source = :scenario => [:total, :both],
+)
+specs = data(long_tumor_results) * mapping(
+    :parameter => "Parameter",
+    :scenario => renamer(:both => "Both populations", :total => "Total only") => "Measurement scenario",
+    color = :status => renamer(
+        "globally" => "Globally identifiable",
+        "locally" => "Locally identifiable",
+        "nonidentifiable" => "Non-identifiable",
+    ) => "Status",
+) * visual(Scatter; markersize = 30, marker = :rect)
+draw(
+    specs,
+    scales(Color = (; palette = [:green, :orange, :red]));
+    axis = (; xticklabelrotation = π / 4, yticklabelrotation = π / 2),
+)
 ```
 
 :::{.callout-note}
@@ -533,15 +572,23 @@ draw(specs, scales(Color = (; palette = [:green, :orange, :red])); axis = (; xti
 
 ```{julia}
 #| fig-cap: "Adding measurements increases the percentage of globally identifiable parameters."
-
 # Count parameters in each category, per scenario
-tumor_results_counts = @by tumor_results [:scenario, :status] begin
-    :count = length(:parameter)
-end
-
-status_mapping = :status => renamer("globally" => "Globally identifiable", "locally" => "Locally identifiable", "nonidentifiable" => "Non-identifiable") => "Status"
-specs = data(tumor_results_counts) *
-    mapping(:scenario => "Measurement Scenario", :count => "Number of Parameters/States", stack = status_mapping, color = status_mapping) * visual(BarPlot)
+tumor_results_counts = vcat(
+    combine(groupby(result_both_df, :status), nrow => :count),
+    combine(groupby(result_total_df, :status), nrow => :count);
+    source = :scenario => [:total, :both],
+)
+status_mapping = :status => renamer(
+    "globally" => "Globally identifiable",
+    "locally" => "Locally identifiable",
+    "nonidentifiable" => "Non-identifiable",
+) => "Status"
+specs = data(tumor_results_counts) * mapping(
+    :scenario => renamer(:both => "Both populations", :total => "Total only") => "Measurement scenario",
+    :count => "Number of parameters/states",
+    stack = status_mapping,
+    color = status_mapping,
+) * visual(BarPlot)
 draw(specs, scales(Color = (; palette = [:green, :orange, :red])))
 ```
 
@@ -623,7 +670,7 @@ Even structurally identifiable parameters may be **practically non-identifiable*
 - High measurement noise
 - Parameter values near boundaries
 
-**Always follow up with practical identifiability** (profile likelihood,
+**Always follow up with practical identifiability** (FIM, profile likelihood,
 bootstrap) on your actual data [@raue2009].
 :::
 

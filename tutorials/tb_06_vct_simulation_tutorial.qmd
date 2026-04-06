@@ -209,7 +209,13 @@ cor_f_g = -0.64  # Negative correlation: high f ↔ low g
 These values correspond to the following Pumas model parameters:
 
 ```{julia}
-param = (; tvf = pop_f, tvg = pop_g, tvk = pop_k, Ω = Diagonal([ω_f^2, ω_g^2, ω_k^2]), σ = resid_σ)
+param = (;
+    tvf = pop_f,
+    tvg = pop_g,
+    tvk = pop_k,
+    Ω = Diagonal([ω_f^2, ω_g^2, ω_k^2]),
+    σ = resid_σ,
+)
 ```
 
 ## Part 2: Generating the Calibrated Virtual Population
@@ -236,7 +242,10 @@ copula = GaussianCopula(Rho)
 
 # Define joint distribution of correlated random effects,
 # based on marginal distributions and Gaussian copula
-correlated_randeffs_dist = SklarDist(copula, (Normal(0, ω_f), Normal(0, ω_g), Normal(0, ω_k)))
+correlated_randeffs_dist = SklarDist(
+    copula,
+    (Normal(0, ω_f), Normal(0, ω_g), Normal(0, ω_k)),
+)
 
 # Sample correlated random effects for each virtual patient:
 correlated_randeffs = rand(correlated_randeffs_dist, length(patients))
@@ -281,7 +290,12 @@ Classify responses of virtual patients:
 
 ```{julia}
 #| output: false
-@transform! vpop :response = cut(:tumor_size_final, [0.14, 0.7, 1.0]; labels = ["CR", "PR", "SD", "PD"], extend = true)
+@transform! vpop :response = cut(
+    :tumor_size_final,
+    [0.14, 0.7, 1.0];
+    labels = ["CR", "PR", "SD", "PD"],
+    extend = true,
+)
 ```
 
 Define target response distribution:
@@ -385,12 +399,21 @@ control_results = simobs(
 
 ```{julia}
 # Combine results with arm labels
-all_results = vcat(treatment_results, control_results; source = "arm" => ["Treatment", "Control"])
+all_results = vcat(
+    treatment_results,
+    control_results;
+    source = "arm" => ["Treatment", "Control"],
+)
 
 # Extract final time points
 final = @rsubset(all_results, :time == maximum(obstimes))
 
-table_one(final, [:tumor_size => (col -> (median(col) => "Median",)) => "Final Tumor Size"]; groupby = :arm => "Arm", show_total = false)
+table_one(
+    final,
+    [:tumor_size => (col -> (median(col) => "Median",)) => "Final tumor size"];
+    groupby = :arm => "Arm",
+    show_total = false,
+)
 ```
 
 ### Time Course Summary
@@ -406,7 +429,10 @@ time_summary = @by all_results [:time, :arm] @astable begin
 end
 sort!(time_summary, [:time, :arm])
 
-simple_table(first(time_summary, 10), [:time, :arm => "Arm", :median => "Median", :q25, :q75, :q05, :q95])
+simple_table(
+    first(time_summary, 10),
+    [:time, :arm => "Arm", :median => "Median", :q25, :q75, :q05, :q95],
+)
 ```
 
 ### Tumor Dynamics Plot
@@ -415,17 +441,26 @@ simple_table(first(time_summary, 10), [:time, :arm => "Arm", :median => "Median"
 #| fig-cap: "Tumor dynamics comparison: Treatment (blue) vs Control (red). Solid lines show median; shaded regions show interquartile range."
 
 # Time summary
-specs_time_summary = data(time_summary) *
-    mapping(:time => (t -> t / 7) => "Time [week]", color = :arm => sorter("Treatment", "Control") => "Arm") * (
+specs_time_summary = data(time_summary) * mapping(
+    :time => (t -> t / 7) => "Time [week]",
+    color = :arm => sorter("Treatment", "Control") => "Arm",
+) * (
     # IQR band layer
     mapping(:q25, :q75) * visual(Band; alpha = 0.3) +
         # Median line layer
         mapping(:median) * visual(Lines)
 )
 # Reference lines
-specs_references = mapping([1.0, 0.14], linestyle = ["Baseline", "Complete response"] => "Reference") * visual(HLines)
+specs_references = mapping(
+    [1.0, 0.14],
+    linestyle = ["Baseline", "Complete response"] => "Reference"
+) * visual(HLines)
 
-draw(specs_time_summary + specs_references, scales(Color = (; palette = [:blue, :red])); axis = (; ylabel = "Normalized tumor size"))
+draw(
+    specs_time_summary + specs_references,
+    scales(Color = (; palette = [:blue, :red]));
+    axis = (; ylabel = "Normalized tumor size"),
+)
 ```
 
 ### Calibrated vs Uncalibrated Comparison
@@ -469,32 +504,55 @@ sort!(uncalibrated_time_summary, [:time, :arm])
 
 ```{julia}
 # Combine results with arm labels
-all_results = vcat(treatment_results, control_results; source = "arm" => ["Treatment", "Control"])
+all_results = vcat(
+    treatment_results,
+    control_results;
+    source = "arm" => ["Treatment", "Control"],
+)
 
 # Extract final time points
 final = @rsubset(all_results, :time == maximum(obstimes))
 
-table_one(final, [:tumor_size => (col -> (median(col) => "Median",)) => "Final Tumor Size"]; groupby = :arm => "Arm", show_total = false)
+table_one(
+    final,
+    [:tumor_size => (col -> (median(col) => "Median",)) => "Final Tumor Size"];
+    groupby = :arm => "Arm",
+    show_total = false,
+)
 ```
 
 ```{julia}
 #| fig-cap: "Comparison of tumor dynamics: median and IQR range of uncalibrated (left) vs calibrated (right) virtual populations. Calibration adjusts the response rate distribution to match clinical targets."
-
 # Combine data for comparison
-comparison_time_summary = vcat(time_summary, uncalibrated_time_summary; source = "population" => ["Calibrated", "Uncalibrated"])
+comparison_time_summary = vcat(
+    time_summary,
+    uncalibrated_time_summary;
+    source = "population" => ["Calibrated", "Uncalibrated"],
+)
 
 # Time summary
-specs_time_summary = data(comparison_time_summary) *
-    mapping(:time => (t -> t / 7) => "Time [week]", color = :arm => sorter("Treatment", "Control") => "Arm", col = :population => sorter("Uncalibrated", "Calibrated")) * (
+specs_time_summary = data(comparison_time_summary) * mapping(
+    :time => (t -> t / 7) => "Time [week]",
+    color = :arm => sorter("Treatment", "Control") => "Arm",
+    col = :population => sorter("Uncalibrated", "Calibrated"),
+) * (
     # IQR band layer
     mapping(:q25, :q75) * visual(Band; alpha = 0.3) +
         # Median line layer
         mapping(:median) * visual(Lines)
 )
 # Reference lines
-specs_references = mapping([1.0, 0.14], linestyle = ["Baseline", "Complete response"] => "Reference") * visual(HLines)
+specs_references = mapping(
+    [1.0, 0.14],
+    linestyle = ["Baseline", "Complete response"] => "Reference",
+) * visual(HLines)
 
-draw(specs_time_summary + specs_references, scales(Color = (; palette = [:blue, :red])); axis = (; ylabel = "Normalized tumor size"), legend = (; position = :bottom))
+draw(
+    specs_time_summary + specs_references,
+    scales(Color = (; palette = [:blue, :red]));
+    axis = (; ylabel = "Normalized tumor size"),
+    legend = (; position = :bottom),
+)
 ```
 
 ### Individual Trajectories (Spaghetti Plot)
@@ -517,17 +575,25 @@ all_data = @chain all_results begin
 end
 
 # Treatment panel using AoG
-specs_data = data(all_data) *
-    mapping(
-    :time => (t -> t / 7) => "Time [week]", :tumor_size => "Normalized tumor size",
-    color = :response => sorter("Complete response", "Other") => "Response", group = :id,
+specs_data = data(all_data) * mapping(
+    :time => (t -> t / 7) => "Time [week]",
+    :tumor_size => "Normalized tumor size",
+    color = :response => sorter("Complete response", "Other") => "Response",
+    group = :id,
     col = :arm => "Arm",
-) *
-    visual(Lines, linewidth = 0.8)
+) * visual(Lines, linewidth = 0.8)
 # Add reference lines
-specs_refs = mapping([1.0, 0.14], linestyle = ["Baseline", "Complete response"] => "Reference") * visual(HLines)
+specs_refs = mapping(
+    [1.0, 0.14],
+    linestyle = ["Baseline", "Complete response"] => "Reference",
+) * visual(HLines)
 
-draw(specs_data + specs_refs, scales(Color = (; palette = [:green, (:gray, 0.5)])); axis = (; yscale = log10), legend = (; position = :bottom))
+draw(
+    specs_data + specs_refs,
+    scales(Color = (; palette = [:green, (:gray, 0.5)]));
+    axis = (; yscale = log10),
+    legend = (; position = :bottom),
+)
 ```
 
 ## Part 6: Endpoint Analysis
@@ -538,7 +604,12 @@ Classify all patients:
 
 ```{julia}
 #| output: false
-final_classify = @transform final :response = cut(:tumor_size, [0.14, 0.7, 1.0]; labels = ["CR", "PR", "SD", "PD"], extend = true)
+final_classify = @transform final :response = cut(
+    :tumor_size,
+    [0.14, 0.7, 1.0];
+    labels = ["CR", "PR", "SD", "PD"],
+    extend = true,
+)
 ```
 
 Distribution of responses:
@@ -555,7 +626,14 @@ all_response = @chain final_classify begin
     unstack(_, [:response], :arm, :pct; fill = 0)
 end
 
-simple_table(all_response, [:response => "Response", :Treatment => "Treatment (%)", :Control => "Control (%)"])
+simple_table(
+    all_response,
+    [
+        :response => "Response",
+        :Treatment => "Treatment (%)",
+        :Control => "Control (%)",
+    ],
+)
 ```
 
 ### Confidence Intervals
@@ -574,7 +652,15 @@ response_ci = @chain final_classify begin
     end
 end
 
-simple_table(response_ci, [:arm => "Arm", :response => "Response", :rate => "Rate (%)", :ci => "95% CI"])
+simple_table(
+    response_ci,
+    [
+        :arm => "Arm",
+        :response => "Response",
+        :rate => "Rate (%)",
+        :ci => "95% CI",
+    ],
+)
 ```
 
 ### Waterfall Plot
@@ -591,16 +677,17 @@ waterfall_data = @chain final_classify begin
 end
 
 # Data
-specs_data = data(waterfall_data) *
-    mapping(
+specs_data = data(waterfall_data) * mapping(
     :rank => "Patient (sorted by response)",
     :pct_change => "Change from baseline (%)",
     color = :response => renamer("CR" => "Complete response", "PR" => "Partial response", "SD" => "Stable disease", "PD" => "Progressive disease") => "Response",
     col = :arm => sorter("Control", "Treatment") => "Arm",
-) *
-    visual(BarPlot, gap = 0, fillto = minimum(waterfall_data.tumor_size) / 2)
+) * visual(BarPlot, gap = 0, fillto = minimum(waterfall_data.tumor_size) / 2)
 # Reference lines
-specs_references = mapping([0, -86], linestyle = ["Baseline", "Complete response"] => "Reference") * visual(HLines)
+specs_references = mapping(
+    [0, -86],
+    linestyle = ["Baseline", "Complete response"] => "Reference",
+) * visual(HLines)
 
 draw(
     specs_data + specs_references,
@@ -615,8 +702,7 @@ draw(
 #| fig-cap: "Response rates by treatment arm with 95% bootstrap confidence intervals."
 
 # Create AoG grouped bar chart
-bar_layer = data(response_ci) *
-    mapping(
+bar_layer = data(response_ci) * mapping(
     :response => renamer("CR" => "Complete Response", "PR" => "Partial Response", "SD" => "Stable Disease", "PD" => "Progressive Disease") => "Response",
 ) * (
     mapping(

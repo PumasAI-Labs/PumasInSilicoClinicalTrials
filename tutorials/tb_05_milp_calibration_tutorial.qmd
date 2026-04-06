@@ -119,6 +119,7 @@ import MultiObjectiveAlgorithms as MOA
 using Copulas
 using AlgebraOfGraphics
 using CairoMakie
+using CategoricalArrays
 using DataFramesMeta
 using SummaryTables
 
@@ -223,28 +224,10 @@ end
 
 For tumor burden, we define response based on tumor size at a fixed time point (e.g., 18 weeks):
 
-```{julia}
-# Response category definitions based on tumor size ratio (final/initial)
-const RESPONSE_THRESHOLDS = (
-    complete_response = 0.14,    # < 14% of initial = CR
-    partial_response = 0.7,     # 14-70% = PR
-    stable_disease = 1.0,        # 70-100% = SD (not growing)
-    progressive_disease = Inf,    # > 100% = PD (growing)
-)
-
-# Classify response
-function classify_response(tumor_ratio)
-    if tumor_ratio < RESPONSE_THRESHOLDS.complete_response
-        return :CR  # Complete Response
-    elseif tumor_ratio < RESPONSE_THRESHOLDS.partial_response
-        return :PR  # Partial Response
-    elseif tumor_ratio <= RESPONSE_THRESHOLDS.stable_disease
-        return :SD  # Stable Disease
-    else
-        return :PD  # Progressive Disease
-    end
-end
-```
+- tumor size < 14%: Complete response (CR)
+- 14% ≤ tumor size < 70%: Partial response (PR)
+- 70% ≤ tumor size ≤ 100%: Stable disease (SD)
+- tumor size > 100%: Progressive disease (PD)
 
 ### Generating the Virtual Population
 
@@ -353,11 +336,14 @@ vpop = postprocess(sims) do generated, _
         error("final time point must be 18 weeks")
     end
     tumor_size_final = generated.tumor_size[end]
-    (;
-        tumor_size_final,
-        response = classify_response(tumor_size_final),
-    )
+    (; tumor_size_final)
 end |> DataFrame
+@transform! vpop :response = cut(
+    :tumor_size_final,
+    [0.14, 0.7, 1.0];
+    labels = ["CR", "PR", "SD", "PD"],
+    extend = true,
+)
 ```
 
 We compute the distribution of responses:
@@ -378,7 +364,7 @@ In practice, one would use response rates in a clinical trial.
 
 ```{julia}
 target_distribution = DataFrame(
-    response = [:CR, :PR, :SD, :PD],
+    response = categorical(["CR", "PR", "SD", "PD"]),
     pct = [25.0, 40.0, 20.0, 15.0],
 )
 simple_table(
@@ -396,7 +382,12 @@ comparison_df = leftjoin(target_distribution, vpop_distribution; on = :response,
 
 simple_table(
     comparison_df,
-    [:response => "Response", :pct_vpop => "Vpop (%)", :pct_target => "Target (%)", :diff => "Difference (%)"]
+    [
+        :response => "Response",
+        :pct_vpop => "Vpop (%)",
+        :pct_target => "Target (%)",
+        :diff => "Difference (%)",
+    ]
 )
 ```
 
@@ -556,7 +547,12 @@ ilp_comparison_df = leftjoin(target_distribution, ilp_distribution; on = :respon
 @rtransform! ilp_comparison_df :pct_diff = :pct_vpop - :pct_target
 simple_table(
     ilp_comparison_df,
-    [:response => "Response", :pct_vpop => "Vpop (%)", :pct_target => "Target (%)", :pct_diff => "Difference (%)"]
+    [
+        :response => "Response",
+        :pct_vpop => "Vpop (%)",
+        :pct_target => "Target (%)",
+        :pct_diff => "Difference (%)",
+    ]
 )
 ```
 
@@ -577,26 +573,35 @@ ilp_max_error = maximum(abs, ilp_comparison_df.pct_diff) / 100
 
 ```{julia}
 #| fig-cap: "Before and after calibration: response distribution comparison. The calibrated virtual population closely matches the target distribution."
-original_comparison_df = vcat(target_distribution, vpop_distribution; source = "type" => ["Target", "VPop"])
-calibrated_comparison_df = vcat(target_distribution, ilp_distribution; source = "type" => ["Target", "VPop"])
-comparison_df = vcat(original_comparison_df, calibrated_comparison_df; source = "source" => ["Original", "Calibrated"])
+original_comparison_df = vcat(
+    target_distribution,
+    vpop_distribution;
+    source = "type" => ["Target", "VPop"],
+)
+calibrated_comparison_df = vcat(
+    target_distribution,
+    ilp_distribution;
+    source = "type" => ["Target", "VPop"],
+)
+comparison_df = vcat(
+    original_comparison_df,
+    calibrated_comparison_df;
+    source = "source" => ["Original", "Calibrated"],
+)
 
-response_mapping = renamer(
-    :CR => "Complete Response",
-    :PR => "Partial Response",
-    :SD => "Stable Disease",
-    :PD => "Progressive Disease",
-) => "Response"
 type_mapping = :type => sorter("VPop", "Target") => ""
-specs = data(comparison_df) *
-    mapping(
-    :response => response_mapping,
+specs = data(comparison_df) * mapping(
+    :response => renamer(
+        "CR" => "Complete Response",
+        "PR" => "Partial Response",
+        "SD" => "Stable Disease",
+        "PD" => "Progressive Disease",
+    ) => "Response",
     :pct => "Percentage (%)",
     dodge = type_mapping,
     row = :source => sorter("Original", "Calibrated") => "VPop",
     color = type_mapping
-) *
-    visual(BarPlot)
+) * visual(BarPlot)
 draw(specs; axis = (; xticklabelrotation = π / 4))
 ```
 
@@ -954,8 +959,10 @@ summary_df = DataFrame(
 simple_table(
     summary_df,
     [
-        :method => "Method", :nselected => "# selected VPs",
-        :max_error => "Max. absolute error", :mte => "Mean total error",
+        :method => "Method",
+        :nselected => "# selected VPs",
+        :max_error => "Max. absolute error",
+        :mte => "Mean total error",
     ]
 )
 ```
@@ -1087,9 +1094,15 @@ We visualize the MTE-Pareto front and overlay the MILP solution:
 ```{julia}
 #| fig-cap: "Multi-objective Pareto front showing the trade-off between population size and mean total error. The MILP solution is overlaid for comparison."
 specs = (
-    data(@rsubset(moa_mte_solutions_df, :pareto_optimal)) * mapping(color = direct("Pareto front (mean total error ≤ $epsilon)")) +
-        data((; mte = [milp_mte], nselected = [nrow(milp_vpop)])) * mapping(color = direct("MILP solution (mean total error ≤ $epsilon)"))
-) * mapping(:mte => "Mean total error", :nselected => "# selected VPs") * visual(Scatter)
+    data(@rsubset(moa_mte_solutions_df, :pareto_optimal)) * mapping(
+        color = direct("Pareto front (mean total error ≤ $epsilon)")
+    ) +
+        data((; mte = [milp_mte], nselected = [nrow(milp_vpop)])) * mapping(
+        color = direct("MILP solution (mean total error ≤ $epsilon)")
+    )
+) * mapping(
+    :mte => "Mean total error", :nselected => "# selected VPs"
+) * visual(Scatter)
 draw(specs)
 ```
 
