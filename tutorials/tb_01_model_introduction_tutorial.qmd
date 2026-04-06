@@ -185,74 +185,13 @@ pop_k = 0.0091  # Sensitive cells die ~0.91% per day
 
 # Residual error (standard deviation)
 resid_σ = 0.095
-
-# Critical correlation from the data
-cor_f_g = -0.64  # Negative correlation: high f ↔ low g
 ```
-
-:::{.callout-tip}
-## Why the Negative Correlation?
-
-The correlation $\rho(f, g) = -0.64$ is biologically meaningful:
-
-**Patients with more sensitive cells (high f) tend to have slower-growing resistant cells (low g).**
-
-Possible explanations:
-
-1. **Tumor heterogeneity:** Aggressive tumors may have both fewer sensitive
-   cells AND faster-growing resistant cells
-2. **Evolutionary pressure:** In highly proliferative tumors,
-   resistance mechanisms may be more prevalent
-3. **Stem cell fraction:** Resistant cells may correlate with cancer stem cell
-   populations
-
-This correlation is crucial for realistic virtual population generation (Tutorial 4).
-:::
 
 ## Part 2: Building the Pumas Model
 
-### Model Structure Overview
+### Complete Model Definition
 
 A Pumas model is defined using the `@model` macro with several blocks:
-
-```{mermaid}
-%%| echo: false
-flowchart TB
-    param["@param<br/>Population parameters"]
-    random["@random<br/>Inter-individual variability"]
-    cov["@covariates<br/>External inputs (treatment)"]
-    pre["@pre<br/>Individual parameter calculations"]
-    init["@init<br/>Initial conditions"]
-    dosecontrol["@dosecontrol<br/>Dose control parameters"]
-    dynamics["@dynamics<br/>ODE system"]
-    derived["@derived<br/>Observable outputs"]
-
-    param --> pre
-    param --> random
-    param --> dosecontrol
-    param --> derived
-    random --> pre
-    random --> dosecontrol
-    random --> derived
-    cov --> random
-    cov --> pre
-    cov --> init
-    cov --> dosecontrol
-    cov --> derived
-    pre --> init
-    pre --> dynamics
-    pre --> derived
-    init --> dynamics
-    dosecontrol --> dynamics
-    dynamics --> derived
-
-    style param fill:#e3f2fd,stroke:#1565c0
-    style random fill:#e3f2fd,stroke:#1565c0
-    style dynamics fill:#e8f5e9,stroke:#2e7d32
-    style derived fill:#fff3e0,stroke:#e65100
-```
-
-### Complete Model Definition
 
 ```{julia}
 tumor_burden_model = @model begin
@@ -425,13 +364,13 @@ obs_times = 7 * (0:18)
 
 # Create a subject for the treatment arm
 subject_treatment = Subject(
-    id = 1,
+    id = "treatment",
     covariates = (treatment = true,),  # Treatment arm
 )
 
 # Create a subject for the control arm
 subject_control = Subject(
-    id = 2,
+    id = "control",
     covariates = (treatment = false,),  # Control arm
 )
 ```
@@ -470,32 +409,28 @@ sim_control = simobs(
 )
 ```
 
-For post-processing and plotting, we convert simulations to `DataFrame`s:
+For post-processing and plotting, we convert simulations to a `DataFrame`:
 
 ```{julia}
-df_treatment = DataFrame(sim_treatment)
-df_control = DataFrame(sim_control)
+#| output: false
+df_sims = DataFrame([sim_treatment, sim_control])
 ```
 
 ### Visualizing Treatment vs Control
 
 ```{julia}
 #| fig-cap: "Tumor dynamics for a typical patient: treatment vs control. Treatment causes initial tumor shrinkage as sensitive cells die, followed by regrowth as resistant cells proliferate. Control arm shows only growth."
-
-# Combine data for plotting
-combined_df = vcat(
-    df_treatment, df_control;
-    source = :arm => ["treatment", "control"],
-)
-
 # Create plot using AlgebraOfGraphics
-specs_sims = data(combined_df) *
-    mapping(:time => (t -> t / 7) => "Time (weeks)", :tumor_size => "Normalized Tumor Size", color = :arm => "Study Arm") *
-    visual(Lines, linewidth = 3)
-# Add reference line
-specs_reference = mapping([1.0], linestyle = ["baseline"] => "Reference") * visual(HLines)
-
-draw(specs_sims + specs_reference)
+specs_sims = data(df_sims) * mapping(
+    :time => (t -> t / 7) => "Time [week]",
+    :tumor_size => "Normalized tumor size",
+    color = :id => renamer("treatment" => "Treatment", "control" => "Control") => "Study arm",
+) * visual(Lines)
+specs_reference = mapping(
+    [1.0],
+    linestyle = ["Baseline"] => "Reference" => AlgebraOfGraphics.scale(:RefLines),
+) * visual(HLines)
+draw(specs_sims + specs_reference, scales(RefLines = (; palette = [:dash])))
 ```
 
 :::{.callout-note}
@@ -528,14 +463,11 @@ Solving this equation yields
 
 $$ t = \frac{\ln{(kf / (g(1-f)))}}{k + g}. $$
 
-Thus, time to nadir for a typical patient is (in days)
+Thus, time to nadir for a typical patient is (in days):
 
 ```{julia}
-# days
 t_nadir = log(pop_k * pop_f / (pop_g * (1 - pop_f))) / (pop_k + pop_g)
 ```
-
-or equivalently `={julia} t_nadir / 7` weeks.
 
 Let us compute the tumor size at nadir and after 18 weeks for a typical patient:
 
@@ -548,7 +480,10 @@ sim_nadir = simobs(
     simulate_error = false,
     obstimes = [0, t_nadir, 18 * 7]
 )
-select(DataFrame(sim_nadir), [:time, :tumor_size])
+simple_table(
+    DataFrame(sim_nadir),
+    [:time => "Time [day]", :tumor_size => "Tumor size"],
+)
 ```
 
 We see that this typical patient would not achieve "complete response" of a tumor size < 0.14.
@@ -564,7 +499,7 @@ How do the model outputs change with different parameter values?
 f_values = [0.1, 0.27, 0.5, 0.8]
 
 # Build DataFrame with all trajectories
-sensitivity_df = mapreduce(vcat, f_values) do f
+df_sensitivity = mapreduce(vcat, f_values) do f
     sim = simobs(
         tumor_burden_model,
         subject_treatment,
@@ -577,18 +512,16 @@ sensitivity_df = mapreduce(vcat, f_values) do f
 end
 
 # Create plot using AlgebraOfGraphics
-# Plot simulation results
-specs_sims = data(sensitivity_df) *
-    mapping(
-    :time => (t -> t / 7) => "Time (weeks)",
-    :tumor_size => "Normalized Tumor Size",
-    color = :f => (x -> string(round(100 * x; digits = 1), " %")) => "Sensitive Fraction"
-) *
-    visual(Lines, linewidth = 2.5)
-# Add reference lines
-specs_references = mapping([1.0, 0.14], linestyle = ["baseline", "complete response"] => "Reference") * visual(HLines)
-
-draw(specs_sims + specs_references)
+specs_sims = data(df_sensitivity) * mapping(
+    :time => (t -> t / 7) => "Time [week]",
+    :tumor_size => "Normalized tumor size",
+    color = :f => (x -> string(round(100 * x; digits = 1), " %")) => "Sensitive fraction",
+) * visual(Lines)
+specs_references = mapping(
+    [1.0, 0.14],
+    linestyle = ["Baseline", "Complete response"] => "Reference" => AlgebraOfGraphics.scale(:RefLines),
+) * visual(HLines)
+draw(specs_sims + specs_references, scales(RefLines = (; palette = [:dash, :dot])))
 ```
 
 :::{.callout-tip}
@@ -617,7 +550,12 @@ patients = [Subject(; id, covariates = (; treatment = true)) for id in 1:100]
 
 # Simple sampling (not using copulas yet - that's Tutorial 4)
 # Just to show variability concept
-patients_sims = simobs(tumor_burden_model, patients, pop_params; obstimes = 0:(7 * 18), simulate_error = false)
+patients_sims = simobs(
+    tumor_burden_model,
+    patients, pop_params;
+    obstimes = 0:(7 * 18),
+    simulate_error = false,
+)
 ```
 
 Let us inspect the variability of the simulated values of parameters `f`, `g` and `k`:
@@ -631,25 +569,27 @@ overview_table(fgk_sims)
 
 ```{julia}
 #| fig-cap: "Population variability: 100 virtual patients showing diverse tumor dynamics. Green trajectories achieve complete response, gray trajectories do not."
-
-# Plot simulations
 tumor_size_df = @chain DataFrame(patients_sims) begin
     @select :id :time :tumor_size
     @groupby :id
     @transform! :responder = minimum(:tumor_size) < 0.14
 end
-specs_sims = data(tumor_size_df) *
-    mapping(
-    :time => (t -> t / 7) => "Time (weeks)",
-    :tumor_size => "Normalized Tumor Size",
+
+specs_sims = data(tumor_size_df) * mapping(
+    :time => (t -> t / 7) => "Time [week]",
+    :tumor_size => "Normalized tumor size",
     color = :responder => sorter([true, false]) => "Responder",
     group = :id
-) *
-    visual(Lines; alpha = 0.6)
-# Add reference lines
-specs_references = mapping([1.0, 0.14], linestyle = ["baseline", "complete response"] => "Reference") * visual(HLines)
-
-draw(specs_sims + specs_references, scales(Color = (; palette = [:green, :gray])); axis = (; yscale = log10))
+) * visual(Lines; alpha = 0.6)
+specs_references = mapping(
+    [1.0, 0.14],
+    linestyle = ["Baseline", "Complete response"] => "Reference" => AlgebraOfGraphics.scale(:RefLines),
+) * visual(HLines)
+draw(
+    specs_sims + specs_references,
+    scales(Color = (; palette = [:green, :gray]), RefLines = (; palette = [:dash, :dot]));
+    axis = (; yscale = log10),
+)
 ```
 
 :::{.callout-important}
@@ -657,32 +597,32 @@ draw(specs_sims + specs_references, scales(Color = (; palette = [:green, :gray])
 
 This preview shows why we need:
 
-1. **Copula sampling (Tutorial 4):** The random sampling above ignores parameter correlations.
-   In reality, patients with high f tend to have low g (r = -0.64).
-
-2. **Calibration (Tutorial 5):** The response rate from random sampling may not
-   match real clinical trial data.
-
-3. **Systematic analysis:** We need to understand
+1. **Systematic analysis:** We need to understand
    which parameters matter most (Tutorial 2:
    GSA) and whether they can be estimated (Tutorial 3: Identifiability).
+
+2. **Copula sampling (Tutorial 4):** The random sampling above ignores parameter correlations.
+   In reality, patients with high `f` (fraction of treatment-sensitive cells) tend to have low `g`
+   (growth rate of treatment-resistant cells).
+
+3. **Calibration (Tutorial 5):** The response rate from random sampling may not
+   match real clinical trial data.
 :::
 
 ## Summary
 
 ### Key Concepts
 
-1. **The Tumor Burden Model** describes cancer response to chemotherapy using
+1. **The tumor burden model** describes cancer response to chemotherapy using
    two cell populations:
-   - Treatment-sensitive cells (fraction f) that die at rate k
-   - Treatment-resistant cells (fraction 1-f) that grow at rate g
+   - Treatment-sensitive cells (fraction `f`) that die at rate `k`
+   - Treatment-resistant cells (fraction `1-f`) that grow at rate `g`
 
 2. **The mathematical model:**
    $$N(t) = N_0 \cdot f \cdot e^{-k \cdot t} + N_0 \cdot (1-f) \cdot e^{g \cdot t}$$
 
 3. **Parameters from clinical data:**
    - `f = 0.27` (27% sensitive), `g = 0.0013` d⁻¹, `k = 0.0091` d⁻¹
-   - Correlation `r(f, g) = -0.64`
 
 4. **Pumas model structure:**
    - `@param`: Population parameters

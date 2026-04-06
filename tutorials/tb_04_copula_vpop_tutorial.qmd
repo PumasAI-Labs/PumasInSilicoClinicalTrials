@@ -252,6 +252,25 @@ resid_σ = 0.095
 cor_f_g = -0.64  # Negative correlation: high f ↔ low g
 ```
 
+:::{.callout-tip}
+## Why the Negative Correlation?
+
+The correlation $\rho(f, g) = -0.64$ is biologically meaningful:
+
+**Patients with more sensitive cells (high f) tend to have slower-growing resistant cells (low g).**
+
+Possible explanations:
+
+1. **Tumor heterogeneity:** Aggressive tumors may have both fewer sensitive
+   cells AND faster-growing resistant cells
+2. **Evolutionary pressure:** In highly proliferative tumors,
+   resistance mechanisms may be more prevalent
+3. **Stem cell fraction:** Resistant cells may correlate with cancer stem cell
+   populations
+
+This correlation is crucial for realistic virtual population generation (Tutorial 4).
+:::
+
 ## Part 2: Why Independent Sampling Fails
 
 Let us demonstrate why independent sampling breaks the correlation structure.
@@ -320,8 +339,8 @@ Spearman correlation matrix from NLME estimation:
 ```{julia}
 # r(f,g) = -0.64, r(f,k) = 0, r(g,k) = 0
 Rho = [
-    1.0 -0.64 0.0
-    -0.64 1.0 0.0
+    1.0 cor_f_g 0.0
+    cor_f_g 1.0 0.0
     0.0 0.0 1.0
 ]
 ```
