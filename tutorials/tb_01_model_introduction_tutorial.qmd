@@ -3,7 +3,7 @@ title: "Model Introduction"
 author:
   - Vijay Ivaturi
 julia:
-  exeflags: ["--threads=auto"]
+  exeflags: ["+Pumas@2.8.1", "--project=@.", "--threads=auto"]
 ---
 
 :::{.callout-note}

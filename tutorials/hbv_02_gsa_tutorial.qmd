@@ -4,7 +4,7 @@ subtitle: "Identifying Key Drivers of Treatment Response"
 author:
   - Vijay Ivaturi
 julia:
-  exeflags: ["--threads=auto"]
+  exeflags: ["+Pumas@2.8.1", "--project=@.", "--threads=auto"]
 ---
 
 :::{.callout-note}

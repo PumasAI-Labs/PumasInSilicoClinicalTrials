@@ -4,7 +4,7 @@ subtitle: "Matching Virtual Population to Clinical Trial Characteristics"
 author:
   - Vijay Ivaturi
 julia:
-  exeflags: ["--threads=auto"]
+  exeflags: ["+Pumas@2.8.1", "--project=@.", "--threads=auto"]
 ---
 
 :::{.callout-note}

@@ -81,7 +81,7 @@ and treatment arms.
    - Open the VSCode command palette
    - Type in `Julia REPL` and click on `Julia: Start REPL`
    - In the Julia REPL, enter
-     `] add GlobalSensitivity JuMP HiGHS HypothesisTests MultiObjectiveAlgorithms StructuralIdentifiability`
+     `] add GlobalSensitivity JuMP HiGHS HypothesisTests ModelingToolkit MultiObjectiveAlgorithms StructuralIdentifiability`
 
 ## Module Components
 

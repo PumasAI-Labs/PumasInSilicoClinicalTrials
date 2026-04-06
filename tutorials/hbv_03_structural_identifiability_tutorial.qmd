@@ -4,7 +4,7 @@ subtitle: "Which Parameters Can We Estimate from Clinical Measurements?"
 author:
   - Vijay Ivaturi
 julia:
-  exeflags: ["--threads=auto"]
+  exeflags: ["+Pumas@2.8.1", "--project=@.", "--threads=auto"]
 ---
 
 :::{.callout-note}
