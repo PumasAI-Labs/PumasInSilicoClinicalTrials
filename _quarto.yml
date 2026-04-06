@@ -7,7 +7,7 @@ project:
     - tutorials/hbv_0[1-6]*.qmd
 
 website:
-  title: "Pumas Virtual Population Workflow"
+  title: "In-Silico Clinical Trials with NLME Models"
   sidebar:
     contents:
       - index.qmd

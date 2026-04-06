@@ -1,4 +1,4 @@
-# PumasVpopWorkflow
+# In-Silico Clinical Trials with NLME Models
 
 Julia/Pumas implementation of the In Silico Clinical Trial (ISCT) workflow from the paper:
 

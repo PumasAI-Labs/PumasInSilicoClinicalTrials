@@ -1,5 +1,5 @@
 ---
-title: "Pumas Virtual Population Workflow"
+title: "In-Silico Clinical Trials with NLME Models"
 number-sections: false
 ---
 
