@@ -84,4 +84,4 @@ engines: ['julia']
 
 # Default metadata for all documents
 date-format: "DD-MMM-YYYY"
-csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
+csl: apa.csl
