@@ -288,7 +288,7 @@ correlated_randeffs_dist = SklarDist(copula, (Normal(0, ω_f), Normal(0, ω_g), 
 We sample correlated random effects for each virtual patient:
 
 ```{julia}
-#\ output: false
+# output: false
 correlated_randeffs = rand(correlated_randeffs_dist, length(patients))
 vrandeffs = [(; η) for η in eachcol(correlated_randeffs)]
 ```
