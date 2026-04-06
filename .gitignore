@@ -9,9 +9,13 @@
 
 **/*.quarto_ipynb
 
+# Local VSCode settings
+/.vscode/
+
 # PumasProductManager
 /key.pub
 /Manifest.toml
 /Manifest.toml.sign
+/PackageBundler.toml
 /Project.toml
 /Project.toml.sign
