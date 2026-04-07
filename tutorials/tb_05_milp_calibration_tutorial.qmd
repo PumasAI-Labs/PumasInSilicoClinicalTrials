@@ -236,6 +236,7 @@ Let us generate a vpop using the copula approach from Tutorial 4.
 The parameter values come from @qi2022, who fit this model to NSCLC clinical trial data:
 
 ```{julia}
+#| output: false
 # Population (typical) parameter values
 pop_f = 0.27    # 27% of tumor is treatment-sensitive
 pop_g = 0.0013  # Resistant cells grow ~0.13% per day
@@ -288,7 +289,7 @@ correlated_randeffs_dist = SklarDist(copula, (Normal(0, ω_f), Normal(0, ω_g), 
 We sample correlated random effects for each virtual patient:
 
 ```{julia}
-# output: false
+#| output: false
 correlated_randeffs = rand(correlated_randeffs_dist, length(patients))
 vrandeffs = [(; η) for η in eachcol(correlated_randeffs)]
 ```
@@ -331,6 +332,7 @@ simple_table(
 Now let us classify the response of each virtual patient after 18 weeks.
 
 ```{julia}
+#| output: false
 vpop = postprocess(sims) do generated, _
     if generated.t[end] != 7 * 18 # days
         error("final time point must be 18 weeks")

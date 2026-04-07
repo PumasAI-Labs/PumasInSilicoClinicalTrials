@@ -385,7 +385,7 @@ are expressed.
 ```{julia}
 patients = [
     Subject(; id, time = [0.0], covariates = (; NA = true, IFN = true))
-    for id in 1:10_000
+        for id in 1:10_000
 ]
 ```
 

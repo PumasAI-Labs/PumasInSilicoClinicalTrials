@@ -547,6 +547,7 @@ solution_summary(model)
 We extract the selected virtual patients:
 
 ```{julia}
+#| output: false
 selected_vps = findall(xi -> value(xi) == 1, x)
 calibrated_log10_HBsAg = baseline_log10_HBsAg[selected_vps]
 ```
@@ -599,8 +600,15 @@ data_specs = data(df) * mapping(
     :log10_HBsAg,
     col = :stage => sorter("Original", "Calibrated"),
 ) * histogram(; bins = vcat(everest_target.log10_lower, everest_target.log10_upper[end]), normalization = :probability)
-target_specs = mapping(collect(Iterators.flatten((row.log10_lower, row.log10_upper) for row in eachrow(everest_target))), repeat(everest_target.pct; inner = 2) ./ 100, group = repeat(1:nrow(everest_target); inner = 2)) * visual(Lines; label = "Everest target")
-draw(data_specs + target_specs; axis = (; xlabel = "Baseline HBsAg (log₁₀ IU/mL)", ylabel = "Proportion"))
+target_specs = mapping(
+    collect(Iterators.flatten((row.log10_lower, row.log10_upper) for row in eachrow(everest_target))),
+    repeat(everest_target.pct; inner = 2) ./ 100,
+    group = repeat(1:nrow(everest_target); inner = 2),
+) * visual(Lines; label = "Everest target")
+draw(
+    data_specs + target_specs;
+    axis = (; xlabel = "Baseline HBsAg (log₁₀ IU/mL)", ylabel = "Proportion"),
+)
 ```
 
 ## Part 5: Multi-Objective Optimization

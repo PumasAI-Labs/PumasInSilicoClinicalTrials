@@ -199,15 +199,15 @@ and **9 estimated parameters** (with inter-individual variability):
 
 | Parameter | Description | Typical Value (log10) |
 |:----------|:------------|:----------------------|
-| β (beta) | Infection rate | -5.0 |
-| p_S | HBsAg production rate | 8.0 |
-| m | Immune killing rate | 2.5 |
-| k_Z | ALT production rate | -5.0 |
-| convE | Effector conversion | 2.5 |
-| epsNA | NA efficacy | -2.0 |
-| epsIFN | IFN efficacy | -1.5 |
-| r_E_IFN | IFN immune boost | 0.3 |
-| k_D | DC activation | -4.0 |
+| p_S | HBsAg production rate | 7.643 |
+| β (beta) | HBV infectivity | -4.358 |
+| m | Immune killing rate | 1.618 |
+| k_P | Antigen presenting cell synthesis | -3.968 |
+| k_A | ALT production rate | -4.869 |
+| ϵ_NA | NA efficacy on HBV production | -1.485 |
+| ϵ_IFN | IFN efficacy on HBV production | -1.466 |
+| r_E_IFN | IFN immune boost | 0.313 |
+| conv_E | Effector T-cell scaling | 2.745 |
 
 :::{.callout-note}
 ## Log10-Scale Parameterization
@@ -497,7 +497,7 @@ Nucleoside analogs (NAs) block viral production by inhibiting reverse transcript
 During treatment with NAs (`NA = true`),
 $\epsilon_{NA} < 1$ and hence the viral production is reduced:
 
-$$V' = p_V \cdot {\epsilon_{NA} \epsilon_{IFN}}_{\text{treatment reduction}} \cdot I - d_V \cdot V$$
+$$V' = p_V \cdot \underbrace{\epsilon_{NA}}_{\text{treatment reduction}} \epsilon_{IFN} \cdot I - d_V \cdot V$$
 
 ### Interferon Effect
 
@@ -514,12 +514,12 @@ Interferon (IFN) has dual mechanisms:
 
 The model supports four treatment scenarios:
 
-| Arm | NA | IFN | Description |
-|:----|:-----|:-----|:------------|
-| 0 | false | false | Control (no treatment) |
-| 1 | true | false | NA only |
-| 2 | false | true | IFN only |
-| 3 | true | true | NA + IFN combination |
+| Arm | NA | IFN |
+|:----|:-----|:-----|
+| Control (no treatment) | false | false |
+| NA only | true | false |
+| IFN only | false | true |
+| NA + IFN combination | true | true |
 
 ## Part 4: Basic Simulation
 
@@ -541,6 +541,7 @@ subject_no_tx = Subject(
 ### Simulate Natural History
 
 ```{julia}
+#| output: false
 sim_no_tx = simobs(
     hbv_model,
     subject_no_tx,
@@ -594,8 +595,7 @@ t_end = t_eot + 24 * 7 # end of 24-week follow-up
 ```
 
 ```{julia}
-#| fig-cap: "Effect of treatment on biomarkers in chronic NA-suppressed HBV (5 years of untreated chronic infection + 4 years of NA treatment) for a typical patient ($\eta = 0$). NA reduces HBsAg gradually, IFN provides immune-mediated decline, and combination of NA and IFN achieves the steepest reduction. Gray dashed line marks end of treatment (week 48)."
-
+#| fig-cap: "Effect of treatment on biomarkers in chronic NA-suppressed HBV (5 years of untreated chronic infection + 4 years of NA treatment) for a typical patient. NA reduces HBsAg gradually, IFN provides immune-mediated decline, and combination of NA and IFN achieves the steepest reduction. Gray dashed line marks end of treatment (week 48)."
 # Create subjects with time-varying covariates for each treatment arm
 treatments = [
     ("No treatment", false, false),
@@ -628,16 +628,28 @@ sims = simobs(
 df_sims = stack(DataFrame(sims), ["log10_HBV", "log10_HBsAg", "log10_ALT", "log10_CD8"], ["time", "id"]; variable_name = "biomarker")
 
 # Plot simulations
-specs_data = data(df_sims) *
-    mapping(
+specs_data = data(df_sims) * mapping(
     :time => (t -> (t - t_na_suppressed) / 7) => "Time after treatment start [week]",
     color = :id => sorter("No treatment", "NA", "IFN", "NA + IFN") => "Treatment",
-) *
-    visual(Lines; color = (:blue, 0.2))
-specs_refs = data([(; value = 1.4, biomarker = "log10_HBV"), (; value = log10(0.05), biomarker = "log10_HBsAg")]) * mapping(linestyle = direct("Functional cure") => "Threshold" => AlgebraOfGraphics.scale(:RefLines)) * visual(HLines)
-specs = (specs_data + specs_refs) * mapping(:value => "log₁₀ concentration", layout = biomarker_mapping = :biomarker => renamer("log10_HBV" => "HBV DNA [copies/mL]", "log10_HBsAg" => "HBsAg [IU/mL]", "log10_ALT" => "ALT [U/L]", "log10_CD8" => "CD8+ T Cells [cells/mL]"))
-
-draw(specs, scales(RefLines = (; palette = [:dash])); axis = (; xticks = [0, 24, 48, 72]), facet = (; linkxaxes = true, linkyaxes = false))
+) * visual(Lines; color = (:blue, 0.2))
+specs_refs = data(
+    [
+        (; value = 1.4, biomarker = "log10_HBV"),
+        (; value = log10(0.05), biomarker = "log10_HBsAg"),
+    ]
+) * mapping(
+    linestyle = direct("Functional cure") => "Threshold" => AlgebraOfGraphics.scale(:RefLines)
+) * visual(HLines)
+specs = (specs_data + specs_refs) * mapping(
+    :value => "log₁₀ concentration",
+    layout = :biomarker => renamer("log10_HBV" => "HBV DNA [copies/mL]", "log10_HBsAg" => "HBsAg [IU/mL]", "log10_ALT" => "ALT [U/L]", "log10_CD8" => "CD8+ T Cells [cells/mL]"),
+)
+draw(
+    specs,
+    scales(RefLines = (; palette = [:dash]));
+    axis = (; xticks = [0, 24, 48, 72]),
+    facet = (; linkxaxes = true, linkyaxes = false),
+)
 ```
 
 ### Clinical Endpoints
@@ -690,7 +702,6 @@ and simulate 50 patients to capture the range of outcomes.
 ```{julia}
 #| fig-cap: "Biomarker dynamics with inter-individual variability under NA+IFN treatment. Each line is a virtual patient sampled from the estimated population distribution. Most patients rebound after treatment stops (week 48), but patients with favorable immune parameters show steeper HBsAg decline."
 #| warning: false
-
 # Simulate 50 patients with IIV using the estimated Ω
 sims = map(1:50) do id
     subj = Subject(;
@@ -726,15 +737,30 @@ end
 df_sims = stack(DataFrame(sims), ["log10_HBV", "log10_HBsAg", "log10_ALT", "log10_CD8"], ["time", "id"]; variable_name = "biomarker")
 
 # Plot simulations
-specs_data = data(df_sims) *
-    mapping(
+specs_data = data(df_sims) * mapping(
     :time => (t -> (t - t_na_suppressed) / 7) => "Time after treatment start [week]",
     group = :id,
 ) * visual(Lines; color = (:gray, 0.4))
-specs_refs = data([(; value = 1.4, biomarker = "log10_HBV"), (; value = log10(0.05), biomarker = "log10_HBsAg")]) * mapping(linestyle = direct("Functional cure") => "Threshold" => AlgebraOfGraphics.scale(:RefLine)) * visual(HLines)
-specs = (specs_data + specs_refs) * mapping(:value => "log₁₀ concentration", layout = :biomarker => renamer("log10_HBV" => "HBV DNA [copies/mL]", "log10_HBsAg" => "HBsAg [IU/mL]", "log10_ALT" => "ALT [U/L]", "log10_CD8" => "CD8+ T Cells [cells/mL]"))
+specs_refs = data(
+    [
+        (; value = 1.4, biomarker = "log10_HBV"),
+        (; value = log10(0.05), biomarker = "log10_HBsAg"),
+    ]
+) * mapping(
+    linestyle = direct("Functional cure") => "Threshold" => AlgebraOfGraphics.scale(:RefLine),
+) * visual(HLines)
+specs = (specs_data + specs_refs) * mapping(
+    :value => "log₁₀ concentration",
+    layout = :biomarker => renamer("log10_HBV" => "HBV DNA [copies/mL]", "log10_HBsAg" => "HBsAg [IU/mL]", "log10_ALT" => "ALT [U/L]", "log10_CD8" => "CD8+ T Cells [cells/mL]"),
+)
 
-draw(specs, scales(RefLine = (; palette = [:dash])); axis = (; xticks = [0, 24, 48, 72]), facet = (; linkxaxes = true, linkyaxes = false), legend = (; position = :bottom))
+draw(
+    specs,
+    scales(RefLine = (; palette = [:dash]));
+    axis = (; xticks = [0, 24, 48, 72]),
+    facet = (; linkxaxes = true, linkyaxes = false),
+    legend = (; position = :bottom),
+)
 ```
 
 ### Functional Cure Mechanism: Responder vs Non-Responder
@@ -750,7 +776,6 @@ the model switches to a "cured" state where viral and HBsAg production ceases pe
 
 ```{julia}
 #| fig-cap: "Functional cure mechanism. The responder's stronger immune response drives the concentration of infected cells below the threshold, triggering the switch to durable viral control. Thereby, the responder achieves HBsAg loss that persists off-treatment, while the typical patient rebounds."
-
 # Construct a typical patient and a responder
 covariates_time = [0.0, t_chronic, t_na_suppressed, t_eot]
 covariates = (NA = [false, true, true, false], IFN = [false, false, true, false])
@@ -778,16 +803,31 @@ df_sims = @chain DataFrame(sims) begin
 end
 
 # Plot simulations
-specs_data = data(df_sims) *
-    mapping(
+specs_data = data(df_sims) * mapping(
     :time => (t -> (t - t_na_suppressed) / 7) => "Time after treatment start [week]",
     color = :id => sorter("Typical", "Responder") => "Patient",
-) *
-    visual(Lines)
-specs_refs = data([(; value = 1.4, biomarker = "log10_HBV"), (; value = log10(0.05), biomarker = "log10_HBsAg"), (; value = -4, biomarker = "log10_I")]) * mapping(linestyle = AlgebraOfGraphics.direct(["Functional cure", "Functional cure", "Infected cells"]) => "Threshold" => AlgebraOfGraphics.scale(:RefLines)) * visual(HLines)
-specs = (specs_data + specs_refs) * mapping(:value => "log₁₀ concentration", layout = :biomarker => renamer("log10_I" => "Infected cells [cells/mL]", "log10_HBV" => "HBV DNA [copies/mL]", "log10_HBsAg" => "HBsAg [IU/mL]", "log10_ALT" => "ALT [U/L]", "log10_CD8" => "CD8+ T Cells [cells/mL]"))
+) * visual(Lines)
+specs_refs = data(
+    [
+        (; value = 1.4, biomarker = "log10_HBV"),
+        (; value = log10(0.05), biomarker = "log10_HBsAg"),
+        (; value = -4, biomarker = "log10_I"),
+    ]
+) * mapping(
+    linestyle = AlgebraOfGraphics.direct(["Functional cure", "Functional cure", "Infected cells"]) => "Threshold" => AlgebraOfGraphics.scale(:RefLines)
+) * visual(HLines)
+specs = (specs_data + specs_refs) * mapping(
+    :value => "log₁₀ concentration",
+    layout = :biomarker => renamer("log10_I" => "Infected cells [cells/mL]", "log10_HBV" => "HBV DNA [copies/mL]", "log10_HBsAg" => "HBsAg [IU/mL]", "log10_ALT" => "ALT [U/L]", "log10_CD8" => "CD8+ T Cells [cells/mL]"),
+)
 
-draw(specs, scales(RefLines = (; palette = [:dash, :dot])); axis = (; xticks = [0, 24, 48, 72]), facet = (; linkxaxes = true, linkyaxes = false), legend = (; position = :bottom, nbanks = 2))
+draw(
+    specs,
+    scales(RefLines = (; palette = [:dash, :dot]));
+    axis = (; xticks = [0, 24, 48, 72]),
+    facet = (; linkxaxes = true, linkyaxes = false),
+    legend = (; position = :bottom, nbanks = 2),
+)
 ```
 
 :::{.callout-tip}

@@ -174,6 +174,7 @@ dominates).
 The parameter values come from @qi2022, who fit this model to NSCLC clinical trial data:
 
 ```{julia}
+#| output: false
 # Population (typical) parameter values
 pop_f = 0.27    # 27% of tumor is treatment-sensitive
 pop_g = 0.0013  # Resistant cells grow ~0.13% per day
@@ -599,7 +600,7 @@ Let us inspect the variability of the simulated values of parameters `f`, `g` an
 fgk_sims = postprocess(patients_sims) do generated, _
     (; f = only(unique(generated.f)), g = only(unique(generated.g)), k = only(unique(generated.k)))
 end |> DataFrame
-overview_table(fgk_sims)
+table_one(fgk_sims)
 ```
 
 ```{julia}

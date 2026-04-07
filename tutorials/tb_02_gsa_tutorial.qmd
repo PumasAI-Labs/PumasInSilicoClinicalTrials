@@ -1026,27 +1026,6 @@ for treatment efficacy.
 
 ## Summary
 
-### Results from This Tutorial
-
-**Final tumor size (Week 18):**
-
-| Parameter | Sₜ | Classification | Action |
-|:----------|:---|:---------------|:-------|
-| **f** (sensitive fraction) | 0.844 | Dominant | Must estimate accurately |
-| **g** (growth rate) | 0.121 | Influential | Should estimate from data |
-| **k** (death rate) | 0.074 | Minor | Can fix to literature value |
-
-**Key insight:** The fraction of treatment-sensitive cells (f) explains ~84% of the variance in
-final tumor size.
-
-**Timepoint comparison reveals the full story:**
-
-| Parameter | Week 4 | Week 8 | Week 18 | Trend |
-|:----------|:-------|:-------|:--------|:------|
-| **f** | 0.70 | 0.78 | 0.84 | Always dominant, increasing |
-| **g** | 0.01 | 0.03 | 0.12 | Negligible → influential |
-| **k** | 0.37 | 0.24 | 0.07 | Influential → minor |
-
 ### Key Takeaways
 
 1. **GSA quantifies how outputs depend on inputs** across the entire parameter

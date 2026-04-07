@@ -232,6 +232,7 @@ see [Tutorial 1: Model Introduction](tb_01_model_introduction_tutorial.qmd).
 The parameter values come from @qi2022, who fit this model to NSCLC clinical trial data:
 
 ```{julia}
+#| output: false
 # Population (typical) parameter values
 pop_f = 0.27    # 27% of tumor is treatment-sensitive
 pop_g = 0.0013  # Resistant cells grow ~0.13% per day
@@ -434,21 +435,6 @@ end |> DataFrame
 
 table_one(vpop)
 ```
-
-:::{.callout-note}
-## Why Does This Preserve Correlations?
-
-The quantile function is **monotonically increasing**: if $U_1 < U_2$,
-then $\text{quantile}(U_1) < \text{quantile}(U_2)$.
-
-Spearman correlation measures the correlation of **ranks**.
-Since the quantile transform preserves the ordering of values, it preserves the ranks,
-and therefore preserves the Spearman correlation.
-
-This is why we specified **Spearman correlations** in our correlation matrix—
-they survive monotonic transformations like the quantile function
-and the logistic function in Step 6.
-:::
 
 ## Part 4: Validation
 

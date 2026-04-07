@@ -528,7 +528,10 @@ data_specs = data(df) * mapping(
     col = :stage => sorter("Original", "Calibrated"),
 ) * histogram(; bins = vcat(everest_target.log10_lower, everest_target.log10_upper[end]), normalization = :probability)
 target_specs = mapping(
-    collect(Iterators.flatten((row.log10_lower, row.log10_upper) for row in eachrow(everest_target))), repeat(everest_target.pct; inner = 2) ./ 100, group = repeat(1:nrow(everest_target); inner = 2)) * visual(Lines; label = "Everest target")
+    collect(Iterators.flatten((row.log10_lower, row.log10_upper) for row in eachrow(everest_target))),
+    repeat(everest_target.pct; inner = 2) ./ 100,
+    group = repeat(1:nrow(everest_target); inner = 2),
+) * visual(Lines; label = "Everest target")
 draw(
     data_specs + target_specs;
     axis = (; xlabel = "Baseline HBsAg (log₁₀ IU/mL)", ylabel = "Proportion"),

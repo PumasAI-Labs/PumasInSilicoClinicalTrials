@@ -553,17 +553,13 @@ draw(
 
 ### Key Takeaways
 
-1. **GSA on HBV varies random effects (η)**, not typical values —
-   this matches the NLME framework and ensures the model's logit-normal/log-normal
-   transformations constrain parameters to physiologically plausible ranges
-
-2. **Batch simulation** via `simobs` on a population enables efficient
+1. **Batch simulation** via `simobs` on a population enables efficient
    evaluation of the many model runs required for GSA
 
-3. **The HBV QSP model has a richer sensitivity structure** than the simpler
+2. **The HBV QSP model has a richer sensitivity structure** than the simpler
    tumor burden model, with multiple potentially influential parameters
 
-4. For comprehensive multi-output, multi-timepoint results,
+3. For comprehensive multi-output, multi-timepoint results,
    see @cortes2025HBV Figure S10
 
 For general GSA methodology (sample size selection, interpretation guidelines, common pitfalls),

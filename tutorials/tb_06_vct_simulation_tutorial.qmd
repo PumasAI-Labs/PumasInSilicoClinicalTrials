@@ -189,6 +189,7 @@ end
 ### Population Parameters
 
 ```{julia}
+#| output: false
 # Population (typical) parameter values
 pop_f = 0.27    # 27% of tumor is treatment-sensitive
 pop_g = 0.0013  # Resistant cells grow ~0.13% per day
@@ -368,7 +369,7 @@ obstimes = 7 * (0:18) # Weekly for 18 weeks
 Simulate treatment arm:
 
 ```{julia}
-# output: false
+#| output: false
 treatment_results = simobs(
     tumor_burden_model,
     [Subject(; id, covariates = (; treatment = true)) for id in 1:nrow(calibrated_vpop)],
@@ -382,7 +383,7 @@ treatment_results = simobs(
 Simulate control arm:
 
 ```{julia}
-# output: false
+#| output: false
 control_results = simobs(
     tumor_burden_model,
     [Subject(; id, covariates = (; treatment = false)) for id in 1:nrow(calibrated_vpop)],

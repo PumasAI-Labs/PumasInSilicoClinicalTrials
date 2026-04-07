@@ -422,7 +422,6 @@ result_local_A = assess_local_identifiability(
     funcs_to_check = estimated_params,
     loglevel = Logging.Warn,
 )
-#[var for (var, identifiable) in result_local_A if !identifiable]
 ```
 
 ```{julia}
@@ -432,7 +431,6 @@ result_local_B = assess_local_identifiability(
     funcs_to_check = estimated_params,
     loglevel = Logging.Warn,
 )
-#[var for (var, identifiable) in result_local_B if !identifiable]
 ```
 
 ```{julia}
@@ -442,111 +440,67 @@ result_local_C = assess_local_identifiability(
     funcs_to_check = estimated_params,
     loglevel = Logging.Warn,
 )
-#[var for (var, identifiable) in result_local_C if !identifiable]
-```
-
-### Run Global Identifiability Analysis
-
-```julia
-result_global_A = assess_identifiability(
-    ode_system;
-    measured_quantities = vcat(scenario_A, measured_fixed),
-    funcs_to_check = estimated_params,
-    loglevel = Logging.Warn,
-)
-```
-
-```julia
-result_global_B = assess_identifiability(
-    ode_system;
-    measured_quantities = vcat(scenario_B, measured_fixed),
-    funcs_to_check = estimated_params,
-    loglevel = Logging.Warn,
-)
-```
-
-```julia
-result_global_C = assess_identifiability(
-    ode_system;
-    measured_quantities = vcat(scenario_C, measured_fixed),
-    funcs_to_check = estimated_params,
-    loglevel = Logging.Warn,
-)
-```
-
-### Find Identifiable Combinations
-
-For the most restrictive scenario (A), we look for identifiable parameter combinations:
-
-```julia
-find_identifiable_functions(
-    ode_system;
-    measured_quantities = vcat(scenario_A, measured_fixed),
-    funcs_to_check = estimated_params,
-    loglevel = Logging.Warn,
-)
 ```
 
 ## Part 3: Interpreting Results
 
 ### Compile Results
 
-```julia
+```{julia}
 function result_to_df(result, scenario_name)
     return DataFrame(
         parameter = [string(p) for p in keys(result)],
-        status = map(string, values(result)),
+        local_identifiable = collect(values(result)),
         scenario = scenario_name,
     )
 end
 
 all_results = vcat(
-    result_to_df(result_global_A, "A: HBsAg + DNA"),
-    result_to_df(result_global_B, "B: + ALT"),
-    result_to_df(result_global_C, "C: + CD8"),
+    result_to_df(result_local_A, "A: HBsAg + DNA"),
+    result_to_df(result_local_B, "B: + ALT"),
+    result_to_df(result_local_C, "C: + CD8"),
 )
 
-simple_table(all_results)
+simple_table(
+    all_results,
+    [
+        :parameter => "Parameter",
+        :local_identifiable => "Locally identifiable",
+        :scenario => "Measurement scenario",
+    ],
+)
 ```
 
 ## Part 4: Visualization
 
 ### Identifiability Status by Scenario
 
-```julia
-#| fig-cap: "HBV Model: How measurement choice affects identifiability. Green = globally identifiable (unique solution), Orange = locally identifiable (finite solutions), Red = non-identifiable (infinite solutions)."
-status_mapping = :status => renamer(
-    "globally" => "Globally identifiable",
-    "locally" => "Locally identifiable",
-    "nonidentifiable" => "Non-identifiable",
-) => "Status"
-
+```{julia}
+#| fig-cap: "HBV Model: How measurement choice affects identifiability. Orange = locally identifiable (finite solutions), Red = non-identifiable (infinite solutions)."
 specs = data(all_results) *
     mapping(
     :parameter => "Parameter",
-    :scenario => "Measurement Scenario",
-    color = status_mapping,
-) *
-    visual(Scatter; markersize = 30, marker = :rect)
+    :scenario => sorter("C: + CD8", "B: + ALT", "A: HBsAg + DNA") => "Measurement Scenario",
+    color = :local_identifiable => sorter(true, false) => "Locally identifiable",
+) * visual(Scatter; markersize = 30, marker = :rect)
 draw(
     specs,
-    scales(Color = (; palette = [:green, :orange, :red]));
+    scales(Color = (; palette = [:orange, :red]));
     axis = (; xticklabelrotation = π / 4),
 )
 ```
 
 ### Summary: Impact of Measurements
 
-```julia
-#| fig-cap: "Adding measurements increases the percentage of globally identifiable parameters."
-result_counts = @by all_results [:scenario, :status] begin
+```{julia}
+#| fig-cap: "Adding measurements increases the percentage of locally identifiable parameters."
+result_counts = @by all_results [:scenario, :local_identifiable] begin
     :count = length(:parameter)
 end
-
-specs = data(result_counts) *
-    mapping(
-    :scenario => "Measurement Scenario",
-    :count => "Number of Parameters/States",
+status_mapping = :local_identifiable => sorter(true, false) => "Locally identifiable"
+specs = data(result_counts) * mapping(
+    :scenario => sorter("A: HBsAg + DNA", "B: + ALT", "C: + CD8") => "Measurement Scenario",
+    :count => "Number of Parameters",
     stack = status_mapping,
     color = status_mapping,
 ) * visual(BarPlot)
@@ -574,10 +528,7 @@ draw(specs, scales(Color = (; palette = [:green, :orange, :red])))
 
 | Function | Purpose |
 |:---------|:--------|
-| `model.sys` | Extract ODESystem from Pumas model |
 | `assess_local_identifiability()` | Fast local analysis (identifiable yes/no) |
-| `assess_identifiability()` | Global analysis (globally/locally/non) |
-| `find_identifiable_functions()` | Find identifiable parameter combinations |
 
 ### What's Next?
 
