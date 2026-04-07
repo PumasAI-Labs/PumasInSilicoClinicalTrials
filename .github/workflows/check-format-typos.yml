@@ -1,0 +1,31 @@
+name: Check format and typos
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - uses: jdx/mise-action@e79ddf65a11cec7b0e882bedced08d6e976efb2d # v3.6.2
+        with:
+          install_args: "julia rumdl typos"
+
+      - name: Install Runic
+        run: |
+          julia --project=@runic --startup-file=no -e 'using Pkg; Pkg.add("Runic")'
+          mkdir -p "${RUNNER_TEMP}/bin"
+          curl -fsSL -o "${RUNNER_TEMP}/bin/runic" \
+            https://raw.githubusercontent.com/fredrikekre/Runic.jl/refs/heads/master/bin/runic
+          chmod +x "${RUNNER_TEMP}/bin/runic"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+
+      - name: Check formatting
+        run: mise run format-check
+
+      - name: Check for typos
+        run: mise run typos-check

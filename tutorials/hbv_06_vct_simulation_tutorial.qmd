@@ -1,49 +1,11 @@
 ---
-title: "HBV Series: Virtual Clinical Trial Simulation"
+title: "Virtual Clinical Trial Simulation"
 subtitle: "Multi-Arm HBV Treatment Comparison with Functional Cure Endpoints"
 author:
   - Vijay Ivaturi
-execute:
-  cache: true
-  error: false
-julia: 
-  exeflags: ["+Pumas@2.7.1"]
-format:
-  html:
-    include-in-header:
-      text: |
-        <style>
-          .header-container {
-            width: 100%;
-          }
-          .logo {
-            display: block;
-            width: 150px;
-            margin-left: -2.5%;
-          }
-        </style>
-        <link rel = "shortcut icon" href = "https://pumas.ai/favicon.ico" />
-    include-before-body:
-      text: |
-        <div class="header-container">
-          <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
-        </div>
-    self-contained-math: true
-    anchor-sections: true
-    theme: default
-    toc: true
-    toc-depth: 4
-    toc-expand: 2
-    toc-location: left
-    toc-title: Contents
-    number-sections: true
-    code-summary: Show/Hide Code
-embed-resources: true
-fig-format: svg
-fig-width: 8
-fig-height: 6
-bibliography: references.bib
-csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
+  - David Müller-Widmann
+julia:
+  exeflags: ["+Pumas@2.8.1", "--project=@.", "--threads=auto"]
 ---
 
 :::{.callout-note}
@@ -54,21 +16,24 @@ This is **Tutorial 6 of 6** in the HBV series.
 | # | Tutorial | Status |
 |---|----------|--------|
 | 1 | [Model Introduction](hbv_01_model_introduction_tutorial.qmd) | ✓ Complete |
-| 2 | [Copula Vpop Generation](hbv_02_copula_vpop_tutorial.qmd) | ✓ Complete |
-| 3 | [Global Sensitivity Analysis](hbv_03_gsa_tutorial.qmd) | ✓ Complete |
-| 4 | [Structural Identifiability](hbv_04_structural_identifiability_tutorial.qmd) | ✓ Complete |
+| 2 | [Global Sensitivity Analysis](hbv_02_gsa_tutorial.qmd) | ✓ Complete |
+| 3 | [Structural Identifiability](hbv_03_structural_identifiability_tutorial.qmd) | ✓ Complete |
+| 4 | [Copula Vpop Generation](hbv_04_copula_vpop_tutorial.qmd) | ✓ Complete |
 | 5 | [MILP Calibration](hbv_05_milp_calibration_tutorial.qmd) | ✓ Complete |
 | 6 | **VCT Simulation (current)** | ← You are here |
+
 :::
 
 ## Learning Outcomes
 
-This tutorial brings together all concepts from the HBV series to run a comprehensive Virtual Clinical Trial comparing multiple treatment strategies.
+This tutorial brings together all concepts from the HBV series to run a comprehensive Virtual
+Clinical Trial comparing multiple treatment strategies.
 
 In this tutorial, you will learn:
 
-- How to structure HBV treatment phases (untreated → NUC background → treatment → off-treatment)
-- How to simulate multiple treatment arms (Control, NUC, IFN, Combination)
+- How to structure HBV treatment phases (untreated → NA background → treatment
+  → off-treatment)
+- How to simulate multiple treatment arms (Control, NA, IFN, Combination)
 - How to calculate functional cure and HBsAg loss rates
 - How to analyze and visualize VCT results
 
@@ -78,7 +43,7 @@ In this tutorial, you will learn:
 This tutorial uses concepts and code from all previous HBV tutorials:
 
 - **[HBV-01](hbv_01_model_introduction_tutorial.qmd)**: Model structure
-- **[HBV-02](hbv_02_copula_vpop_tutorial.qmd)**: Vpop generation
+- **[HBV-04](hbv_04_copula_vpop_tutorial.qmd)**: Vpop generation
 - **[HBV-05](hbv_05_milp_calibration_tutorial.qmd)**: MILP calibration
 :::
 
@@ -86,15 +51,23 @@ This tutorial uses concepts and code from all previous HBV tutorials:
 
 ```{julia}
 #| output: false
-using DataFrames
+using Pumas
 using DataFramesMeta
-using Statistics
+using HypothesisTests
 using StatsBase
 using CategoricalArrays
+using Copulas
+using JuMP
+using HiGHS
 using AlgebraOfGraphics
 using CairoMakie
 using SummaryTables
+
 using Random
+using Statistics
+
+# Set seed for reproducibility
+Random.seed!(1234)
 ```
 
 ## Part 1: HBV VCT Structure
@@ -104,343 +77,552 @@ using Random
 A complete HBV VCT simulates multiple phases:
 
 ```{julia}
-# Treatment phase durations (days)
-const HBV_PHASES = (
+#| output: false
+hbv_phases = (
     untreated = 5 * 365,       # 5 years - establish chronic infection
-    nuc_background = 4 * 365,  # 4 years - NUC background (suppressed patients)
+    na_background = 4 * 365,   # 4 years - NA background (suppressed patients)
     treatment = 48 * 7,        # 48 weeks - active treatment
-    off_treatment = 24 * 7     # 24 weeks - durability assessment
+    off_treatment = 24 * 7,    # 24 weeks - durability assessment
 )
-
-println("HBV VCT Treatment Phases:")
-println("=" ^ 50)
-total_days = sum(HBV_PHASES)
-running_total = 0
-for (phase, days) in pairs(HBV_PHASES)
-    running_total += days
-    if days >= 365
-        dur_str = "$(days ÷ 365) years"
-    else
-        dur_str = "$(days ÷ 7) weeks"
-    end
-    println("  $(phase): $dur_str (day $(running_total - days + 1) - $running_total)")
-end
-println("\nTotal simulation: $total_days days ($(total_days ÷ 365) years)")
 ```
 
 ### Treatment Arms
 
 ```{julia}
-# Define treatment arms
-@enum TreatmentArm CONTROL=0 NUC_ONLY=1 IFN_ONLY=2 NUC_IFN_COMBO=3
-
 treatment_arms = DataFrame(
-    arm = ["Control", "NUC Only", "IFN Only", "NUC+IFN"],
-    enum = [CONTROL, NUC_ONLY, IFN_ONLY, NUC_IFN_COMBO],
-    dNUC = [0, 1, 0, 1],
-    dIFN = [0, 0, 1, 1],
+    arm = ["Control", "NA", "IFN", "NA + IFN"],
+    NA = [false, true, false, true],
+    IFN = [false, false, true, true],
     description = [
         "No treatment during treatment phase",
         "Nucleoside analog only",
         "Interferon only",
-        "Combination therapy"
+        "Combination therapy",
     ]
 )
 
-println("Treatment Arms:")
-simple_table(treatment_arms[:, [:arm, :dNUC, :dIFN, :description]])
+simple_table(treatment_arms, [:arm => "Arm", :NA, :IFN, :description => "Description"])
 ```
 
-## Part 2: Generate Calibrated Population
+## Part 2: Model, Parameters, and Virtual Population
 
-We'll use a simplified version of the vpop generation and calibration from previous tutorials.
+We use the HBV model and parameters from [HBV-01](hbv_01_model_introduction_tutorial.qmd)
+and [HBV-05](hbv_05_milp_calibration_tutorial.qmd).
+See those tutorials for details on the model structure and parameter estimation.
+
+### Model
 
 ```{julia}
-# Simplified HBV vpop generation (from HBV-02)
-function generate_hbv_vpop(n::Int; seed::Union{Int,Nothing}=nothing)
-    if !isnothing(seed)
-        Random.seed!(seed)
+#| output: false
+#| code-fold: true
+#| code-summary: "HBV model definition (same as HBV-01 and HBV-05)"
+hbv_model = @model begin
+    @param begin
+        # Estimated parameters (log10 scale)
+        "Production/synthesis rate of HBsAg subviral particles from infected hepatocytes [molec./cell/d]"
+        tv_log10_p_S ∈ RealDomain(; lower = 2, upper = 12)
+        "HBV infectivity [mL/virus/d]"
+        tv_log10_β ∈ RealDomain(; lower = -10, upper = 0)
+        "Killing rate of infected hepatocytes by cellular immunity [mL/cells/d]"
+        tv_log10_m ∈ RealDomain(; lower = -3, upper = 5)
+        "Synthesis rate of antigen presenting cells [cells/d]"
+        tv_log10_k_P ∈ RealDomain()
+        "Synthesis rate of ALT from debris hepatocytes [10^3 U/cells/d]"
+        tv_log10_k_A ∈ RealDomain()
+        "PD efficacy of NA on HBV production []"
+        tv_log10_ϵ_NA ∈ RealDomain(; lower = -5, upper = 0)
+        "PD efficacy of IFNα on HBV production []"
+        tv_log10_ϵ_IFN ∈ RealDomain(; lower = -5, upper = 0)
+        "PD efficacy of IFNα on activation of cellular immunity []"
+        tv_log10_r_E_IFN ∈ RealDomain(; lower = 0, upper = 4)
+        "Scaling factor for observed effector CD4/8 T cell numbers []"
+        tv_log10_conv_E ∈ RealDomain()
+
+        # IIV of estimated parameters in log10 scale
+        Ω ∈ PDiagDomain(9)
+
+        # Fixed parameters
+        "Baseline of HBV [copies/mL]"
+        ini_V ∈ RealDomain(; lower = 0.0)
+        "Baseline of ALT [U/L]"
+        ini_A ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of uninfected hepatocytes [1/d]"
+        r_T ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of cellular immunity [1/d]"
+        r_E ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of innate immunity [1/d]"
+        r_X ∈ RealDomain(; lower = 0.0)
+        "Fraction of cellular immunity that killing uninfected and refractory cells []"
+        n ∈ RealDomain(; lower = 0.0)
+        "Max. rate of conversion of infected cells to refractory cells due to the action of innate immunity [1/d]"
+        ρ ∈ RealDomain(; lower = 0.0)
+        "Max. rate of conversion of refractory cells back to target cells in the absence of innate immune responses []"
+        ρ_o_ρ_r ∈ RealDomain(; lower = 0.0)
+        "Production/synthesis rate of HBV from infected hepatocytes [virus/cell/d]"
+        p_V ∈ RealDomain(; lower = 0.0)
+        "Death rate of infected hepatocytes [1/d]"
+        d_TI ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of HBV HBsAg subviral particles [1/d]"
+        d_V ∈ RealDomain(; lower = 0.0)
+        "Rate of systemic induction/recovery from exhaustion [1/d]"
+        d_Q ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of innate immunity [1/d]"
+        d_X ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of cellular immunity [1/d]"
+        d_E ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of antigen presenting cells [1/d]"
+        d_P ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of debris [1/d]"
+        d_D ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of ALT [1/d]"
+        d_A ∈ RealDomain(; lower = 0.0)
+        "Max. rate of exhaustion [1/d]"
+        d_E_Q ∈ RealDomain(; lower = 0.0)
+        "Hepatocyte carrying capacity in the liver [cells/mL]"
+        T_max ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for the effect of systemic exhaustion []"
+        ϕ_Q ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for the activation of cellular immunity [cells/mL]"
+        ϕ_E ∈ RealDomain(; lower = 0.0)
+        "Max. inhibitory effect of HBsAg subviral particles on innate immunity []"
+        S_max ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for inhibitory effect of HBsAg subviral particles on the generation of innate immunity [μg/mL]"
+        ϕ_S ∈ RealDomain(; lower = 0.0)
+        "Hill coefficient for describing HBsAg-induced inhibition of innate immunity []"
+        nS ∈ RealDomain()
+        "Threshold of infected hepatocytes to produce dynamical switch from progressive disease to long-lasting control of HBV infection [cells/mL]"
+        I_threshold ∈ RealDomain(; lower = 0.0)
+
+        # Residual errors
+        σ_add_log10_HBsAg ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_HBsAg ∈ RealDomain(lower = 0.0)
+        σ_add_log10_HBV ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_HBV ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_ALT ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_CD8 ∈ RealDomain(lower = 0.0)
     end
 
-    # Parameter specifications (log10 scale)
-    params = DataFrame(
-        id = 1:n,
-        beta = randn(n) .* 0.5 .- 5.0,
-        p_S = randn(n) .* 0.4 .+ 8.0,
-        m = randn(n) .* 0.3 .+ 2.5,
-        k_Z = randn(n) .* 0.4 .- 5.0,
-        convE = randn(n) .* 0.3 .+ 2.5,
-        epsNUC = randn(n) .* 0.5 .- 2.0,
-        epsIFN = randn(n) .* 0.6 .- 1.5,
-        r_E_IFN = randn(n) .* 0.4 .+ 0.3,
-        k_D = randn(n) .* 0.4 .- 4.0
-    )
+    @random begin
+        η ~ MvNormal(Ω)
+    end
 
-    # Calculate baseline HBsAg
-    params[!, :log_hbsag_bl] = 3.0 .+ 0.5 .* (params.p_S .- 8.0)
+    # Time-varying covariates for treatment phases
+    @covariates NA IFN
 
-    return params
+    @pre begin
+        # Individual parameters
+        # Logit-normal distribution of log10(p_S), scaled to range [2, 12]
+        p_S = exp10(10 * logistic(logit((tv_log10_p_S - 2) / 10) + η[1]) + 2)
+        # Logit-normal distribution of log10(β), scaled to range [-10, 0]
+        β = exp10(10 * (logistic(logit(tv_log10_β / 10 + 1) + η[2]) - 1))
+        # Logit-normal distribution of log10(m), scaled to range [-3, 5]
+        m = exp10(8 * logistic(logit((tv_log10_m + 3) / 8) + η[3]) - 3)
+        # Normal distribution of log10(k_P)
+        k_P = exp10(tv_log10_k_P + η[4])
+        # Normal distribution of log10(k_A)
+        k_A = exp10(tv_log10_k_A + η[5])
+        # Logit-normal distribution of log10(ϵ_NA), scaled to range [-5, 0]
+        ϵ_NA = exp10(NA * 5 * (logistic(logit(tv_log10_ϵ_NA / 5 + 1) + η[6]) - 1))
+        # Logit-normal distribution of log10(ϵ_IFN), scaled to range [-5, 0]
+        ϵ_IFN = exp10(IFN * 5 * (logistic(logit(tv_log10_ϵ_IFN / 5 + 1) + η[7]) - 1))
+        # Logit-normal distribution of log10(r_E_IFN), scaled to range [0, 4]
+        r_E_IFN = exp10(IFN * 4 * logistic(logit(tv_log10_r_E_IFN / 4) + η[8]))
+        # Normal distribution
+        conv_E = exp10(tv_log10_conv_E + η[9])
+    end
+
+    # Initial conditions
+    @init begin
+        V = ini_V
+        I = d_V * V / p_V
+        T = T_max - I
+        S = p_S * I / d_V
+        A = ini_A
+    end
+
+    @dynamics begin
+        # Target uninfected hepatocytes
+        T' = -β * V * T + r_T * T * (1 - (T + Ieff + R) / T_max) -
+            d_TI * T + ρ_o_ρ_r * R - (m / n) * r_E_IFN * E * T
+
+        # Infected hepatocytes
+        I' = β * V * T + r_T * I * (1 - (T + I + R) / T_max) -
+            ρ * X * I - d_TI * I - m * r_E_IFN * E * I
+
+        # Resistant hepatocytes
+        R' = ρ * X * Ieff - ρ_o_ρ_r * R + r_T * R * (1 - (T + Ieff + R) / T_max) -
+            d_TI * R - (m / n) * r_E_IFN * E * R
+
+        # Dead cell marker
+        D' = m * r_E_IFN * E * Ieff + (m / n) * r_E_IFN * E * (T + R) - d_D * D
+
+        # Immune response (ALT proxy)
+        A' = d_A * (ini_A - A) + k_A * D
+
+        # HBsAg dynamics
+        S' = p_S * Ieff - d_V * S
+
+        # Viral load (NA and IFN reduce production)
+        V' = p_V * Ieff * ϵ_NA * ϵ_IFN - d_V * V
+
+        # Dendritic cell activation
+        P' = k_P * (Ieff / (ϕ_E + Ieff)) - d_P * P
+
+        # Effector T cells
+        E' = (d_E + r_E * E) * Peff - d_E_Q * E * (Q^4 / (ϕ_Q^4 + Q^4)) - d_E * E
+
+        # Delayed effector signal
+        Q' = d_Q * (Peff - Q)
+
+        # Cytotoxic effect
+        X' = r_X * (1 - X) * (Ieff / (ϕ_E + Ieff)) *
+            (1 - S_max * (HBsAg_ug_mL^nS / (ϕ_S^nS + HBsAg_ug_mL^nS))) - d_X * X
+    end
+
+    @vars begin
+        # Switch between progressive infection (I ≥ I_threshold) and clearance of infection (I < I_threshold)
+        Ieff = ifelse(I < I_threshold, zero(I), I)
+        Peff = ifelse(I < I_threshold, zero(P), P)
+
+        # HBsAg [μg/mL]: Each particle of V and S is assumed to harbor 96 molecules of S envelope protein
+        f_molec2ug := 24000 * 1.0e6 / 6.022e23
+        HBsAg_ug_mL := 96 * (V + S) * f_molec2ug
+    end
+
+    # Error models: Values are log10-transformed
+    @derived begin
+        "HBsAg [IU/mL]"
+        log10_HBsAg ~ @. CombinedNormal(log10(HBsAg_ug_mL / 0.98e-3), σ_add_log10_HBsAg, σ_prop_log10_HBsAg)
+
+        "Viral load [copies/mL]"
+        log10_HBV ~ @. CombinedNormal(log10(V), σ_add_log10_HBV, σ_prop_log10_HBV)
+
+        "ALT [U/L]"
+        log10_ALT ~ @. ProportionalNormal(log10(A), σ_prop_log10_ALT)
+
+        "CD8+ T cell counts [cells/mL]"
+        log10_CD8 ~ @. ProportionalNormal(log10(conv_E * E), σ_prop_log10_CD8)
+    end
 end
-
-# Generate population
-n_vps = 500  # Smaller for tutorial speed
-vpop = generate_hbv_vpop(n_vps; seed=42)
-
-println("Generated $(nrow(vpop)) virtual patients")
-println("Baseline HBsAg: median=$(round(10^median(vpop.log_hbsag_bl), digits=1)) IU/mL")
 ```
 
-## Part 3: Simplified VCT Simulation
-
-For this tutorial, we'll use a simplified analytical model of HBsAg dynamics.
+### Parameters
 
 ```{julia}
-"""
-Simulate HBsAg dynamics for one patient over the VCT.
-
-Returns DataFrame with time and log_HBsAg.
-"""
-function simulate_hbv_patient(
-    patient::DataFrameRow,
-    arm::TreatmentArm;
-    phases::NamedTuple = HBV_PHASES
+#| output: false
+#| code-fold: true
+#| code-summary: "Fixed and estimated parameters"
+hbv_fixed_params = (
+    ini_V = exp10(-0.481),
+    ini_A = exp10(1.25),
+    r_T = 1.0,
+    r_E = 0.1,
+    r_X = 1.0,
+    n = 100,
+    ρ = 0.001,
+    ρ_o_ρ_r = 1.0e-5,
+    p_V = 100.0,
+    d_TI = 0.0039,
+    d_V = 0.67,
+    d_Q = 0.00385,
+    d_X = 0.2,
+    d_E = 0.01,
+    d_P = 0.239,
+    d_D = 1.66,
+    d_A = 0.47,
+    d_E_Q = 0.3,
+    T_max = 1.36e7,
+    ϕ_Q = 0.8,
+    ϕ_E = 100.0,
+    S_max = 1.0,
+    ϕ_S = 0.1473,
+    nS = 0.486,
+    I_threshold = 1.0e-4,
 )
-    # Phase times
-    t1 = phases.untreated
-    t2 = t1 + phases.nuc_background
-    t3 = t2 + phases.treatment
-    t4 = t3 + phases.off_treatment
 
-    # Time points (weekly during treatment, monthly otherwise)
-    times = vcat(
-        collect(0:30:t1),           # Monthly during untreated
-        collect(t1:30:t2),          # Monthly during NUC background
-        collect(t2:7:t3),           # Weekly during treatment
-        collect(t3:7:t4)            # Weekly during off-treatment
-    ) |> sort |> unique
+# IIV standard deviations (on logit/log10 scale)
+ω_p_S = 0.632
+ω_β = 2.489
+ω_m = 0.827
+ω_k_P = 1.292
+ω_k_A = 1.156
+ω_ϵ_NA = 1.583
+ω_ϵ_IFN = 1.626
+ω_r_E_IFN = 2.739
+ω_conv_E = 1.248
 
-    # Extract patient parameters
-    log_S0 = patient.log_hbsag_bl
-    epsNUC = patient.epsNUC
-    epsIFN = patient.epsIFN
-    r_E_IFN = patient.r_E_IFN
-    m = patient.m
+hbv_estimated_params = (;
+    tv_log10_p_S = 7.643,
+    tv_log10_β = -4.358,
+    tv_log10_m = 1.618,
+    tv_log10_k_P = -3.968,
+    tv_log10_k_A = -4.869,
+    tv_log10_ϵ_NA = -1.485,
+    tv_log10_ϵ_IFN = -1.466,
+    tv_log10_r_E_IFN = 0.313,
+    tv_log10_conv_E = 2.745,
 
-    # Simulate HBsAg dynamics
-    log_hbsag = Float64[]
+    Ω = Diagonal([ω_p_S^2, ω_β^2, ω_m^2, ω_k_P^2, ω_k_A^2, ω_ϵ_NA^2, ω_ϵ_IFN^2, ω_r_E_IFN^2, ω_conv_E^2]),
 
-    for t in times
-        if t <= t1
-            # Untreated: stable at baseline
-            push!(log_hbsag, log_S0)
+    σ_add_log10_HBsAg = 0.0972,
+    σ_prop_log10_HBsAg = 2.2204e-16,
+    σ_add_log10_HBV = 0.3206,
+    σ_prop_log10_HBV = 0.0838,
+    σ_prop_log10_ALT = 0.0478,
+    σ_prop_log10_CD8 = 0.4149,
+)
 
-        elseif t <= t2
-            # NUC background: slow decline for suppressed patients
-            dt = t - t1
-            decline = 0.0003 * dt  # Very slow decline
-            push!(log_hbsag, log_S0 - decline)
+hbv_params = merge(hbv_fixed_params, hbv_estimated_params)
+```
 
-        elseif t <= t3
-            # Treatment phase
-            dt = t - t2
-            baseline_at_tx = log_S0 - 0.0003 * (t2 - t1)
+### Copula Sampling and Baseline Simulation
 
-            # Treatment-specific decline rates
-            if arm == CONTROL
-                k = 0.0001
-            elseif arm == NUC_ONLY
-                k = 0.001 * 10^(-epsNUC - 2.0)
-            elseif arm == IFN_ONLY
-                k = 0.002 * 10^(-epsIFN - 1.5) * 10^(r_E_IFN)
-            else  # Combo
-                k = 0.001 * 10^(-epsNUC - 2.0) + 0.002 * 10^(-epsIFN - 1.5) * 10^(r_E_IFN)
-            end
+We sample correlated random effects using the Gaussian copula (see
+[HBV-04](hbv_04_copula_vpop_tutorial.qmd) and [HBV-05](hbv_05_milp_calibration_tutorial.qmd)).
 
-            decline = k * dt
-            push!(log_hbsag, baseline_at_tx - decline)
+```{julia}
+#| output: false
+# Spearman correlation matrix (9×9) from @cortes2025HBV Figure S5B
+Rho = [
+    # p_S     β      m     k_P    k_A    ϵ_NA   ϵ_IFN  r_E_IFN conv_E
+    1.0    0.43   0.46   0.51  -0.7   0.58  -0.14  -0.38    0.0;  # p_S
+    0.43   1.0    0.3  -0.01  -0.5   0.38  -0.52  -0.21    0.0;  # β
+    0.46   0.3   1.0   -0.16  -0.5   0.29   0.07  -0.33    0.0;  # m
+    0.51  -0.01  -0.16   1.0   -0.45   0.25   0.14  -0.1    0.0;  # k_P
+    -0.7  -0.5  -0.5  -0.45   1.0   -0.41   0.01   0.05    0.0;  # k_A
+    0.58   0.38   0.29   0.25  -0.41   1.0   -0.61  -0.36    0.0;  # ϵ_NA
+    -0.14  -0.52   0.07   0.14   0.01  -0.61   1.0    0.26    0.0;  # ϵ_IFN
+    -0.38  -0.21  -0.33  -0.1   0.05  -0.36   0.26   1.0     0.0;  # r_E_IFN
+    0.0    0.0    0.0    0.0    0.0    0.0    0.0    0.0      1.0;  # conv_E
+]
 
-        else
-            # Off-treatment: potential rebound or sustained response
-            dt = t - t3
-            hbsag_at_eot = log_hbsag[end]
+copula = GaussianCopula(Rho)
+correlated_randeffs_dist = SklarDist(
+    copula, (
+        Normal(0, ω_p_S),
+        Normal(0, ω_β),
+        Normal(0, ω_m),
+        Normal(0, ω_k_P),
+        Normal(0, ω_k_A),
+        Normal(0, ω_ϵ_NA),
+        Normal(0, ω_ϵ_IFN),
+        Normal(0, ω_r_E_IFN),
+        Normal(0, ω_conv_E),
+    )
+)
+```
 
-            # Rebound rate depends on treatment response
-            if hbsag_at_eot < log10(0.05)  # Below LOQ
-                # Sustained response
-                push!(log_hbsag, hbsag_at_eot)
-            elseif hbsag_at_eot < log10(100)
-                # Slow rebound
-                rebound = 0.0005 * dt
-                push!(log_hbsag, min(hbsag_at_eot + rebound, log_S0))
-            else
-                # Faster rebound
-                rebound = 0.001 * dt
-                push!(log_hbsag, min(hbsag_at_eot + rebound, log_S0))
-            end
-        end
-    end
+The Everest trial enrolls NA-suppressed patients,
+so baseline HBsAg is the level
+after 5 years of untreated chronic infection followed by 4 years of NA suppression [@cortes2025HBV].
+To reduce computation time in this tutorial, we only generate 500 virtual patients.
+We resample random effects that lead to integration errors:
 
-    return DataFrame(
-        id = fill(patient.id, length(times)),
-        time = times,
-        log_HBsAg = log_hbsag
+```{julia}
+#| output: false
+#| warning: false
+
+# Sample `nvps` virtual patients
+nvps = 500
+baseline_pop = map(1:nvps) do id
+    Subject(;
+        id,
+        covariates = (; NA = [false, true], IFN = [false, false]),
+        covariates_time = [0, hbv_phases.untreated],
     )
 end
+baseline_vrandeffs = map(baseline_pop) do _
+    return (; η = rand(correlated_randeffs_dist))
+end
+
+# Compute baseline HBsAg (after 5 yr chronic infection + 4 year NA suppression)
+baseline_obstimes = [hbv_phases.untreated + hbv_phases.na_background]
+baseline_sims = simobs(hbv_model, baseline_pop, hbv_params, baseline_vrandeffs; simulate_error = false, obstimes = baseline_obstimes)
+
+while true
+    # Check whether all simulations succeeded
+    baseline_invalid = findall(!isvalid, baseline_sims)
+    isempty(baseline_invalid) && break
+
+    # Resample random effects for failed simulation
+    pop = @view(baseline_pop[baseline_invalid])
+    vrandeffs = @view(baseline_vrandeffs[baseline_invalid])
+    map!(vrandeffs, pop) do _
+        return (; η = rand(correlated_randeffs_dist))
+    end
+    baseline_sims[baseline_invalid] = simobs(hbv_model, pop, hbv_params, vrandeffs; simulate_error = false, obstimes = baseline_obstimes)
+end
+
+# Extract vector of baseline HBsAg
+baseline_log10_HBsAg = postprocess((gen, _) -> only(gen.log10_HBsAg), baseline_sims)
 ```
+
+### ILP Calibration to Everest Trial
+
+We calibrate the virtual population to match the baseline HBsAg distribution from the Everest trial
+(see [HBV-05](hbv_05_milp_calibration_tutorial.qmd) for the full ILP theory and derivation):
+
+```{julia}
+# Everest trial baseline HBsAg distribution
+everest_target = DataFrame(
+    hbsag_range = ["<100", "[100, 200)", "[200, 500)", "[500, 1000)", "≥1000"],
+    log10_lower = [-Inf, log10(100), log10(200), log10(500), log10(1000)],
+    log10_upper = [log10(100), log10(200), log10(500), log10(1000), Inf],
+    pct = [37.5, 10.9, 19.1, 21.5, 11.0]
+)
+
+simple_table(everest_target, [:hbsag_range => "HBsAg", :pct => "Target (%)"])
+```
+
+```{julia}
+#| output: false
+# Calibration tolerance
+epsilon = 0.05
+
+# Create optimization model
+ilp = Model(HiGHS.Optimizer)
+set_silent(ilp)
+set_attribute(ilp, "presolve", "on")
+set_time_limit_sec(ilp, 60.0)
+
+# Decision variables
+@variable(ilp, x[1:length(baseline_log10_HBsAg)], Bin)
+
+# Objective: maximize number of selected VPs
+ntotal = sum(x)
+@objective(ilp, Max, ntotal)
+
+# Constraints: distribution matching for each category
+for row in eachrow(everest_target)
+    pc = row.pct / 100
+    nc = sum(x[row.log10_lower .<= baseline_log10_HBsAg .< row.log10_upper])
+    @constraint(ilp, nc <= (pc + epsilon) * ntotal)
+    @constraint(ilp, nc >= (pc - epsilon) * ntotal)
+end
+```
+
+```{julia}
+optimize!(ilp)
+assert_is_solved_and_feasible(ilp)
+solution_summary(ilp)
+```
+
+```{julia}
+#| output: false
+selected_vps = findall(xi -> value(xi) == 1, x)
+calibrated_log10_HBsAg = baseline_log10_HBsAg[selected_vps]
+calibrated_vrandeffs = baseline_vrandeffs[selected_vps]
+```
+
+We compare the baseline HBsAg of the virtual population before and after calibration:
+
+```{julia}
+#| fig-cap: "Before and after ILP calibration to Everest trial baseline HBsAg distribution. The calibrated population (right) closely matches the target."
+df = vcat(
+    DataFrame(; log10_HBsAg = baseline_log10_HBsAg),
+    DataFrame(; log10_HBsAg = calibrated_log10_HBsAg);
+    source = "stage" => ["Original", "Calibrated"],
+)
+data_specs = data(df) * mapping(
+    :log10_HBsAg,
+    col = :stage => sorter("Original", "Calibrated"),
+) * histogram(; bins = vcat(everest_target.log10_lower, everest_target.log10_upper[end]), normalization = :probability)
+target_specs = mapping(
+    collect(Iterators.flatten((row.log10_lower, row.log10_upper) for row in eachrow(everest_target))),
+    repeat(everest_target.pct; inner = 2) ./ 100,
+    group = repeat(1:nrow(everest_target); inner = 2),
+) * visual(Lines; label = "Everest target")
+draw(
+    data_specs + target_specs;
+    axis = (; xlabel = "Baseline HBsAg (log₁₀ IU/mL)", ylabel = "Proportion"),
+)
+```
+
+## Part 3: VCT Simulation
+
+We simulate the full VCT for each treatment arm using the Pumas model with time-varying `NA`
+and `IFN` covariates.
+Each patient goes through the four phases defined in Part 1.
 
 ### Run VCT for All Arms
 
+Biomarkers are measured weekly during treatment and post-treatment, and monthly otherwise:
+
 ```{julia}
-# Run simulation for all arms
-all_results = DataFrame()
+#| output: false
+# Measurement times
+vct_obstimes = unique!(
+    vcat(
+        # Monthly observations during untreated + NA background
+        0:30:hbv_phases.untreated,
+        hbv_phases.untreated .+ (0:30:hbv_phases.na_background),
+        # Weekly observations during treatment and post-treatment
+        (hbv_phases.untreated + hbv_phases.na_background) .+ (0:7:hbv_phases.treatment),
+        (hbv_phases.untreated + hbv_phases.na_background + hbv_phases.treatment) .+ (0:7:hbv_phases.off_treatment),
+    )
+)
 
-arms = [CONTROL, NUC_ONLY, IFN_ONLY, NUC_IFN_COMBO]
-arm_names = ["Control", "NUC", "IFN", "Combo"]
+# Covariate time points
+vct_covariates_time = cumsum([0, hbv_phases.untreated, hbv_phases.na_background, hbv_phases.treatment])
 
-println("Running VCT simulation...")
-for (arm, name) in zip(arms, arm_names)
-    println("  Simulating $name arm...")
-    for row in eachrow(vpop)
-        sim = simulate_hbv_patient(row, arm)
-        sim[!, :arm] .= name
-        append!(all_results, sim)
+# Simulate all treatment arms
+vct_all_sims = mapreduce(vcat, eachrow(treatment_arms)) do arm
+    pop = map(selected_vps) do id
+        return Subject(;
+            id,
+            covariates = (;
+                NA = [false, true, arm.NA, false],
+                IFN = [false, false, arm.IFN, false],
+            ),
+            covariates_time = vct_covariates_time,
+        )
     end
-end
+    sims = simobs(hbv_model, pop, hbv_params, calibrated_vrandeffs; simulate_error = false, obstimes = vct_obstimes)
+    filter!(isvalid, sims)
 
-println("Simulation complete: $(nrow(all_results)) total observations")
+    sims_df = DataFrame(sims)
+    sims_df.arm .= arm.arm
+
+    return sims_df
+end
 ```
 
 ## Part 4: Endpoint Analysis
 
-### Define Endpoints
+### Calculate Functional Cure Rates
+
+Functional cure is defined as HBsAg < 0.05 IU/mL and HBV DNA < 10^1.4 copies/mL
+for 24 weeks post-treatment.
 
 ```{julia}
-# Clinical thresholds
-const LOQ_HBsAg = 0.05  # IU/mL
+# End of treatment
+t_eot = hbv_phases.untreated + hbv_phases.na_background + hbv_phases.treatment
+# End of follow-up
+t_fu = t_eot + hbv_phases.off_treatment
 
-"""
-Check if patient achieved HBsAg loss.
-"""
-function is_hbsag_loss(log_hbsag::Real)
-    return log_hbsag < log10(LOQ_HBsAg)
+fc_df = @by vct_all_sims [:arm, :id] @astable begin
+    t_eot_fu = findall(t -> t_eot <= t <= t_fu, :time)
+    :functional_cure = all(x -> x < log10(0.05), :log10_HBsAg[t_eot_fu]) && all(x -> x < 1.4, :log10_HBV[t_eot_fu])
 end
 
-"""
-Check if patient achieved functional cure.
-(Simplified: sustained HBsAg loss at end of follow-up)
-"""
-function is_functional_cure(log_hbsag_eot::Real, log_hbsag_fu::Real)
-    return log_hbsag_eot < log10(LOQ_HBsAg) && log_hbsag_fu < log10(LOQ_HBsAg)
-end
-
-println("Endpoint Definitions:")
-println("  HBsAg Loss: HBsAg < $(LOQ_HBsAg) IU/mL (log10 < $(round(log10(LOQ_HBsAg), digits=2)))")
-println("  Functional Cure: Sustained HBsAg loss through 24-week follow-up")
+fc_rate_df = @by fc_df :arm :fc_rate = 100 * mean(:functional_cure)
+simple_table(fc_rate_df, [:arm => "Arm", :fc_rate => "Functional Cure (%)"])
 ```
 
-### Calculate Endpoint Rates
+### Confidence Intervals
+
+We compute 95% confidence intervals (Clopper-Pearson) for the complete response rate:
 
 ```{julia}
-# Calculate endpoints for each arm
-t_eot = HBV_PHASES.untreated + HBV_PHASES.nuc_background + HBV_PHASES.treatment
-t_fu = t_eot + HBV_PHASES.off_treatment
-
-endpoint_results = DataFrame(
-    arm = String[],
-    n = Int[],
-    hbsag_loss_eot = Float64[],
-    hbsag_loss_fu = Float64[],
-    functional_cure = Float64[]
-)
-
-for arm_name in arm_names
-    arm_data = @subset(all_results, :arm .== arm_name)
-
-    # Get EOT and FU values for each patient
-    eot_data = @subset(arm_data, :time .== t_eot)
-    fu_data = @subset(arm_data, :time .== t_fu)
-
-    n_patients = length(unique(arm_data.id))
-
-    # HBsAg loss at EOT
-    n_loss_eot = count(is_hbsag_loss, eot_data.log_HBsAg)
-    rate_loss_eot = 100 * n_loss_eot / n_patients
-
-    # HBsAg loss at FU
-    n_loss_fu = count(is_hbsag_loss, fu_data.log_HBsAg)
-    rate_loss_fu = 100 * n_loss_fu / n_patients
-
-    # Functional cure (sustained loss)
-    n_fc = 0
-    for id in unique(arm_data.id)
-        patient_eot = @subset(eot_data, :id .== id)
-        patient_fu = @subset(fu_data, :id .== id)
-        if nrow(patient_eot) > 0 && nrow(patient_fu) > 0
-            if is_functional_cure(patient_eot.log_HBsAg[1], patient_fu.log_HBsAg[1])
-                n_fc += 1
-            end
-        end
-    end
-    rate_fc = 100 * n_fc / n_patients
-
-    push!(endpoint_results, (arm_name, n_patients, rate_loss_eot, rate_loss_fu, rate_fc))
+# Calculate all functional cure rates with CI
+fc_ci_df = @by fc_df :arm @astable begin
+    npatients_total = length(:functional_cure)
+    npatients_fc = sum(:functional_cure)
+    :rate = 100 * npatients_fc / npatients_total
+    :ci = round.(100 .* confint(BinomialTest(npatients_fc, npatients_total); level = 0.95); sigdigits = 3)
 end
 
-println("\nEndpoint Results:")
-simple_table(endpoint_results)
-```
-
-### Bootstrap Confidence Intervals
-
-```{julia}
-"""
-Calculate bootstrap 95% CI for a rate.
-"""
-function bootstrap_ci(data::Vector{Bool}; n_boot::Int=1000)
-    n = length(data)
-    estimates = Float64[]
-
-    for _ in 1:n_boot
-        boot_sample = sample(data, n, replace=true)
-        push!(estimates, 100 * mean(boot_sample))
-    end
-
-    return (
-        estimate = 100 * mean(data),
-        lower = quantile(estimates, 0.025),
-        upper = quantile(estimates, 0.975)
-    )
-end
-
-# Calculate CI for functional cure rates
-fc_ci = DataFrame(
-    arm = String[],
-    rate = Float64[],
-    ci_lower = Float64[],
-    ci_upper = Float64[]
-)
-
-for arm_name in arm_names
-    arm_data = @subset(all_results, :arm .== arm_name)
-    eot_data = @subset(arm_data, :time .== t_eot)
-    fu_data = @subset(arm_data, :time .== t_fu)
-
-    # Create FC indicator for each patient
-    fc_indicators = Bool[]
-    for id in unique(arm_data.id)
-        patient_eot = @subset(eot_data, :id .== id)
-        patient_fu = @subset(fu_data, :id .== id)
-        if nrow(patient_eot) > 0 && nrow(patient_fu) > 0
-            push!(fc_indicators, is_functional_cure(patient_eot.log_HBsAg[1], patient_fu.log_HBsAg[1]))
-        end
-    end
-
-    ci = bootstrap_ci(fc_indicators)
-    push!(fc_ci, (arm_name, ci.estimate, ci.lower, ci.upper))
-end
-
-println("\nFunctional Cure Rates with 95% CI:")
-simple_table(fc_ci)
+simple_table(fc_ci_df, [:arm => "Arm", :rate => "Functional Cure (%)", :ci => "95% CI"])
 ```
 
 ## Part 5: Visualization
@@ -448,102 +630,53 @@ simple_table(fc_ci)
 ### HBsAg Dynamics by Arm
 
 ```{julia}
-#| fig-cap: "HBsAg dynamics by treatment arm. Lines show median; shaded regions show IQR. Green dashed line indicates functional cure threshold."
-
-# Calculate summary statistics by time and arm
-summary_data = @chain all_results begin
-    groupby([:arm, :time])
-    @combine(
-        :median = median(:log_HBsAg),
-        :q25 = quantile(:log_HBsAg, 0.25),
-        :q75 = quantile(:log_HBsAg, 0.75)
-    )
+log10_HBsAg_time_summary = @chain vct_all_sims begin
+    @rsubset !ismissing(:log10_HBsAg)
+    @by [:time, :arm] @astable begin
+        q05, q25, q50, q75, q95 = quantile(:log10_HBsAg, (0.05, 0.25, 0.5, 0.75, 0.95))
+        :median = q50
+        :q25 = q25
+        :q75 = q75
+        :q05 = q05
+        :q95 = q95
+    end
 end
+sort!(log10_HBsAg_time_summary, [:time, :arm])
 
-# Set arm order for consistent plotting
-summary_data.arm = categorical(summary_data.arm, levels = arm_names)
+simple_table(first(log10_HBsAg_time_summary, 10), [:time, :arm => "Arm", :median => "Median", :q25, :q75, :q05, :q95])
+```
 
-# Create AoG plot for median lines
-plt_lines = data(summary_data) *
-    mapping(:time, :median, color = :arm) *
-    visual(Lines, linewidth = 2)
+```{julia}
+#| fig-cap: "HBsAg dynamics by treatment arm. Lines show median; shaded regions show IQR."
+# Time summary
+specs_time_summary = data(log10_HBsAg_time_summary) *
+    mapping(:time => (t -> t / 7) => "Time [week]", color = :arm => sorter("Control", "NA", "IFN", "NA + IFN") => "Arm") * (
+    # IQR band layer
+    mapping(:q25, :q75) * visual(Band; alpha = 0.3) +
+        # Median line layer
+        mapping(:median) * visual(Lines)
+)
+# Reference lines
+specs_references = mapping([log10(0.05)], linestyle = ["Functional cure"] => "Threshold") * visual(HLines)
 
-# Create AoG plot for IQR bands
-plt_band = data(summary_data) *
-    mapping(:time, :q25, :q75, color = :arm) *
-    visual(Band, alpha = 0.2)
-
-# Combine layers
-plt = plt_band + plt_lines
-
-# Define custom colors
-arm_colors = [:gray, :blue, :green, :purple]
-
-fig = Figure(size = (1000, 600))
-ax = Axis(fig[1, 1],
-    xlabel = "Time (days)",
-    ylabel = "log₁₀ HBsAg (IU/mL)",
-    title = "HBsAg Dynamics: Treatment Comparison")
-
-# Draw AoG plot
-ag = draw!(ax, plt, scales(Color = (; palette = arm_colors)))
-
-# Add Makie annotations (not supported in AoG)
-# FC threshold
-hlines!(ax, [log10(0.05)], color = :green, linestyle = :dash, linewidth = 2)
-
-# Phase boundaries
-vlines!(ax, [HBV_PHASES.untreated], color = :gray, linestyle = :dot)
-vlines!(ax, [HBV_PHASES.untreated + HBV_PHASES.nuc_background], color = :gray, linestyle = :dot)
-vlines!(ax, [t_eot], color = :gray, linestyle = :dot)
-
-# Add legend outside plot
-legend!(fig[1, 2], ag)
-
-# Add text annotation for threshold
-text!(ax, t_eot + 50, log10(0.05) + 0.3, text = "FC Threshold",
-      fontsize = 10, color = :green)
-
-fig
+draw(specs_time_summary + specs_references; axis = (; ylabel = "HBsAg (log₁₀ IU/mL)"))
 ```
 
 ### Functional Cure Rate Comparison
 
 ```{julia}
 #| fig-cap: "Functional cure rates by treatment arm with 95% confidence intervals."
-
-# Prepare data with categorical arm for AoG
-fc_ci_plot = copy(fc_ci)
-fc_ci_plot.arm = categorical(fc_ci_plot.arm, levels = arm_names)
-
-# Create bar plot with AoG
-plt_bars = data(fc_ci_plot) *
-    mapping(:arm, :rate, color = :arm) *
-    visual(BarPlot)
-
-# Define custom colors
-arm_colors = [:gray, :blue, :green, :purple]
-
-fig = Figure(size = (800, 450))
-ax = Axis(fig[1, 1],
-    xlabel = "Treatment Arm",
-    ylabel = "Functional Cure Rate (%)",
-    title = "Functional Cure Rates by Treatment",
-    limits = (nothing, (0, 50)))
-
-# Draw AoG plot
-ag = draw!(ax, plt_bars, scales(Color = (; palette = arm_colors)))
-
-# Add error bars with Makie (AoG doesn't support rangebars directly)
-# Get x positions from categorical order
-x_positions = 1:length(arm_names)
-rangebars!(ax, x_positions, fc_ci_plot.ci_lower, fc_ci_plot.ci_upper,
-           color = :black, linewidth = 2, whiskerwidth = 10)
-
-# Legend outside plot
-legend!(fig[1, 2], ag)
-
-fig
+bar_layer = data(fc_ci_df) *
+    mapping(
+    :arm => sorter("Control", "NA", "IFN", "NA + IFN") => "Arm"
+) * (
+    mapping(
+        :rate,
+    ) *
+        visual(BarPlot) +
+        mapping(:ci => first, :ci => last) * visual(Rangebars; color = :black, linewidth = 1.5, whiskerwidth = 8)
+)
+draw(bar_layer; axis = (; ylabel = "Functional cure rate (%)"))
 ```
 
 ### Waterfall Plot
@@ -551,58 +684,33 @@ fig
 ```{julia}
 #| fig-cap: "Waterfall plot: HBsAg change from baseline to end of treatment for combination arm."
 
-# Calculate change from baseline for combo arm
-combo_data = @subset(all_results, :arm .== "Combo")
-
-# Get baseline and EOT for each patient
-changes = DataFrame()
-for id in unique(combo_data.id)
-    patient = @subset(combo_data, :id .== id)
-    bl = @subset(patient, :time .== 0)
-    eot = @subset(patient, :time .== t_eot)
-    if nrow(bl) > 0 && nrow(eot) > 0
-        change = eot.log_HBsAg[1] - bl.log_HBsAg[1]
-        push!(changes, (id = id, change = change))
+# Calculate change from baseline for combination treatment
+# Baseline time
+t_bl = hbv_phases.untreated + hbv_phases.na_background
+# End of treatment
+t_eot = t_bl + hbv_phases.treatment
+vct_combo_change = @chain vct_all_sims begin
+    @rsubset :arm == "NA + IFN"
+    @by :id @astable begin
+        :change = only(:log10_HBsAg[:time .== t_eot]) - only(:log10_HBsAg[:time .== t_bl])
     end
+    @orderby -:change
+    @transform! :rank = 1:length(:change)
 end
+leftjoin!(vct_combo_change, @rsubset(fc_df, :arm == "NA + IFN"); on = "id")
+@rtransform! vct_combo_change :response = :functional_cure ? "Functional cure" : (:change < 0 ? "Partial response" : "No response")
 
-# Sort by change and add rank for x-axis
-sort!(changes, :change)
-changes.rank = 1:nrow(changes)
-
-# Categorize response for coloring
-changes.response = map(changes.change) do c
-    c < log10(0.05) - 3.0 ? "FC Achieved" : (c < 0 ? "Partial Response" : "No Response")
-end
-changes.response = categorical(changes.response, levels = ["FC Achieved", "Partial Response", "No Response"])
-
-# Create AoG waterfall plot
-plt_waterfall = data(changes) *
-    mapping(:rank, :change, color = :response) *
+# Data
+specs_data = data(vct_combo_change) *
+    mapping(
+    :rank => "Patient (sorted by change from baseline)",
+    :change => "Change from baseline HBsAg (log₁₀ IU/mL)",
+    color = :response => sorter("Functional cure", "Partial response", "No response") => "Response",
+) *
     visual(BarPlot, gap = 0)
-
-# Define response colors
-response_colors = [:green, :gray, :red]
-
-fig = Figure(size = (1000, 450))
-ax = Axis(fig[1, 1],
-    xlabel = "Patient (sorted by response)",
-    ylabel = "Change in log₁₀ HBsAg",
-    title = "Waterfall Plot: Combination Arm")
-
-# Draw AoG plot
-ag = draw!(ax, plt_waterfall, scales(Color = (; palette = response_colors)))
-
-# Add reference line with Makie
-hlines!(ax, [0], color = :black, linewidth = 1)
-
-# Simplify x-axis ticks
-ax.xticks = ([1, nrow(changes)], ["1", "$(nrow(changes))"])
-
-# Legend outside plot
-legend!(fig[1, 2], ag)
-
-fig
+draw(
+    specs_data,
+)
 ```
 
 ## Summary
@@ -610,33 +718,25 @@ fig
 ### Key Results
 
 ```{julia}
-println("=" ^ 60)
-println("HBV VIRTUAL CLINICAL TRIAL SUMMARY")
-println("=" ^ 60)
-
-println("\nTreatment Comparison:")
-simple_table(endpoint_results)
-
 # Best arm
-best_arm = fc_ci[argmax(fc_ci.rate), :arm]
-best_rate = maximum(fc_ci.rate)
+fc_ci_df[argmax(fc_ci_df.rate), :arm]
+```
 
-println("\nKey Finding:")
-println("  Best performing arm: $best_arm")
-println("  Functional cure rate: $(round(best_rate, digits=1))%")
-println("\nCombination therapy achieves highest FC rates by combining:")
-println("  - Direct viral suppression (NUC)")
-println("  - Immune enhancement (IFN)")
+```{julia}
+# Best rate
+maximum(fc_ci_df.rate)
 ```
 
 ### VCT Workflow Complete
 
-Congratulations! You have completed the HBV Tutorial Series. You now have the skills to:
+Congratulations!
+You have completed the HBV Tutorial Series.
+You now have the skills to:
 
 1. **Understand HBV biology** and the QSP model structure
-2. **Generate virtual populations** with copula sampling
-3. **Analyze parameter sensitivity** with GSA
-4. **Assess identifiability** for clinical measurements
+2. **Analyze parameter sensitivity** with GSA
+3. **Assess identifiability** for clinical measurements
+4. **Generate virtual populations** with copula sampling
 5. **Calibrate to clinical distributions** with MILP
 6. **Run comprehensive VCTs** with multiple treatment arms
 

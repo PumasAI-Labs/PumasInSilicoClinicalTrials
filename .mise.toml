@@ -1,0 +1,42 @@
+[tools]
+"aqua:quarto-dev/quarto-cli" = "1.8.27"
+rumdl = "0.1.42"
+typos = "1.44.0"
+
+[tasks.deploy]
+description = "Deploy the Quarto site"
+depends = ["render"]
+run = "bash deploy.sh"
+
+[tasks.format-check]
+description = "Check format of all files"
+depends = "format-check-*"
+
+[tasks.format-check-jl]
+description = "Check format of Julia files"
+run = "runic -c ."
+
+[tasks.format-check-md]
+description = "Check format of Markdown files"
+run = "rumdl check ."
+
+[tasks.format-fix]
+description = "Fix format of all files"
+depends = "format-fix-*"
+
+[tasks.format-fix-jl]
+description = "Fix format of Julia files"
+run = "runic -i ."
+
+[tasks.format-fix-md]
+description = "Fix format of Markdown files"
+run = "rumdl fmt ."
+
+[tasks.render]
+description = "Render the Quarto site only (no deployment)"
+depends = ["format-check", "typos-check"]
+run = "quarto render"
+
+[tasks.typos-check]
+description = "Check typos"
+run = "typos ."

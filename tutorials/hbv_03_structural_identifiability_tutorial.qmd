@@ -1,0 +1,541 @@
+---
+title: "Structural Identifiability Analysis"
+subtitle: "Which Parameters Can We Estimate from Clinical Measurements?"
+author:
+  - Vijay Ivaturi
+  - David Müller-Widmann
+julia:
+  exeflags: ["+Pumas@2.8.1", "--project=@.", "--threads=auto"]
+---
+
+:::{.callout-note}
+## HBV Tutorial Series
+
+This is **Tutorial 3 of 6** in the HBV series.
+
+| # | Tutorial | Status |
+|---|----------|--------|
+| 1 | [Model Introduction](hbv_01_model_introduction_tutorial.qmd) | ✓ Complete |
+| 2 | [Global Sensitivity Analysis](hbv_02_gsa_tutorial.qmd) | ✓ Complete |
+| 3 | **Structural Identifiability (current)** | ← You are here |
+| 4 | [Copula Vpop Generation](hbv_04_copula_vpop_tutorial.qmd) | |
+| 5 | [MILP Calibration](hbv_05_milp_calibration_tutorial.qmd) | |
+| 6 | [VCT Simulation](hbv_06_vct_simulation_tutorial.qmd) | |
+
+:::
+
+## Learning Outcomes
+
+For the theory behind structural identifiability (definitions, classifications,
+why it matters before estimation),
+see [TB-03: Structural Identifiability](tb_03_structural_identifiability_tutorial.qmd).
+
+In this tutorial, you will learn:
+
+- How to handle **non-rational ODE terms**
+  that `StructuralIdentifiability.jl` cannot process directly
+- How to reformulate a Hill function with a non-integer exponent
+  into a rational system via an auxiliary state variable
+- How different **measurement scenarios** affect identifiability
+  in a large QSP model (11 ODEs, 9 estimated parameters)
+
+:::{.callout-tip}
+## Prerequisites
+
+This tutorial builds on:
+
+- **[HBV-01](hbv_01_model_introduction_tutorial.qmd)**:
+  HBV model structure (22 fixed + 9 estimated parameters)
+- **[TB-03](tb_03_structural_identifiability_tutorial.qmd)**:
+  Structural identifiability theory and `StructuralIdentifiability.jl` workflow
+:::
+
+## Libraries
+
+```{julia}
+#| output: false
+using Pumas
+using ModelingToolkit
+using StructuralIdentifiability
+using AlgebraOfGraphics
+using CairoMakie
+using DataFramesMeta
+using SummaryTables
+
+import Logging
+```
+
+## Part 1: Rational Reformulation of the HBV Model
+
+### The Non-Rational Function Problem
+
+The HBV model from [HBV-01](hbv_01_model_introduction_tutorial.qmd) contains a Hill function in the
+`X'` equation with a non-integer exponent `nS = 0.486`:
+
+```julia
+X' = r_X * (1 - X) * (I / (ϕ_E + I)) *
+    (1 - S_max * (HBsAg_ug_mL^nS / (ϕ_S^nS + HBsAg_ug_mL^nS))) - d_X * X
+```
+
+where `HBsAg_ug_mL = c * (V + S)` is a linear function of state variables `V` and `S`
+and `c = 96 · 24000 · 1e6 / 6.022e23` is a known unit-conversion constant.
+
+`StructuralIdentifiability.jl` requires the ODE right-hand side to be a quotient of polynomials
+(i.e., **rational**).
+The term `(V + S)^0.486` violates this requirement.
+
+### Auxiliary Variable Trick
+
+To resolve this problem, we introduce an auxiliary state variable:
+
+$$H(t) = \bigl(c \cdot (V(t) + S(t))\bigr)^{n_S}$$
+
+By the chain rule:
+
+$$H'(t) = n_S \bigl(c \cdot (V(t) + S(t))\bigr)^{n_S - 1} \cdot c \cdot (V'(t) + S'(t)) = n_S \cdot H(t) \cdot \frac{V'(t) + S'(t)}{V(t) + S(t)}$$
+
+Substituting the ODEs for $V(t)$
+($V'(t) = p_V \epsilon_\text{NA} \epsilon_\text{IFN} I(t) - d_V V(t)$) and $S(t)$
+($S'(t) = p_S I(t) - d_V S(t)$):
+
+$$H'(t) = n_S \cdot H \cdot \frac{(p_V \epsilon_\text{NA} \epsilon_\text{IFN} + p_S) I(t) - d_V (V(t) + S(t))}{V(t) + S(t)}$$
+
+This right-hand side is **rational** in $H(t)$, $I(t)$, $V(t)$, $S(t)$ and the parameters.
+
+The Hill function in the differential equation for $X'(t)$ becomes $H(t) / (\psi + H(t))$
+where $\psi = \phi_S^{n_S}$ is a known constant — also **rational**.
+
+### Model Definition
+
+We reuse the HBV model from [HBV-01](hbv_01_model_introduction_tutorial.qmd) with two modifications:
+
+1. The Hill function in `X'` is replaced by `H / (ψ + H)`
+2. An ODE for the auxiliary variable `H` is added
+
+As in [HBV-02](hbv_02_gsa_tutorial.qmd),
+we use `I` and `P` directly without the `Ieff`/`Peff` threshold switch
+as such conditionals are not supported by StructuralIdentifiability.jl.
+
+```{julia}
+hbv_si_model = @model begin
+    @param begin
+        # Estimated parameters (log10 scale)
+        "Production/synthesis rate of HBsAg subviral particles from infected hepatocytes [molec./cell/d]"
+        tv_log10_p_S ∈ RealDomain(; lower = 2, upper = 12)
+        "HBV infectivity [mL/virus/d]"
+        tv_log10_β ∈ RealDomain(; lower = -10, upper = 0)
+        "Killing rate of infected hepatocytes by cellular immunity [mL/cells/d]"
+        tv_log10_m ∈ RealDomain(; lower = -3, upper = 5)
+        "Synthesis rate of antigen presenting cells [cells/d]"
+        tv_log10_k_P ∈ RealDomain()
+        "Synthesis rate of ALT from debris hepatocytes [10^3 U/cells/d]"
+        tv_log10_k_A ∈ RealDomain()
+        "PD efficacy of NA on HBV production []"
+        tv_log10_ϵ_NA ∈ RealDomain(; lower = -5, upper = 0)
+        "PD efficacy of IFNα on HBV production []"
+        tv_log10_ϵ_IFN ∈ RealDomain(; lower = -5, upper = 0)
+        "PD efficacy of IFNα on activation of cellular immunity []"
+        tv_log10_r_E_IFN ∈ RealDomain(; lower = 0, upper = 4)
+        "Scaling factor for observed effector CD4/8 T cell numbers []"
+        tv_log10_conv_E ∈ RealDomain()
+
+        # IIV of estimated parameters in log10 scale
+        Ω ∈ PDiagDomain(9)
+
+        # Fixed parameters
+        "Baseline of HBV [copies/mL]"
+        ini_V ∈ RealDomain(; lower = 0.0)
+        "Baseline of ALT [U/L]"
+        ini_A ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of uninfected hepatocytes [1/d]"
+        r_T ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of cellular immunity [1/d]"
+        r_E ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of innate immunity [1/d]"
+        r_X ∈ RealDomain(; lower = 0.0)
+        "Fraction of cellular immunity that killing uninfected and refractory cells []"
+        n ∈ RealDomain(; lower = 0.0)
+        "Max. rate of conversion of infected cells to refractory cells due to the action of innate immunity [1/d]"
+        ρ ∈ RealDomain(; lower = 0.0)
+        "Max. rate of conversion of refractory cells back to target cells in the absence of innate immune responses []"
+        ρ_o_ρ_r ∈ RealDomain(; lower = 0.0)
+        "Production/synthesis rate of HBV from infected hepatocytes [virus/cell/d]"
+        p_V ∈ RealDomain(; lower = 0.0)
+        "Death rate of infected hepatocytes [1/d]"
+        d_TI ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of HBV HBsAg subviral particles [1/d]"
+        d_V ∈ RealDomain(; lower = 0.0)
+        "Rate of systemic induction/recovery from exhaustion [1/d]"
+        d_Q ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of innate immunity [1/d]"
+        d_X ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of cellular immunity [1/d]"
+        d_E ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of antigen presenting cells [1/d]"
+        d_P ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of debris [1/d]"
+        d_D ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of ALT [1/d]"
+        d_A ∈ RealDomain(; lower = 0.0)
+        "Max. rate of exhaustion [1/d]"
+        d_E_Q ∈ RealDomain(; lower = 0.0)
+        "Hepatocyte carrying capacity in the liver [cells/mL]"
+        T_max ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for the effect of systemic exhaustion []"
+        ϕ_Q ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for the activation of cellular immunity [cells/mL]"
+        ϕ_E ∈ RealDomain(; lower = 0.0)
+        "Max. inhibitory effect of HBsAg subviral particles on innate immunity []"
+        S_max ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for inhibitory effect of HBsAg subviral particles on the generation of innate immunity [μg/mL]"
+        ϕ_S ∈ RealDomain(; lower = 0.0)
+        "Hill coefficient for describing HBsAg-induced inhibition of innate immunity []"
+        nS ∈ RealDomain()
+
+        # Residual errors
+        σ_add_log10_HBsAg ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_HBsAg ∈ RealDomain(lower = 0.0)
+        σ_add_log10_HBV ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_HBV ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_ALT ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_CD8 ∈ RealDomain(lower = 0.0)
+    end
+
+    @random begin
+        η ~ MvNormal(Ω)
+    end
+
+    @covariates NA IFN
+
+    @pre begin
+        # Logit-normal distribution of log10(p_S), scaled to range [2, 12]
+        p_S = exp10(10 * logistic(logit((tv_log10_p_S - 2) / 10) + η[1]) + 2)
+        # Logit-normal distribution of log10(β), scaled to range [-10, 0]
+        β = exp10(10 * (logistic(logit(tv_log10_β / 10 + 1) + η[2]) - 1))
+        # Logit-normal distribution of log10(m), scaled to range [-3, 5]
+        m = exp10(8 * logistic(logit((tv_log10_m + 3) / 8) + η[3]) - 3)
+        # Normal distribution of log10(k_P)
+        k_P = exp10(tv_log10_k_P + η[4])
+        # Normal distribution of log10(k_A)
+        k_A = exp10(tv_log10_k_A + η[5])
+        # Logit-normal distribution of log10(ϵ_NA), scaled to range [-5, 0]
+        ϵ_NA = exp10(NA * 5 * (logistic(logit(tv_log10_ϵ_NA / 5 + 1) + η[6]) - 1))
+        # Logit-normal distribution of log10(ϵ_IFN), scaled to range [-5, 0]
+        ϵ_IFN = exp10(IFN * 5 * (logistic(logit(tv_log10_ϵ_IFN / 5 + 1) + η[7]) - 1))
+        # Logit-normal distribution of log10(r_E_IFN), scaled to range [0, 4]
+        r_E_IFN = exp10(IFN * 4 * logistic(logit(tv_log10_r_E_IFN / 4) + η[8]))
+        # Normal distribution
+        conv_E = exp10(tv_log10_conv_E + η[9])
+
+        # Precompute ψ = ϕ_S^nS for the rational Hill function
+        ψ = ϕ_S^nS
+    end
+
+    @init begin
+        V = ini_V
+        I = d_V * ini_V / p_V
+        T = T_max - d_V * ini_V / p_V
+        S = p_S * ini_V / p_V
+        A = ini_A
+        H = (96 * 24000.0e6 / 6.022e23 * (ini_V + p_S * ini_V / p_V))^nS
+    end
+
+    @dynamics begin
+        T' = -β * V * T + r_T * T * (1 - (T + I + R) / T_max) -
+            d_TI * T + ρ_o_ρ_r * R - (m / n) * r_E_IFN * E * T
+        I' = β * V * T + r_T * I * (1 - (T + I + R) / T_max) -
+            ρ * X * I - d_TI * I - m * r_E_IFN * E * I
+        R' = ρ * X * I - ρ_o_ρ_r * R + r_T * R * (1 - (T + I + R) / T_max) -
+            d_TI * R - (m / n) * r_E_IFN * E * R
+        D' = m * r_E_IFN * E * I + (m / n) * r_E_IFN * E * (T + R) - d_D * D
+        A' = d_A * (ini_A - A) + k_A * D
+        S' = p_S * I - d_V * S
+        V' = p_V * I * ϵ_NA * ϵ_IFN - d_V * V
+        P' = k_P * (I / (ϕ_E + I)) - d_P * P
+        E' = (d_E + r_E * E) * P - d_E_Q * E * (Q^4 / (ϕ_Q^4 + Q^4)) - d_E * E
+        Q' = d_Q * (P - Q)
+
+        # MODIFIED: rational Hill function via auxiliary variable H
+        X' = r_X * (1 - X) * (I / (ϕ_E + I)) *
+            (1 - S_max * (H / (ψ + H))) - d_X * X
+
+        # NEW: auxiliary variable H = (c * (V + S))^nS
+        H' = nS * H * ((p_V * ϵ_NA * ϵ_IFN + p_S) * I - d_V * (V + S)) / (V + S)
+    end
+
+    @vars begin
+        f_molec2ug := 24000 * 1.0e6 / 6.022e23
+        HBsAg_ug_mL := 96 * (V + S) * f_molec2ug
+    end
+
+    # Error models: Values are log10-transformed
+    @derived begin
+        "HBsAg [IU/mL]"
+        log10_HBsAg ~ @. CombinedNormal(log10(max(0, HBsAg_ug_mL) / 0.98e-3), σ_add_log10_HBsAg, σ_prop_log10_HBsAg)
+
+        "Viral load [copies/mL]"
+        log10_HBV ~ @. CombinedNormal(log10(max(0, V)), σ_add_log10_HBV, σ_prop_log10_HBV)
+
+        "ALT [U/L]"
+        log10_ALT ~ @. ProportionalNormal(log10(max(0, A)), σ_prop_log10_ALT)
+
+        "CD8+ T cell counts [cells/mL]"
+        log10_CD8 ~ @. ProportionalNormal(log10(conv_E * max(0, E)), σ_prop_log10_CD8)
+    end
+end
+```
+
+### Extract ODE System
+
+```{julia}
+ode_system = hbv_si_model.sys
+```
+
+## Part 2: Running Identifiability Analysis
+
+### Define Measurement Scenarios
+
+We define three clinically motivated scenarios.
+Monotonic transformations (log₁₀)
+and known scaling constants do not affect structural identifiability,
+so we use the raw state variables as measurements.
+
+```{julia}
+#| output: false
+t = ModelingToolkit.independent_variable(ode_system)
+@variables y_HBsAg(t) y_HBV(t) y_ALT(t) y_CD8(t)
+```
+
+**Scenario A (Routine clinical):** HBsAg + HBV DNA
+
+```{julia}
+#| output: false
+scenario_A = [
+    y_HBsAg ~ ode_system.V + ode_system.S
+    y_HBV ~ ode_system.V
+]
+```
+
+**Scenario B (Standard + ALT):** HBsAg + HBV DNA + ALT
+
+```{julia}
+#| output: false
+scenario_B = [
+    y_HBsAg ~ ode_system.V + ode_system.S
+    y_HBV ~ ode_system.V
+    y_ALT ~ ode_system.A
+]
+```
+
+**Scenario C (All observables):** HBsAg + HBV DNA + ALT + CD8
+
+```{julia}
+#| output: false
+scenario_C = [
+    y_HBsAg ~ ode_system.V + ode_system.S
+    y_HBV ~ ode_system.V
+    y_ALT ~ ode_system.A
+    y_CD8 ~ ode_system.conv_E * ode_system.E
+]
+```
+
+### Estimated Parameters
+
+We are interested in studying the identifiability of the estimated parameters:
+
+```{julia}
+estimated_params = [
+    ode_system.p_S, ode_system.β, ode_system.m, ode_system.k_A, ode_system.k_P, ode_system.ϵ_NA, ode_system.ϵ_IFN, ode_system.r_E_IFN, ode_system.conv_E,
+]
+```
+
+### Known Parameters as Measurements
+
+All fixed parameters are assumed to be known (measured or taken from literature).
+To communicate this to `StructuralIdentifiability.jl`, we include them as measured quantities.
+
+```{julia}
+#| output: false
+@variables begin
+    y_ini_V
+    y_ini_A
+    y_r_T
+    y_r_E
+    y_r_X
+    y_n
+    y_ρ
+    y_ρ_o_ρ_r
+    y_p_V
+    y_d_TI
+    y_d_V
+    y_d_Q
+    y_d_X
+    y_d_E
+    y_d_P
+    y_d_D
+    y_d_A
+    y_d_E_Q
+    y_T_max
+    y_ϕ_Q
+    y_ϕ_E
+    y_S_max
+    y_nS
+    y_ψ
+end
+measured_fixed = [
+    y_ini_V ~ ode_system.ini_V,
+    y_ini_A ~ ode_system.ini_A,
+    y_r_T ~ ode_system.r_T,
+    y_r_E ~ ode_system.r_E,
+    y_r_X ~ ode_system.r_X,
+    y_n ~ ode_system.n,
+    y_ρ ~ ode_system.ρ,
+    y_ρ_o_ρ_r ~ ode_system.ρ_o_ρ_r,
+    y_p_V ~ ode_system.p_V,
+    y_d_TI ~ ode_system.d_TI,
+    y_d_V ~ ode_system.d_V,
+    y_d_Q ~ ode_system.d_Q,
+    y_d_X ~ ode_system.d_X,
+    y_d_E ~ ode_system.d_E,
+    y_d_P ~ ode_system.d_P,
+    y_d_D ~ ode_system.d_D,
+    y_d_A ~ ode_system.d_A,
+    y_d_E_Q ~ ode_system.d_E_Q,
+    y_T_max ~ ode_system.T_max,
+    y_ϕ_Q ~ ode_system.ϕ_Q,
+    y_ϕ_E ~ ode_system.ϕ_E,
+    y_S_max ~ ode_system.S_max,
+    y_nS ~ ode_system.nS,
+    y_ψ ~ ode_system.ψ,
+]
+```
+
+### Run Local Identifiability Analysis
+
+For a 12-state, 9-parameter system, we start with `assess_local_identifiability` (rank-based,
+fast) before attempting the more expensive global analysis.
+
+```{julia}
+result_local_A = assess_local_identifiability(
+    ode_system;
+    measured_quantities = vcat(scenario_A, measured_fixed),
+    funcs_to_check = estimated_params,
+    loglevel = Logging.Warn,
+)
+```
+
+```{julia}
+result_local_B = assess_local_identifiability(
+    ode_system;
+    measured_quantities = vcat(scenario_B, measured_fixed),
+    funcs_to_check = estimated_params,
+    loglevel = Logging.Warn,
+)
+```
+
+```{julia}
+result_local_C = assess_local_identifiability(
+    ode_system;
+    measured_quantities = vcat(scenario_C, measured_fixed),
+    funcs_to_check = estimated_params,
+    loglevel = Logging.Warn,
+)
+```
+
+## Part 3: Interpreting Results
+
+### Compile Results
+
+```{julia}
+function result_to_df(result, scenario_name)
+    return DataFrame(
+        parameter = [string(p) for p in keys(result)],
+        local_identifiable = collect(values(result)),
+        scenario = scenario_name,
+    )
+end
+
+all_results = vcat(
+    result_to_df(result_local_A, "A: HBsAg + DNA"),
+    result_to_df(result_local_B, "B: + ALT"),
+    result_to_df(result_local_C, "C: + CD8"),
+)
+
+simple_table(
+    all_results,
+    [
+        :parameter => "Parameter",
+        :local_identifiable => "Locally identifiable",
+        :scenario => "Measurement scenario",
+    ],
+)
+```
+
+## Part 4: Visualization
+
+### Identifiability Status by Scenario
+
+```{julia}
+#| fig-cap: "HBV Model: How measurement choice affects identifiability. Orange = locally identifiable (finite solutions), Red = non-identifiable (infinite solutions)."
+specs = data(all_results) *
+    mapping(
+    :parameter => "Parameter",
+    :scenario => sorter("C: + CD8", "B: + ALT", "A: HBsAg + DNA") => "Measurement Scenario",
+    color = :local_identifiable => sorter(true, false) => "Locally identifiable",
+) * visual(Scatter; markersize = 30, marker = :rect)
+draw(
+    specs,
+    scales(Color = (; palette = [:orange, :red]));
+    axis = (; xticklabelrotation = π / 4),
+)
+```
+
+### Summary: Impact of Measurements
+
+```{julia}
+#| fig-cap: "Adding measurements increases the percentage of locally identifiable parameters."
+result_counts = @by all_results [:scenario, :local_identifiable] begin
+    :count = length(:parameter)
+end
+status_mapping = :local_identifiable => sorter(true, false) => "Locally identifiable"
+specs = data(result_counts) * mapping(
+    :scenario => sorter("A: HBsAg + DNA", "B: + ALT", "C: + CD8") => "Measurement Scenario",
+    :count => "Number of Parameters",
+    stack = status_mapping,
+    color = status_mapping,
+) * visual(BarPlot)
+draw(specs, scales(Color = (; palette = [:green, :orange, :red])))
+```
+
+## Summary
+
+### Key Takeaways
+
+1. **Non-rational functions** (e.g., Hill functions with non-integer exponents)
+   can be handled by introducing auxiliary state variables
+   whose derivatives are rational
+
+2. **Measurement scenario matters:**
+   Adding clinical biomarkers (ALT, CD8 counts) can make
+   previously non-identifiable parameters identifiable
+
+3. **Local analysis first:**
+   For complex QSP models,
+   start with `assess_local_identifiability` (fast screening)
+   before running the more expensive global analysis
+
+### Quick Reference: Key Functions
+
+| Function | Purpose |
+|:---------|:--------|
+| `assess_local_identifiability()` | Fast local analysis (identifiable yes/no) |
+
+### What's Next?
+
+In [Tutorial 4: Copula Vpop Generation](hbv_04_copula_vpop_tutorial.qmd),
+we'll generate a virtual population for the HBV model using Gaussian copula sampling.
+
+### References
+
+::: {#refs}
+:::

@@ -1,0 +1,49 @@
+---
+title: "In-Silico Clinical Trials with NLME Models"
+number-sections: false
+---
+
+A Julia/Pumas implementation of the In Silico Clinical Trial (ISCT) workflow from:
+
+> **"A Step-by-Step Workflow for Performing In Silico Clinical Trials With Nonlinear Mixed Effects
+> Models"** Cortés-Ríos et al., CPT: Pharmacometrics & Systems Pharmacology (2025)
+> [DOI: 10.1002/psp4.70122](https://doi.org/10.1002/psp4.70122)
+
+## Workflow Overview
+
+The tutorials on this site walk through the six steps of the ISCT workflow:
+
+1. **Model introduction** — Define the pharmacometric or QSP model in Pumas
+2. **Global sensitivity analysis** — Identify influential parameters via Sobol and eFAST methods
+3. **Structural identifiability analysis** —
+   Assess whether model parameters are identifiable from outputs
+4. **Copula-based virtual population generation** —
+   Sample plausible parameter sets using Gaussian copulas
+5. **MILP calibration** — Calibrate the virtual population to clinical distributions using
+   mixed-integer linear programming
+6. **Virtual clinical trial simulation** —
+   Run multi-arm VCT simulations with the calibrated population
+
+## Case Studies
+
+### Tumor Burden Model
+
+A 3-parameter tumor burden model used as an introductory example:
+
+- [Model Introduction](tutorials/tb_01_model_introduction_tutorial.qmd)
+- [Global Sensitivity Analysis](tutorials/tb_02_gsa_tutorial.qmd)
+- [Structural Identifiability Analysis](tutorials/tb_03_structural_identifiability_tutorial.qmd)
+- [Copula Virtual Population](tutorials/tb_04_copula_vpop_tutorial.qmd)
+- [MILP-Based Virtual Population Calibration](tutorials/tb_05_milp_calibration_tutorial.qmd)
+- [Virtual Clinical Trial Simulation](tutorials/tb_06_vct_simulation_tutorial.qmd)
+
+### HBV QSP Model
+
+An 11-ODE hepatitis B virus QSP model that demonstrates the workflow on a more complex system:
+
+- [Model Introduction](tutorials/hbv_01_model_introduction_tutorial.qmd)
+- [Global Sensitivity Analysis](tutorials/hbv_02_gsa_tutorial.qmd)
+- [Structural Identifiability Analysis](tutorials/hbv_03_structural_identifiability_tutorial.qmd)
+- [Copula Virtual Population](tutorials/hbv_04_copula_vpop_tutorial.qmd)
+- [MILP-Based Virtual Population Calibration](tutorials/hbv_05_milp_calibration_tutorial.qmd)
+- [Virtual Clinical Trial Simulation](tutorials/hbv_06_vct_simulation_tutorial.qmd)

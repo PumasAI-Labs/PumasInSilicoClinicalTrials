@@ -1,0 +1,653 @@
+---
+title: "Virtual Population Generation using Gaussian Copulas"
+subtitle: "Generating Realistic HBV Virtual Patients"
+author:
+  - Vijay Ivaturi
+  - David Müller-Widmann
+julia:
+  exeflags: ["+Pumas@2.8.1", "--project=@.", "--threads=auto"]
+---
+
+:::{.callout-note}
+## HBV Tutorial Series
+
+This is **Tutorial 4 of 6** in the HBV series.
+
+| # | Tutorial | Status |
+|---|----------|--------|
+| 1 | [Model Introduction](hbv_01_model_introduction_tutorial.qmd) | ✓ Complete |
+| 2 | [Global Sensitivity Analysis](hbv_02_gsa_tutorial.qmd) | ✓ Complete |
+| 3 | [Structural Identifiability](hbv_03_structural_identifiability_tutorial.qmd) | ✓ Complete |
+| 4 | **Copula Vpop Generation (current)** | ← You are here |
+| 5 | [MILP Calibration](hbv_05_milp_calibration_tutorial.qmd) | |
+| 6 | [VCT Simulation](hbv_06_vct_simulation_tutorial.qmd) | |
+
+:::
+
+## Learning Outcomes
+
+In this tutorial, you will learn how to generate a virtual population
+for the HBV model using Gaussian copula sampling.
+For the theory behind copulas and why correlated sampling matters,
+see [TB-04: Copula Vpop Generation](tb_04_copula_vpop_tutorial.qmd).
+
+In this tutorial, you will learn:
+
+- How to specify the 8 correlated HBV parameters
+  and their NLME-estimated correlations [@cortes2025HBV]
+- How to apply the Gaussian copula algorithm to a complex QSP model with 9 random effects
+- How to validate that the generated population preserves target correlations
+  and marginal distributions
+- How to visualize the virtual population characteristics
+
+:::{.callout-tip}
+## Prerequisites
+
+This tutorial builds on:
+
+- **[HBV-01](hbv_01_model_introduction_tutorial.qmd)**:
+  HBV model structure and parameters
+- **[TB-04](tb_04_copula_vpop_tutorial.qmd)**:
+  Detailed copula theory (we reference, not repeat)
+:::
+
+## Libraries
+
+```{julia}
+#| output: false
+using Pumas
+using Copulas
+using AlgebraOfGraphics
+using CairoMakie
+using PairPlots
+using StatsBase
+using SummaryTables
+
+using LinearAlgebra
+using Random
+using Statistics
+
+# Set seed for reproducibility
+Random.seed!(42)
+```
+
+## Part 1: HBV Model and Parameter Specifications
+
+### Model
+
+The HBV QSP model [@cortes2025HBV] is an 11-ODE system with 9 estimated parameters
+and 23 fixed parameters.
+For details on the model biology and parameters,
+see [HBV-01: Model Introduction](hbv_01_model_introduction_tutorial.qmd).
+
+```{julia}
+hbv_model = @model begin
+    @param begin
+        # Estimated parameters (log10 scale)
+        "Production/synthesis rate of HBsAg subviral particles from infected hepatocytes [molec./cell/d]"
+        tv_log10_p_S ∈ RealDomain(; lower = 2, upper = 12)
+        "HBV infectivity [mL/virus/d]"
+        tv_log10_β ∈ RealDomain(; lower = -10, upper = 0)
+        "Killing rate of infected hepatocytes by cellular immunity [mL/cells/d]"
+        tv_log10_m ∈ RealDomain(; lower = -3, upper = 5)
+        "Synthesis rate of antigen presenting cells [cells/d]"
+        tv_log10_k_P ∈ RealDomain()
+        "Synthesis rate of ALT from debris hepatocytes [10^3 U/cells/d]"
+        tv_log10_k_A ∈ RealDomain()
+        "PD efficacy of NA on HBV production []"
+        tv_log10_ϵ_NA ∈ RealDomain(; lower = -5, upper = 0)
+        "PD efficacy of IFNα on HBV production []"
+        tv_log10_ϵ_IFN ∈ RealDomain(; lower = -5, upper = 0)
+        "PD efficacy of IFNα on activation of cellular immunity []"
+        tv_log10_r_E_IFN ∈ RealDomain(; lower = 0, upper = 4)
+        "Scaling factor for observed effector CD4/8 T cell numbers []"
+        tv_log10_conv_E ∈ RealDomain()
+
+        # IIV of estimated parameters in log10 scale
+        Ω ∈ PDiagDomain(9)
+
+        # Fixed parameters
+        "Baseline of HBV [copies/mL]"
+        ini_V ∈ RealDomain(; lower = 0.0)
+        "Baseline of ALT [U/L]"
+        ini_A ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of uninfected hepatocytes [1/d]"
+        r_T ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of cellular immunity [1/d]"
+        r_E ∈ RealDomain(; lower = 0.0)
+        "Max. proliferation rate of innate immunity [1/d]"
+        r_X ∈ RealDomain(; lower = 0.0)
+        "Fraction of cellular immunity that killing uninfected and refractory cells []"
+        n ∈ RealDomain(; lower = 0.0)
+        "Max. rate of conversion of infected cells to refractory cells due to the action of innate immunity [1/d]"
+        ρ ∈ RealDomain(; lower = 0.0)
+        "Max. rate of conversion of refractory cells back to target cells in the absence of innate immune responses []"
+        ρ_o_ρ_r ∈ RealDomain(; lower = 0.0)
+        "Production/synthesis rate of HBV from infected hepatocytes [virus/cell/d]"
+        p_V ∈ RealDomain(; lower = 0.0)
+        "Death rate of infected hepatocytes [1/d]"
+        d_TI ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of HBV HBsAg subviral particles [1/d]"
+        d_V ∈ RealDomain(; lower = 0.0)
+        "Rate of systemic induction/recovery from exhaustion [1/d]"
+        d_Q ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of innate immunity [1/d]"
+        d_X ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of cellular immunity [1/d]"
+        d_E ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of antigen presenting cells [1/d]"
+        d_P ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of debris [1/d]"
+        d_D ∈ RealDomain(; lower = 0.0)
+        "Degradation/clearance of ALT [1/d]"
+        d_A ∈ RealDomain(; lower = 0.0)
+        "Max. rate of exhaustion [1/d]"
+        d_E_Q ∈ RealDomain(; lower = 0.0)
+        "Hepatocyte carrying capacity in the liver [cells/mL]"
+        T_max ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for the effect of systemic exhaustion []"
+        ϕ_Q ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for the activation of cellular immunity [cells/mL]"
+        ϕ_E ∈ RealDomain(; lower = 0.0)
+        "Max. inhibitory effect of HBsAg subviral particles on innate immunity []"
+        S_max ∈ RealDomain(; lower = 0.0)
+        "Half-maximal (saturation) parameter for inhibitory effect of HBsAg subviral particles on the generation of innate immunity [μg/mL]"
+        ϕ_S ∈ RealDomain(; lower = 0.0)
+        "Hill coefficient for describing HBsAg-induced inhibition of innate immunity []"
+        nS ∈ RealDomain()
+        "Threshold of infected hepatocytes to produce dynamical switch from progressive disease to long-lasting control of HBV infection [cells/mL]"
+        I_threshold ∈ RealDomain(; lower = 0.0)
+
+        # Residual errors
+        σ_add_log10_HBsAg ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_HBsAg ∈ RealDomain(lower = 0.0)
+        σ_add_log10_HBV ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_HBV ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_ALT ∈ RealDomain(lower = 0.0)
+        σ_prop_log10_CD8 ∈ RealDomain(lower = 0.0)
+    end
+
+    @random begin
+        η ~ MvNormal(Ω)
+    end
+
+    # Time-varying covariates for treatment phases
+    @covariates NA IFN
+
+    @pre begin
+        # Individual parameters
+        # Logit-normal distribution of log10(p_S), scaled to range [2, 12]
+        p_S = exp10(10 * logistic(logit((tv_log10_p_S - 2) / 10) + η[1]) + 2)
+        # Logit-normal distribution of log10(β), scaled to range [-10, 0]
+        β = exp10(10 * (logistic(logit(tv_log10_β / 10 + 1) + η[2]) - 1))
+        # Logit-normal distribution of log10(m), scaled to range [-3, 5]
+        m = exp10(8 * logistic(logit((tv_log10_m + 3) / 8) + η[3]) - 3)
+        # Normal distribution of log10(k_P)
+        k_P = exp10(tv_log10_k_P + η[4])
+        # Normal distribution of log10(k_A)
+        k_A = exp10(tv_log10_k_A + η[5])
+        # Logit-normal distribution of log10(ϵ_NA), scaled to range [-5, 0]
+        ϵ_NA = exp10(NA * 5 * (logistic(logit(tv_log10_ϵ_NA / 5 + 1) + η[6]) - 1))
+        # Logit-normal distribution of log10(ϵ_IFN), scaled to range [-5, 0]
+        ϵ_IFN = exp10(IFN * 5 * (logistic(logit(tv_log10_ϵ_IFN / 5 + 1) + η[7]) - 1))
+        # Logit-normal distribution of log10(r_E_IFN), scaled to range [0, 4]
+        r_E_IFN = exp10(IFN * 4 * logistic(logit(tv_log10_r_E_IFN / 4) + η[8]))
+        # Normal distribution
+        conv_E = exp10(tv_log10_conv_E + η[9])
+    end
+
+    # Initial conditions
+    @init begin
+        V = ini_V
+        I = d_V * V / p_V
+        T = T_max - I
+        S = p_S * I / d_V
+        A = ini_A
+    end
+
+    @dynamics begin
+        # Target uninfected hepatocytes
+        T' = -β * V * T + r_T * T * (1 - (T + Ieff + R) / T_max) -
+            d_TI * T + ρ_o_ρ_r * R - (m / n) * r_E_IFN * E * T
+
+        # Infected hepatocytes
+        I' = β * V * T + r_T * I * (1 - (T + I + R) / T_max) -
+            ρ * X * I - d_TI * I - m * r_E_IFN * E * I
+
+        # Resistant hepatocytes
+        R' = ρ * X * Ieff - ρ_o_ρ_r * R + r_T * R * (1 - (T + Ieff + R) / T_max) -
+            d_TI * R - (m / n) * r_E_IFN * E * R
+
+        # Dead cell marker
+        D' = m * r_E_IFN * E * Ieff + (m / n) * r_E_IFN * E * (T + R) - d_D * D
+
+        # Immune response (ALT proxy)
+        A' = d_A * (ini_A - A) + k_A * D
+
+        # HBsAg dynamics
+        S' = p_S * Ieff - d_V * S
+
+        # Viral load (NA and IFN reduce production)
+        V' = p_V * Ieff * ϵ_NA * ϵ_IFN - d_V * V
+
+        # Dendritic cell activation
+        P' = k_P * (Ieff / (ϕ_E + Ieff)) - d_P * P
+
+        # Effector T cells
+        E' = (d_E + r_E * E) * Peff - d_E_Q * E * (Q^4 / (ϕ_Q^4 + Q^4)) - d_E * E
+
+        # Delayed effector signal
+        Q' = d_Q * (Peff - Q)
+
+        # Cytotoxic effect
+        X' = r_X * (1 - X) * (Ieff / (ϕ_E + Ieff)) *
+            (1 - S_max * (HBsAg_ug_mL^nS / (ϕ_S^nS + HBsAg_ug_mL^nS))) - d_X * X
+    end
+
+    @vars begin
+        # Switch between progressive infection (I ≥ I_threshold) and clearance of infection (I < I_threshold)
+        Ieff = ifelse(I < I_threshold, zero(I), I)
+        Peff = ifelse(I < I_threshold, zero(P), P)
+
+        # HBsAg [μg/mL]: Each particle of V and S is assumed to harbor 96 molecules of S envelope protein
+        f_molec2ug := 24000 * 1.0e6 / 6.022e23
+        HBsAg_ug_mL := 96 * (V + S) * f_molec2ug
+    end
+
+    # Error models: Values are log10-transformed
+    @derived begin
+        "HBsAg [IU/mL]"
+        log10_HBsAg ~ @. CombinedNormal(log10(HBsAg_ug_mL / 0.98e-3), σ_add_log10_HBsAg, σ_prop_log10_HBsAg)
+
+        "Viral load [copies/mL]"
+        log10_HBV ~ @. CombinedNormal(log10(V), σ_add_log10_HBV, σ_prop_log10_HBV)
+
+        "ALT [U/L]"
+        log10_ALT ~ @. ProportionalNormal(log10(A), σ_prop_log10_ALT)
+
+        "CD8+ T cell counts [cells/mL]"
+        log10_CD8 ~ @. ProportionalNormal(log10(conv_E * E), σ_prop_log10_CD8)
+    end
+end
+```
+
+### Parameter Values
+
+From [HBV-01](hbv_01_model_introduction_tutorial.qmd) and @cortes2025HBV:
+
+```{julia}
+#| output: false
+hbv_fixed_params = (
+    ini_V = exp10(-0.481),
+    ini_A = exp10(1.25),
+    r_T = 1.0,
+    r_E = 0.1,
+    r_X = 1.0,
+    n = 100,
+    ρ = 0.001,
+    ρ_o_ρ_r = 1.0e-5,
+    p_V = 100.0,
+    d_TI = 0.0039,
+    d_V = 0.67,
+    d_Q = 0.00385,
+    d_X = 0.2,
+    d_E = 0.01,
+    d_P = 0.239,
+    d_D = 1.66,
+    d_A = 0.47,
+    d_E_Q = 0.3,
+    T_max = 1.36e7,
+    ϕ_Q = 0.8,
+    ϕ_E = 100.0,
+    S_max = 1.0,
+    ϕ_S = 0.1473,
+    nS = 0.486,
+    I_threshold = 1.0e-4,
+)
+```
+
+The 9 estimated parameters and their IIV from the NLME fit:
+
+```{julia}
+#| output: false
+# IIV standard deviations (on logit/log10 scale)
+ω_p_S = 0.632
+ω_β = 2.489
+ω_m = 0.827
+ω_k_P = 1.292
+ω_k_A = 1.156
+ω_ϵ_NA = 1.583
+ω_ϵ_IFN = 1.626
+ω_r_E_IFN = 2.739
+ω_conv_E = 1.248
+
+hbv_estimated_params = (;
+    tv_log10_p_S = 7.643,
+    tv_log10_β = -4.358,
+    tv_log10_m = 1.618,
+    tv_log10_k_P = -3.968,
+    tv_log10_k_A = -4.869,
+    tv_log10_ϵ_NA = -1.485,
+    tv_log10_ϵ_IFN = -1.466,
+    tv_log10_r_E_IFN = 0.313,
+    tv_log10_conv_E = 2.745,
+
+    Ω = Diagonal([ω_p_S^2, ω_β^2, ω_m^2, ω_k_P^2, ω_k_A^2, ω_ϵ_NA^2, ω_ϵ_IFN^2, ω_r_E_IFN^2, ω_conv_E^2]),
+
+    σ_add_log10_HBsAg = 0.0972,
+    σ_prop_log10_HBsAg = 2.2204e-16,
+    σ_add_log10_HBV = 0.3206,
+    σ_prop_log10_HBV = 0.0838,
+    σ_prop_log10_ALT = 0.0478,
+    σ_prop_log10_CD8 = 0.4149,
+)
+```
+
+Full set of parameters:
+
+```{julia}
+#| output: false
+hbv_params = merge(hbv_fixed_params, hbv_estimated_params)
+```
+
+## Part 2: The Gaussian Copula Algorithm
+
+As explained in [TB-04](tb_04_copula_vpop_tutorial.qmd),
+independently sampling random effects destroys correlation structures estimated by NLME fitting.
+Gaussian copulas solve this by preserving Spearman (rank) correlations through any monotonic
+transformation [@cortes2025].
+
+The copula-based sampling algorithm is illustrated in @fig-copula-sampling.
+
+![Schema of copula-based sampling by @cortes2025 (Figure 2).](https://ascpt.onlinelibrary.wiley.com/cms/asset/3039f0a5-a3fe-4131-ae72-2ad5c25f3717/psp470122-fig-0002-m.jpg){#fig-copula-sampling}
+
+In Pumas this algorithm corresponds to the following steps:
+
+```{mermaid}
+%%| echo: false
+flowchart TB
+    A["Step 1: Define Model Parameters"] --> B["Step 2: Define Correlation Matrix<br/>(Spearman correlations)"]
+    B --> C["Step 3: Create Gaussian Copula<br/>with correlation matrix"]
+    C --> D["Step 4: Create Joint Distribution of Random Effects<br/>from marginals and copula"]
+    D --> E["Step 5: Sample Correlated Random Effects"]
+    E --> F["Step 6: Perform Model Simulation"]
+
+    style A fill:#e1f5fe,stroke:#01579b
+    style F fill:#e8f5e9,stroke:#2e7d32
+```
+
+### Step 1: Define Subjects
+
+We create subjects with both treatments active (`NA = true`, `IFN = true`) so that all 9 parameters,
+including the treatment-dependent ones ($\epsilon_{NA}$, $\epsilon_{IFN}$, $r^E_{IFN}$),
+are expressed.
+
+```{julia}
+patients = [
+    Subject(; id, time = [0.0], covariates = (; NA = true, IFN = true))
+        for id in 1:10_000
+]
+```
+
+### Step 2: Define the Correlation Matrix
+
+The Spearman correlation matrix from NLME estimation [@cortes2025HBV] captures the dependence
+structure among the 8 correlated parameters.
+`conv_E` is independent (off-diagonal entries in the last row and the last column are all zeros):
+
+```{julia}
+# Spearman correlation matrix (9×9) from @cortes2025HBV Figure S5B
+Rho = [
+    # p_S     β      m     k_P    k_A    ϵ_NA   ϵ_IFN  r_E_IFN conv_E
+    1.0    0.43   0.46   0.51  -0.7   0.58  -0.14  -0.38    0.0;  # p_S
+    0.43   1.0    0.3  -0.01  -0.5   0.38  -0.52  -0.21    0.0;  # β
+    0.46   0.3   1.0   -0.16  -0.5   0.29   0.07  -0.33    0.0;  # m
+    0.51  -0.01  -0.16   1.0   -0.45   0.25   0.14  -0.1    0.0;  # k_P
+    -0.7  -0.5  -0.5  -0.45   1.0   -0.41   0.01   0.05    0.0;  # k_A
+    0.58   0.38   0.29   0.25  -0.41   1.0   -0.61  -0.36    0.0;  # ϵ_NA
+    -0.14  -0.52   0.07   0.14   0.01  -0.61   1.0    0.26    0.0;  # ϵ_IFN
+    -0.38  -0.21  -0.33  -0.1   0.05  -0.36   0.26   1.0     0.0;  # r_E_IFN
+    0.0    0.0    0.0    0.0    0.0    0.0    0.0    0.0      1.0;  # conv_E
+]
+```
+
+:::{.callout-note}
+## conv_E is Independent
+
+The parameter `conv_E` is a scaling factor used to standardize CD8+ T cell measurements across
+assays [@cortes2025HBV].
+It has no estimated correlations with the other parameters and is treated
+as independent in the copula.
+:::
+
+### Step 3: Create the Gaussian Copula
+
+Create the Gaussian copula with the specified correlation structure:
+
+```{julia}
+copula = GaussianCopula(Rho)
+```
+
+### Step 4: Create the Joint Distribution
+
+Combine the copula with the marginal distributions of each random effect:
+
+```{julia}
+correlated_randeffs_dist = SklarDist(
+    copula, (
+        Normal(0, ω_p_S),
+        Normal(0, ω_β),
+        Normal(0, ω_m),
+        Normal(0, ω_k_P),
+        Normal(0, ω_k_A),
+        Normal(0, ω_ϵ_NA),
+        Normal(0, ω_ϵ_IFN),
+        Normal(0, ω_r_E_IFN),
+        Normal(0, ω_conv_E),
+    )
+)
+```
+
+### Step 5: Sample Correlated Random Effects
+
+```{julia}
+# nrandeffs × npatients matrix
+correlated_randeffs = rand(correlated_randeffs_dist, length(patients))
+```
+
+### Step 6: Perform Model Simulation
+
+We now have correlated random effects that we can use for performing model simulations.
+
+```{julia}
+vrandeffs = [(; η) for η in eachcol(correlated_randeffs)]
+sims = simobs(hbv_model, patients, hbv_params, vrandeffs; simulate_error = false)
+```
+
+We create a DataFrame of the simulated parameters of the dynamical system:
+
+```{julia}
+vpop = postprocess(sims) do generated, _
+    (;
+        p_S = only(unique(generated.p_S)),
+        β = only(unique(generated.β)),
+        m = only(unique(generated.m)),
+        k_P = only(unique(generated.k_P)),
+        k_A = only(unique(generated.k_A)),
+        ϵ_NA = only(unique(generated.ϵ_NA)),
+        ϵ_IFN = only(unique(generated.ϵ_IFN)),
+        r_E_IFN = only(unique(generated.r_E_IFN)),
+        conv_E = only(unique(generated.conv_E)),
+    )
+end |> DataFrame
+
+table_one(vpop)
+```
+
+:::{.callout-note}
+## Why Does This Preserve Correlations?
+
+The nonlinear transformations of `η` entries in the `@pre` block are all
+**monotonically increasing**, so they preserve the ordering (ranks) of values and therefore preserve
+Spearman correlations.
+For a detailed explanation, see [TB-04](tb_04_copula_vpop_tutorial.qmd).
+:::
+
+## Part 3: Validation
+
+### Check Spearman Correlations
+
+The most critical validation is checking that our target correlations are preserved.
+
+Compute observed Spearman correlations:
+
+```{julia}
+param_cols = [:p_S, :β, :m, :k_P, :k_A, :ϵ_NA, :ϵ_IFN, :r_E_IFN, :conv_E]
+param_matrix = Matrix(vpop[:, param_cols])
+observed_corr = corspearman(param_matrix)
+```
+
+The absolute difference from the target correlation matrix is:
+
+```{julia}
+@. abs(observed_corr - Rho)
+```
+
+:::{.callout-tip}
+## Validation Passed
+
+The observed correlations closely match the expected correlations from @cortes2025HBV.
+The small differences are due to sampling variability and decrease with larger sample sizes.
+:::
+
+### Check Marginal Distributions
+
+Let's verify that the parameters follow their expected distributions by comparing expected
+and observed medians:
+
+```{julia}
+marginals_df = DataFrame(
+    parameter = String.(param_cols),
+    median_exp = [
+        hbv_params.tv_log10_p_S,
+        hbv_params.tv_log10_β,
+        hbv_params.tv_log10_m,
+        hbv_params.tv_log10_k_P,
+        hbv_params.tv_log10_k_A,
+        hbv_params.tv_log10_ϵ_NA,
+        hbv_params.tv_log10_ϵ_IFN,
+        hbv_params.tv_log10_r_E_IFN,
+        hbv_params.tv_log10_conv_E,
+    ],
+    median_obs = [median(vpop[!, c]) for c in param_cols],
+)
+simple_table(
+    marginals_df,
+    [
+        :parameter => "Parameter",
+        :median_exp => "Median (expected)",
+        :median_obs => "Median (observed)",
+    ],
+)
+```
+
+## Part 4: Visualization
+
+### Parameter Distributions
+
+```{julia}
+#| fig-cap: "Marginal distributions of virtual population parameters. Lines indicate expected medians from NLME estimation."
+specs_vpop = data(vpop) * mapping(
+    [:p_S, :β, :m, :k_P, :k_A, :ϵ_NA, :ϵ_IFN, :r_E_IFN, :conv_E] .=> log10 .=> ["p_S", "β", "m", "k_P", "k_A", "ϵ_NA", "ϵ_IFN", "r_E_IFN", "conv_E"],
+    layout = dims(1),
+) * histogram(; normalization = :pdf, datalimits = extrema)
+
+specs_median = data(
+    (;
+        p_S = [hbv_params.tv_log10_p_S],
+        β = [hbv_params.tv_log10_β],
+        m = [hbv_params.tv_log10_m],
+        k_P = [hbv_params.tv_log10_k_P],
+        k_A = [hbv_params.tv_log10_k_A],
+        ϵ_NA = [hbv_params.tv_log10_ϵ_NA],
+        ϵ_IFN = [hbv_params.tv_log10_ϵ_IFN],
+        r_E_IFN = [hbv_params.tv_log10_r_E_IFN],
+        conv_E = [hbv_params.tv_log10_conv_E],
+    )
+) * mapping(
+    [:p_S, :β, :m, :k_P, :k_A, :ϵ_NA, :ϵ_IFN, :r_E_IFN],
+    layout = dims(1),
+    linestyle = AlgebraOfGraphics.direct("Expected median"),
+) * visual(VLines)
+
+draw(
+    specs_vpop + specs_median;
+    axis = (; xlabel = "log₁₀ value", ylabel = "Density"),
+    facet = (; linkxaxes = false, linkyaxes = false),
+    legend = (; position = :bottom),
+)
+```
+
+### Corner Plot: All Pairwise Relationships
+
+```{julia}
+#| fig-cap: "Corner plot showing all pairwise parameter relationships and marginal distributions."
+pairplot(
+    log10.(vpop) => (
+        PairPlots.Scatter(; rasterize = 1),
+        PairPlots.MarginHist(),
+        PairPlots.Calculation(corspearman),
+    ),
+    labels = Dict(
+        :p_S => Makie.rich("log", Makie.subscript("10"), " p", Makie.subscript("S")),
+        :β => Makie.rich("log", Makie.subscript("10"), " β"),
+        :m => Makie.rich("log", Makie.subscript("10"), " m"),
+        :k_P => Makie.rich("log", Makie.subscript("10"), " k", Makie.subscript("P")),
+        :k_A => Makie.rich("log", Makie.subscript("10"), " k", Makie.subscript("A")),
+        :ϵ_NA => Makie.rich("log", Makie.subscript("10"), " ϵ", Makie.subscript("NA")),
+        :ϵ_IFN => Makie.rich("log", Makie.subscript("10"), " ϵ", Makie.subscript("IFN")),
+        :r_E_IFN => Makie.rich("log", Makie.subscript("10"), " r", Makie.subsup("IFN", "E")),
+        :conv_E => Makie.rich("log", Makie.subscript("10"), " conv", Makie.subscript("E"))
+    ),
+)
+```
+
+## Summary
+
+### Key Takeaways
+
+1. **The HBV model has 8 correlated parameters** whose NLME-estimated
+   Spearman correlations must be preserved in the virtual population
+
+2. **Gaussian copulas preserve rank (Spearman) correlations** through the
+   complex logit-normal and log-normal transformations in the HBV model's `@pre` block
+
+3. **The algorithm in Pumas:**
+   - Define parameter specifications and correlation matrix from NLME estimation
+   - Create Gaussian copula and joint distribution from marginals and copula
+   - Sample random effects from joint distribution
+   - Perform simulations using the sampled random effects
+   - Validate results
+
+4. **Always validate** correlations and marginals
+   before using the virtual population
+
+### Quick Reference: Key Functions
+
+| Function | Package | Purpose |
+|:---------|:--------|:--------|
+| `corspearman(X)` | StatsBase.jl | Compute Spearman correlations |
+| `GaussianCopula(Rho)` | Copulas.jl | Create copula with correlation matrix |
+| `SklarDist(copula, marginals)` | Copulas.jl | Create joint distribution from marginals and copula |
+
+### What's Next
+
+In **[Tutorial 5: MILP Calibration](hbv_05_milp_calibration_tutorial.qmd)**, we will:
+
+- Calibrate the virtual population to match clinical trial baseline characteristics
+- Apply MILP optimization to match target HBsAg distributions
+
+### References
+
+::: {#refs}
+:::
