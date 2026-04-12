@@ -240,32 +240,33 @@ tumor_burden_model_gsa = @model begin
         tvg ∈ RealDomain(lower = 0.0)
         tvk ∈ RealDomain(lower = 0.0)
 
-        # Inter-individual variability (diagonal covariance matrix)
+        # Inter-individual variability
         # Values on the transformed scale (logit for f, log for g and k)
-        Ω ∈ PDiagDomain(3)
+        ωf ∈ RealDomain(; lower = 0.0)
+        ωg ∈ RealDomain(; lower = 0.0)
+        ωk ∈ RealDomain(; lower = 0.0)
 
         # Residual error (standard deviation)
         σ ∈ RealDomain(lower = 0.0)
     end
 
+    # Random effects
     @random begin
-        # Random effects vector (one per parameter)
-        η ~ MvNormal(Ω)
+        # f: logit-normal distribution (bounded 0-1)
+        f ~ LogitNormal(logit(tvf), ωf)
+        # g: log-normal distribution (positive value)
+        g ~ LogNormal(log(tvg), ωg)
+        # k under treatment: log-normal distribution (positive value)
+        k_treatment ~ LogNormal(log(tvk), ωk)
     end
 
     @covariates treatment
 
     @pre begin
-        # Transform random effects to individual parameters
-        # f: logit-normal transformation (bounded 0-1)
-        f = logistic(logit(tvf) + η[1])
-        # g: log-normal transformation (positive value)
-        g = tvg * exp(η[2])
-        # k: log-normal transformation (positive value)
-        # Additionally, treatment affects death rate:
+        # treatment affects death rate:
         # treatment = false → control arm (no killing)
-        # treatment = true → treatment arm (killing at rate tvk * exp(η[3]))
-        k = treatment * tvk * exp(η[3])
+        # treatment = true → treatment arm (killing at rate k_treatment)
+        k = treatment * k_treatment
     end
 
     # Initial conditions (normalized tumor = 1)
@@ -369,23 +370,25 @@ base_params = (
     tvf = 0.27,
     tvg = 0.0013,
     tvk = 0.0091,
-    Ω = Diagonal(zeros(3)),  # No variance → deterministic
-    σ = 0.0,                 # No residual noise
+    ωf = 0.0,   # No variance → deterministic
+    ωg = 0.0,
+    ωk = 0.0,
+    σ = 0.0,    # No residual noise
 )
 ```
 
 :::{.callout-important}
-## Why Fix Ω and σ?
+## Why Fix ωf, ωg, ωk and σ?
 
 For GSA, we want to understand how **population-level parameters** (tvf, tvg, tvk) affect outputs.
-If we allowed Ω to be large:
+If the variability parameters were large:
 
-1. Random effects η would vary between simulations
+1. Random effects (f, g, k_treatment) would vary between simulations
 2. This would add noise unrelated to parameter sensitivity
 3. Sensitivity indices would be contaminated
 
-By specifying `constantcoef = (:Ω, :σ)` (a **tuple of symbols**),
-we tell GSA to hold these parameters constant at their `base_params` values.
+By specifying `constantcoef = (:ωf, :ωg, :ωk, :σ)` (a **tuple of symbols**),
+we tell GSA to hold these parameters constant at their `base_params` values (all zero).
 This gives deterministic simulations where only the parameters of interest vary.
 
 **Note:** `constantcoef` expects a tuple of parameter names (symbols), not a NamedTuple with values.
@@ -406,7 +409,7 @@ gsa_efast = gsa(
     [:final_tumor],                # Outputs to analyze
     p_range_low,                   # Lower bounds
     p_range_high;                  # Upper bounds
-    constantcoef = (:Ω, :σ),       # Parameters NOT to vary (tuple of symbols)
+    constantcoef = (:ωf, :ωg, :ωk, :σ),       # Parameters NOT to vary (tuple of symbols)
     samples = 1_000                # Number of samples
 )
 ```
@@ -446,7 +449,7 @@ gsa_sobol = gsa(
     [:final_tumor],
     p_range_low,
     p_range_high;
-    constantcoef = (:Ω, :σ),
+    constantcoef = (:ωf, :ωg, :ωk, :σ),
     samples = 2^10
 )
 ```
@@ -727,32 +730,33 @@ tumor_burden_model = @model begin
         tvg ∈ RealDomain(lower = 0.0)
         tvk ∈ RealDomain(lower = 0.0)
 
-        # Inter-individual variability (diagonal covariance matrix)
+        # Inter-individual variability
         # Values on the transformed scale (logit for f, log for g and k)
-        Ω ∈ PDiagDomain(3)
+        ωf ∈ RealDomain(; lower = 0.0)
+        ωg ∈ RealDomain(; lower = 0.0)
+        ωk ∈ RealDomain(; lower = 0.0)
 
         # Residual error (standard deviation)
         σ ∈ RealDomain(lower = 0.0)
     end
 
+    # Random effects
     @random begin
-        # Random effects vector (one per parameter)
-        η ~ MvNormal(Ω)
+        # f: logit-normal distribution (bounded 0-1)
+        f ~ LogitNormal(logit(tvf), ωf)
+        # g: log-normal distribution (positive value)
+        g ~ LogNormal(log(tvg), ωg)
+        # k under treatment: log-normal distribution (positive value)
+        k_treatment ~ LogNormal(log(tvk), ωk)
     end
 
     @covariates treatment
 
     @pre begin
-        # Transform random effects to individual parameters
-        # f: logit-normal transformation (bounded 0-1)
-        f = logistic(logit(tvf) + η[1])
-        # g: log-normal transformation (positive value)
-        g = tvg * exp(η[2])
-        # k: log-normal transformation (positive value)
-        # Additionally, treatment affects death rate:
+        # treatment affects death rate:
         # treatment = false → control arm (no killing)
-        # treatment = true → treatment arm (killing at rate tvk * exp(η[3]))
-        k = treatment * tvk * exp(η[3])
+        # treatment = true → treatment arm (killing at rate k_treatment)
+        k = treatment * k_treatment
     end
 
     # Initial conditions (normalized tumor = 1)
@@ -798,7 +802,7 @@ gsa_sobol = gsa(
     [:tumor_size],
     p_range_low,
     p_range_high;
-    constantcoef = (:Ω, :σ),
+    constantcoef = (:ωf, :ωg, :ωk, :σ),
     samples = 2^10
 )
 ```
@@ -1013,10 +1017,11 @@ for treatment efficacy.
 :::{.callout-warning}
 ## 4. Common Pitfalls
 
-1. **Forgetting to fix Ω:** Random effects add noise that contaminates sensitivity indices.
-   Use `constantcoef = (:Ω, :σ)` to hold them constant.
+1. **Forgetting to fix ω parameters:** Random effects add noise
+   that contaminates sensitivity indices.
+   Use `constantcoef = (:ωf, :ωg, :ωk, :σ)` to hold them constant.
 2. **Wrong constantcoef type:** `constantcoef` expects a tuple of symbols like
-   `(:Ω, :σ)`, NOT a NamedTuple with values.
+   `(:ωf, :ωg, :ωk, :σ)`, NOT a NamedTuple with values.
 3. **Too narrow parameter ranges:** May miss important nonlinear effects
 4. **Too few samples:** Indices may be unstable;
    increase number of samples if results vary when increasing number of samples
@@ -1037,7 +1042,7 @@ for treatment efficacy.
 3. **eFAST** is more sample-efficient for first- and total-order indices; **Sobol** can additionally
    compute higher-order interaction indices but needs larger samples
 
-4. **Fix Ω and σ** via `constantcoef = (:Ω, :σ)` (tuple of symbols) to ensure
+4. **Fix ωf, ωg, ωk and σ** via `constantcoef = (:ωf, :ωg, :ωk, :σ)` (tuple of symbols) to ensure
    deterministic simulations
 
 5. **Parameters with small total-order indices** can often be fixed to literature values without

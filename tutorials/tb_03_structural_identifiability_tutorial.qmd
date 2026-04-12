@@ -209,32 +209,33 @@ tumor_burden_model = @model begin
         tvg ∈ RealDomain(lower = 0.0)
         tvk ∈ RealDomain(lower = 0.0)
 
-        # Inter-individual variability (diagonal covariance matrix)
+        # Inter-individual variability
         # Values on the transformed scale (logit for f, log for g and k)
-        Ω ∈ PDiagDomain(3)
+        ωf ∈ RealDomain(; lower = 0.0)
+        ωg ∈ RealDomain(; lower = 0.0)
+        ωk ∈ RealDomain(; lower = 0.0)
 
         # Residual error (standard deviation)
         σ ∈ RealDomain(lower = 0.0)
     end
 
+    # Random effects
     @random begin
-        # Random effects vector (one per parameter)
-        η ~ MvNormal(Ω)
+        # f: logit-normal distribution (bounded 0-1)
+        f ~ LogitNormal(logit(tvf), ωf)
+        # g: log-normal distribution (positive value)
+        g ~ LogNormal(log(tvg), ωg)
+        # k under treatment: log-normal distribution (positive value)
+        k_treatment ~ LogNormal(log(tvk), ωk)
     end
 
     @covariates treatment
 
     @pre begin
-        # Transform random effects to individual parameters
-        # f: logit-normal transformation (bounded 0-1)
-        f = logistic(logit(tvf) + η[1])
-        # g: log-normal transformation (positive value)
-        g = tvg * exp(η[2])
-        # k: log-normal transformation (positive value)
-        # Additionally, treatment affects death rate:
+        # treatment affects death rate:
         # treatment = false → control arm (no killing)
-        # treatment = true → treatment arm (killing at rate tvk * exp(η[3]))
-        k = treatment * tvk * exp(η[3])
+        # treatment = true → treatment arm (killing at rate k_treatment)
+        k = treatment * k_treatment
     end
 
     # Initial conditions (normalized tumor = 1)

@@ -168,32 +168,33 @@ tumor_burden_model = @model begin
         tvg ∈ RealDomain(lower = 0.0)
         tvk ∈ RealDomain(lower = 0.0)
 
-        # Inter-individual variability (diagonal covariance matrix)
+        # Inter-individual variability
         # Values on the transformed scale (logit for f, log for g and k)
-        Ω ∈ PDiagDomain(3)
+        ωf ∈ RealDomain(; lower = 0.0)
+        ωg ∈ RealDomain(; lower = 0.0)
+        ωk ∈ RealDomain(; lower = 0.0)
 
         # Residual error (standard deviation)
         σ ∈ RealDomain(lower = 0.0)
     end
 
+    # Random effects
     @random begin
-        # Random effects vector (one per parameter)
-        η ~ MvNormal(Ω)
+        # f: logit-normal distribution (bounded 0-1)
+        f ~ LogitNormal(logit(tvf), ωf)
+        # g: log-normal distribution (positive value)
+        g ~ LogNormal(log(tvg), ωg)
+        # k under treatment: log-normal distribution (positive value)
+        k_treatment ~ LogNormal(log(tvk), ωk)
     end
 
     @covariates treatment
 
     @pre begin
-        # Transform random effects to individual parameters
-        # f: logit-normal transformation (bounded 0-1)
-        f = logistic(logit(tvf) + η[1])
-        # g: log-normal transformation (positive value)
-        g = tvg * exp(η[2])
-        # k: log-normal transformation (positive value)
-        # Additionally, treatment affects death rate:
+        # treatment affects death rate:
         # treatment = false → control arm (no killing)
-        # treatment = true → treatment arm (killing at rate tvk * exp(η[3]))
-        k = treatment * tvk * exp(η[3])
+        # treatment = true → treatment arm (killing at rate k_treatment)
+        k = treatment * k_treatment
     end
 
     # Initial conditions (normalized tumor = 1)
@@ -238,9 +239,9 @@ The parameter values come from @qi2022, who fit this model to NSCLC clinical tri
 ```{julia}
 #| output: false
 # Population (typical) parameter values
-pop_f = 0.27    # 27% of tumor is treatment-sensitive
-pop_g = 0.0013  # Resistant cells grow ~0.13% per day
-pop_k = 0.0091  # Sensitive cells die ~0.91% per day
+median_f = 0.27    # 27% of tumor is treatment-sensitive
+median_g = 0.0013  # Resistant cells grow ~0.13% per day
+median_k = 0.0091  # Sensitive cells die ~0.91% per day
 
 # Inter-individual variability (standard deviations on transformed scale)
 ω_f = 2.16  # High variability in sensitive fraction
@@ -263,7 +264,7 @@ patients = [
             id, time = 7 * (0:18), covariates = (; treatment = true),
         ) for id in 1:2_000
 ]
-param = (; tvf = pop_f, tvg = pop_g, tvk = pop_k, Ω = Diagonal([ω_f^2, ω_g^2, ω_k^2]), σ = resid_σ)
+param = (; tvf = median_f, tvg = median_g, tvk = median_k, ωf = ω_f, ωg = ω_g, ωk = ω_k, σ = resid_σ)
 ```
 
 Based on the estimated correlation matrix, we define a Gaussian copula:
@@ -283,7 +284,10 @@ and the Gaussian copula:
 
 ```{julia}
 #| output: false
-correlated_randeffs_dist = SklarDist(copula, (Normal(0, ω_f), Normal(0, ω_g), Normal(0, ω_k)))
+correlated_randeffs_dist = SklarDist(
+    copula,
+    (LogitNormal(logit(median_f), ω_f), LogNormal(log(median_g), ω_g), LogNormal(log(median_k), ω_k)),
+)
 ```
 
 We sample correlated random effects for each virtual patient:
@@ -291,7 +295,7 @@ We sample correlated random effects for each virtual patient:
 ```{julia}
 #| output: false
 correlated_randeffs = rand(correlated_randeffs_dist, length(patients))
-vrandeffs = [(; η) for η in eachcol(correlated_randeffs)]
+vrandeffs = [(; f, g, k_treatment) for (f, g, k_treatment) in eachcol(correlated_randeffs)]
 ```
 
 Now let us simulate the tumor dynamics for each virtual patient:
@@ -316,7 +320,7 @@ Additionally, we validate the marginal distributions of the simulated parameters
 ```{julia}
 marginals_df = DataFrame(
     parameter = ["f", "g", "k"],
-    median_exp = [pop_f, pop_g, pop_k],
+    median_exp = [median_f, median_g, median_k],
     median_obs = [median(sims_f_g_k.f), median(sims_f_g_k.g), median(sims_f_g_k.k)],
     omega_exp = [ω_f, ω_g, ω_k],
     omega_obs = [std(logit.(sims_f_g_k.f)), std(log.(sims_f_g_k.g)), std(log.(sims_f_g_k.k))],

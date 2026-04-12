@@ -134,32 +134,33 @@ tumor_burden_model = @model begin
         tvg ∈ RealDomain(lower = 0.0)
         tvk ∈ RealDomain(lower = 0.0)
 
-        # Inter-individual variability (diagonal covariance matrix)
+        # Inter-individual variability
         # Values on the transformed scale (logit for f, log for g and k)
-        Ω ∈ PDiagDomain(3)
+        ωf ∈ RealDomain(; lower = 0.0)
+        ωg ∈ RealDomain(; lower = 0.0)
+        ωk ∈ RealDomain(; lower = 0.0)
 
         # Residual error (standard deviation)
         σ ∈ RealDomain(lower = 0.0)
     end
 
+    # Random effects
     @random begin
-        # Random effects vector (one per parameter)
-        η ~ MvNormal(Ω)
+        # f: logit-normal distribution (bounded 0-1)
+        f ~ LogitNormal(logit(tvf), ωf)
+        # g: log-normal distribution (positive value)
+        g ~ LogNormal(log(tvg), ωg)
+        # k under treatment: log-normal distribution (positive value)
+        k_treatment ~ LogNormal(log(tvk), ωk)
     end
 
     @covariates treatment
 
     @pre begin
-        # Transform random effects to individual parameters
-        # f: logit-normal transformation (bounded 0-1)
-        f = logistic(logit(tvf) + η[1])
-        # g: log-normal transformation (positive value)
-        g = tvg * exp(η[2])
-        # k: log-normal transformation (positive value)
-        # Additionally, treatment affects death rate:
+        # treatment affects death rate:
         # treatment = false → control arm (no killing)
-        # treatment = true → treatment arm (killing at rate tvk * exp(η[3]))
-        k = treatment * tvk * exp(η[3])
+        # treatment = true → treatment arm (killing at rate k_treatment)
+        k = treatment * k_treatment
     end
 
     # Initial conditions (normalized tumor = 1)
@@ -191,9 +192,9 @@ end
 ```{julia}
 #| output: false
 # Population (typical) parameter values
-pop_f = 0.27    # 27% of tumor is treatment-sensitive
-pop_g = 0.0013  # Resistant cells grow ~0.13% per day
-pop_k = 0.0091  # Sensitive cells die ~0.91% per day
+median_f = 0.27    # 27% of tumor is treatment-sensitive
+median_g = 0.0013  # Resistant cells grow ~0.13% per day
+median_k = 0.0091  # Sensitive cells die ~0.91% per day
 
 # Inter-individual variability (standard deviations on transformed scale)
 ω_f = 2.16  # High variability in sensitive fraction
@@ -211,10 +212,12 @@ These values correspond to the following Pumas model parameters:
 
 ```{julia}
 param = (;
-    tvf = pop_f,
-    tvg = pop_g,
-    tvk = pop_k,
-    Ω = Diagonal([ω_f^2, ω_g^2, ω_k^2]),
+    tvf = median_f,
+    tvg = median_g,
+    tvk = median_k,
+    ωf = ω_f,
+    ωg = ω_g,
+    ωk = ω_k,
     σ = resid_σ,
 )
 ```
@@ -226,6 +229,7 @@ Let us generate a virtual population and calibrate it to a target response distr
 ### Generate Virtual Population: Copula Sampling
 
 ```{julia}
+#| output: false
 # 2000 virtual patients
 patients = [
     Subject(;
@@ -245,12 +249,12 @@ copula = GaussianCopula(Rho)
 # based on marginal distributions and Gaussian copula
 correlated_randeffs_dist = SklarDist(
     copula,
-    (Normal(0, ω_f), Normal(0, ω_g), Normal(0, ω_k)),
+    (LogitNormal(logit(median_f), ω_f), LogNormal(log(median_g), ω_g), LogNormal(log(median_k), ω_k)),
 )
 
 # Sample correlated random effects for each virtual patient:
 correlated_randeffs = rand(correlated_randeffs_dist, length(patients))
-vrandeffs = [(; η) for η in eachcol(correlated_randeffs)]
+vrandeffs = [(; f, g, k_treatment) for (f, g, k_treatment) in eachcol(correlated_randeffs)]
 
 # Simulate tumor dynamics for each virtual patient
 sims = simobs(
@@ -270,20 +274,7 @@ vpop = postprocess(sims) do generated, _
         error("final time point must be 18 weeks")
     end
     tumor_size_final = generated.tumor_size[end]
-    (;
-        # Population parameters
-        generated.tvf,
-        generated.tvg,
-        generated.tvk,
-        generated.Ω,
-        generated.σ,
-
-        # Random effects
-        generated.η,
-
-        # Response
-        tumor_size_final,
-    )
+    (; tumor_size_final)
 end |> DataFrame
 ```
 
@@ -306,7 +297,10 @@ target_distribution = DataFrame(
     response = categorical(["CR", "PR", "SD", "PD"]),
     pct = [25.0, 40.0, 20.0, 15.0]
 )
-simple_table(target_distribution, [:response => "Response", :pct => "Target (%)"])
+simple_table(
+    target_distribution,
+    [:response => "Response", :pct => "Target (%)"],
+)
 ```
 
 Calibrate the virtual population by maximizing the number of selected VPs subject to a per-category
@@ -372,9 +366,9 @@ Simulate treatment arm:
 #| output: false
 treatment_results = simobs(
     tumor_burden_model,
-    [Subject(; id, covariates = (; treatment = true)) for id in 1:nrow(calibrated_vpop)],
+    [Subject(; id, covariates = (; treatment = true)) for id in selected_vps],
     param,
-    [(; row.η) for row in eachrow(calibrated_vpop)];
+    vrandeffs[selected_vps];
     obstimes,
     simulate_error = false,
 ) |> DataFrame
@@ -386,9 +380,9 @@ Simulate control arm:
 #| output: false
 control_results = simobs(
     tumor_burden_model,
-    [Subject(; id, covariates = (; treatment = false)) for id in 1:nrow(calibrated_vpop)],
+    [Subject(; id, covariates = (; treatment = false)) for id in selected_vps],
     param,
-    [(; row.η) for row in eachrow(calibrated_vpop)];
+    vrandeffs[selected_vps];
     obstimes,
     simulate_error = false,
 ) |> DataFrame
@@ -476,17 +470,17 @@ We repeat simulations with the uncalibrated virtual population:
 # Perform simulations
 uncalibrated_treatment_results = simobs(
     tumor_burden_model,
-    [Subject(; id, covariates = (; treatment = true)) for id in 1:nrow(vpop)],
+    [Subject(; id, covariates = (; treatment = true)) for id in 1:length(vrandeffs)],
     param,
-    [(; row.η) for row in eachrow(vpop)];
+    vrandeffs;
     obstimes,
     simulate_error = false,
 ) |> DataFrame
 uncalibrated_control_results = simobs(
     tumor_burden_model,
-    [Subject(; id, covariates = (; treatment = false)) for id in 1:nrow(vpop)],
+    [Subject(; id, covariates = (; treatment = false)) for id in 1:length(vrandeffs)],
     param,
-    [(; row.η) for row in eachrow(vpop)];
+    vrandeffs;
     obstimes,
     simulate_error = false,
 ) |> DataFrame
@@ -516,7 +510,7 @@ final = @rsubset(all_results, :time == maximum(obstimes))
 
 table_one(
     final,
-    [:tumor_size => (col -> (median(col) => "Median",)) => "Final Tumor Size"];
+    [:tumor_size => (col -> (median(col) => "Median",)) => "Final tumor size"];
     groupby = :arm => "Arm",
     show_total = false,
 )
