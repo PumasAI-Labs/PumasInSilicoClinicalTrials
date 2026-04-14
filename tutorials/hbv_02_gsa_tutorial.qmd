@@ -187,6 +187,11 @@ hbv_model = @model begin
         r_E_IFN = exp10(IFN * 4 * logistic(logit(tv_log10_r_E_IFN / 4) + η[8]))
         # Normal distribution
         conv_E = exp10(tv_log10_conv_E + η[9])
+
+        # HBsAg conversion factor: 96 S-envelope proteins per virion/subviral
+        # particle, then molecules-to-μg.  Precomputed in @pre so @reactions
+        # can reference a pure parameter expression (it cannot see @vars).
+        c_HBsAg = 96 * 24000.0e6 / 6.022e23
     end
 
     # Initial conditions
@@ -198,43 +203,83 @@ hbv_model = @model begin
         A = ini_A
     end
 
-    @dynamics begin
-        # Target uninfected hepatocytes
-        T' = -β * V * T + r_T * T * (1 - (T + I + R) / T_max) -
-            d_TI * T + ρ_o_ρ_r * R - (m / n) * r_E_IFN * E * T
+    @reactions begin
+        # ─── Viral infection (V catalyst; virion not consumed) ───────────
+        β * V, T --> I
 
-        # Infected hepatocytes
-        I' = β * V * T + r_T * I * (1 - (T + I + R) / T_max) -
-            ρ * X * I - d_TI * I - m * r_E_IFN * E * I
+        # ─── Hepatocyte proliferation with shared logistic capacity ─────
+        r_T, T --> 2 * T
+        r_T, I --> 2 * I
+        r_T, R --> 2 * R
+        r_T * (T + I + R) / T_max, T --> 0
+        r_T * (T + I + R) / T_max, I --> 0
+        r_T * (T + I + R) / T_max, R --> 0
 
-        # Resistant hepatocytes
-        R' = ρ * X * I - ρ_o_ρ_r * R + r_T * R * (1 - (T + I + R) / T_max) -
-            d_TI * R - (m / n) * r_E_IFN * E * R
+        # ─── Background hepatocyte death ─────────────────────────────────
+        d_TI, T --> 0
+        d_TI, I --> 0
+        d_TI, R --> 0
 
-        # Dead cell marker
-        D' = m * r_E_IFN * E * I + (m / n) * r_E_IFN * E * (T + R) - d_D * D
+        # ─── Refractory → Target reversion ──────────────────────────────
+        ρ_o_ρ_r, R --> T
 
-        # Immune response (ALT proxy)
-        A' = d_A * (ini_A - A) + k_A * D
+        # ─── Innate-immunity-driven conversion of infected to refractory
+        # (X = cytotoxic effect acts as catalyst)
+        ρ * X, I --> R
 
-        # HBsAg dynamics
-        S' = p_S * I - d_V * S
+        # ─── Cellular-immunity killing (E catalyst; produces debris D) ──
+        # Full killing rate on infected cells, fractional (m/n) on target
+        # and refractory cells.
+        m * r_E_IFN * E, I --> D
+        (m / n) * r_E_IFN * E, T --> D
+        (m / n) * r_E_IFN * E, R --> D
 
-        # Viral load (NA and IFN reduce production)
-        V' = p_V * I * ϵ_NA * ϵ_IFN - d_V * V
+        # ─── Debris clearance ────────────────────────────────────────────
+        d_D, D --> 0
 
-        # Dendritic cell activation
-        P' = k_P * (I / (ϕ_E + I)) - d_P * P
+        # ─── ALT: baseline regeneration + D-driven generation + decay ───
+        d_A * ini_A, 0 --> A
+        k_A * D, 0 --> A
+        d_A, A --> 0
 
-        # Effector T cells
-        E' = (d_E + r_E * E) * P - d_E_Q * E * (Q^4 / (ϕ_Q^4 + Q^4)) - d_E * E
+        # ─── Virus production (from infected cells) and clearance ───────
+        p_V * ϵ_NA * ϵ_IFN * I, 0 --> V
+        d_V, V --> 0
 
-        # Delayed effector signal
-        Q' = d_Q * (P - Q)
+        # ─── HBsAg production and clearance ─────────────────────────────
+        p_S * I, 0 --> S
+        d_V, S --> 0
 
-        # Cytotoxic effect
-        X' = r_X * (1 - X) * (I / (ϕ_E + I)) *
-            (1 - S_max * (HBsAg_ug_mL^nS / (ϕ_S^nS + HBsAg_ug_mL^nS))) - d_X * X
+        # ─── Dendritic-cell activation (Hill in I) ──────────────────────
+        k_P * I / (ϕ_E + I), 0 --> P
+        d_P, P --> 0
+
+        # ─── Effector T-cell dynamics ───────────────────────────────────
+        d_E * P, 0 --> E   # baseline generation from P
+        r_E * E * P, 0 --> E   # P-stimulated expansion
+        d_E_Q * Q^4 / (ϕ_Q^4 + Q^4), E --> 0   # Q-driven exhaustion
+        d_E, E --> 0   # natural clearance
+
+        # ─── Delayed immune signal Q (first-order lag of P) ─────────────
+        d_Q * P, 0 --> Q
+        d_Q, Q --> 0
+
+        # ─── Cytotoxic effect X: logistic-bounded, HBsAg-inhibited ──────
+        # X' = r_X·(1-X)·(I/(ϕ_E+I))·(1 - S_max·Hill) − d_X·X
+        # HBsAg_ug_mL = c_HBsAg · (V+S) where c_HBsAg = 96·24000e6/6.022e23.
+        # Inlined here because Catalyst-based @reactions cannot resolve @vars.
+        # Split (1-X) into production + X-proportional decay sharing the modifier.
+        r_X * (I / (ϕ_E + I)) *
+            (
+                1 - S_max * (c_HBsAg * (V + S))^nS /
+                (ϕ_S^nS + (c_HBsAg * (V + S))^nS)
+            ), 0 --> X
+        r_X * (I / (ϕ_E + I)) *
+            (
+                1 - S_max * (c_HBsAg * (V + S))^nS /
+                (ϕ_S^nS + (c_HBsAg * (V + S))^nS)
+            ), X --> 0
+        d_X, X --> 0
     end
 
     @vars begin
