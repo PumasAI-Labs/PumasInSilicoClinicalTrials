@@ -220,6 +220,11 @@ hbv_model = @model begin
         r_E_IFN = exp10(IFN * 4 * logistic(logit(tv_log10_r_E_IFN / 4) + η[8]))
         # Normal distribution
         conv_E = exp10(tv_log10_conv_E + η[9])
+
+        # HBsAg conversion factor: 96 S-envelope proteins per virion/subviral
+        # particle, then molecules-to-μg.  Precomputed in @pre so @reactions
+        # can reference a pure parameter expression (it cannot see @vars).
+        c_HBsAg = 96 * 24000.0e6 / 6.022e23
     end
 
     # Initial conditions
@@ -231,43 +236,102 @@ hbv_model = @model begin
         A = ini_A
     end
 
-    @dynamics begin
-        # Target uninfected hepatocytes
-        T' = -β * V * T + r_T * T * (1 - (T + Ieff + R) / T_max) -
-            d_TI * T + ρ_o_ρ_r * R - (m / n) * r_E_IFN * E * T
+    # Ieff and Peff implement a discontinuous "steady-state-forcing" switch
+    # that drives the system to clearance when I < I_threshold.  They are
+    # inlined in every reaction where they appear because Catalyst-based
+    # @reactions cannot resolve symbols defined in @vars (see @vars block
+    # below, which keeps them for narrative/observability purposes only).
+    @reactions begin
+        # ─── Viral infection (V catalyst; virion not consumed) ───────────
+        β * V, T --> I
 
-        # Infected hepatocytes
-        I' = β * V * T + r_T * I * (1 - (T + I + R) / T_max) -
-            ρ * X * I - d_TI * I - m * r_E_IFN * E * I
+        # ─── Hepatocyte proliferation with shared logistic capacity ─────
+        # Crowding uses (T + Ieff + R) for T and R, and (T + I + R) for I —
+        # a deliberate artifact of the Ieff switch.
+        r_T, T --> 2 * T
+        r_T, I --> 2 * I
+        r_T, R --> 2 * R
+        r_T * (T + ifelse(I < I_threshold, zero(I), I) + R) / T_max, T --> 0
+        r_T * (T + I + R) / T_max, I --> 0
+        r_T * (T + ifelse(I < I_threshold, zero(I), I) + R) / T_max, R --> 0
 
-        # Resistant hepatocytes
-        R' = ρ * X * Ieff - ρ_o_ρ_r * R + r_T * R * (1 - (T + Ieff + R) / T_max) -
-            d_TI * R - (m / n) * r_E_IFN * E * R
+        # ─── Background hepatocyte death ─────────────────────────────────
+        d_TI, T --> 0
+        d_TI, I --> 0
+        d_TI, R --> 0
 
-        # Dead cell marker
-        D' = m * r_E_IFN * E * Ieff + (m / n) * r_E_IFN * E * (T + R) - d_D * D
+        # ─── Refractory → Target reversion ──────────────────────────────
+        ρ_o_ρ_r, R --> T
 
-        # Immune response (ALT proxy)
-        A' = d_A * (ini_A - A) + k_A * D
+        # ─── Innate-immunity conversion I → R (non-conservative switch) ─
+        # I is consumed proportional to I, but R is produced proportional
+        # to Ieff. When I ≥ I_threshold the two rates match (true conversion);
+        # when I < I_threshold, R does not gain mass — the steady-state
+        # trick forcing clearance.
+        ρ * X, I --> 0
+        ρ * X * ifelse(I < I_threshold, zero(I), I), 0 --> R
 
-        # HBsAg dynamics
-        S' = p_S * Ieff - d_V * S
+        # ─── Cellular-immunity killing of infected cells ────────────────
+        # Same split pattern: I consumed ∝ I; D produced ∝ Ieff.
+        m * r_E_IFN * E, I --> 0
+        m * r_E_IFN * E * ifelse(I < I_threshold, zero(I), I), 0 --> D
 
-        # Viral load (NA and IFN reduce production)
-        V' = p_V * Ieff * ϵ_NA * ϵ_IFN - d_V * V
+        # ─── Cellular-immunity killing of target & refractory cells ─────
+        # Target and refractory behave conservatively (T → D, R → D).
+        (m / n) * r_E_IFN * E, T --> D
+        (m / n) * r_E_IFN * E, R --> D
 
-        # Dendritic cell activation
-        P' = k_P * (Ieff / (ϕ_E + Ieff)) - d_P * P
+        # ─── Debris clearance ────────────────────────────────────────────
+        d_D, D --> 0
 
-        # Effector T cells
-        E' = (d_E + r_E * E) * Peff - d_E_Q * E * (Q^4 / (ϕ_Q^4 + Q^4)) - d_E * E
+        # ─── ALT: baseline regeneration + D-driven generation + decay ───
+        d_A * ini_A, 0 --> A
+        k_A * D, 0 --> A
+        d_A, A --> 0
 
-        # Delayed effector signal
-        Q' = d_Q * (Peff - Q)
+        # ─── Virus production (from Ieff) and clearance ─────────────────
+        p_V * ifelse(I < I_threshold, zero(I), I) * ϵ_NA * ϵ_IFN, 0 --> V
+        d_V, V --> 0
 
-        # Cytotoxic effect
-        X' = r_X * (1 - X) * (Ieff / (ϕ_E + Ieff)) *
-            (1 - S_max * (HBsAg_ug_mL^nS / (ϕ_S^nS + HBsAg_ug_mL^nS))) - d_X * X
+        # ─── HBsAg production (from Ieff) and clearance ─────────────────
+        p_S * ifelse(I < I_threshold, zero(I), I), 0 --> S
+        d_V, S --> 0
+
+        # ─── Dendritic-cell activation (Hill in Ieff) ───────────────────
+        k_P * ifelse(I < I_threshold, zero(I), I) /
+            (ϕ_E + ifelse(I < I_threshold, zero(I), I)), 0 --> P
+        d_P, P --> 0
+
+        # ─── Effector T-cell dynamics (driven by Peff) ──────────────────
+        d_E * ifelse(I < I_threshold, zero(P), P), 0 --> E   # baseline from P
+        r_E * E * ifelse(I < I_threshold, zero(P), P), 0 --> E   # P-stimulated
+        d_E_Q * Q^4 / (ϕ_Q^4 + Q^4), E --> 0   # Q-driven exhaustion
+        d_E, E --> 0   # natural clearance
+
+        # ─── Delayed immune signal Q (first-order lag of Peff) ──────────
+        d_Q * ifelse(I < I_threshold, zero(P), P), 0 --> Q
+        d_Q, Q --> 0
+
+        # ─── Cytotoxic effect X: logistic-bounded, HBsAg-inhibited ──────
+        # X' = r_X·(1-X)·(Ieff/(ϕ_E+Ieff))·(1 − S_max·Hill) − d_X·X
+        # HBsAg_ug_mL inlined as c_HBsAg·(V+S) (c_HBsAg precomputed in @pre).
+        r_X * (
+                ifelse(I < I_threshold, zero(I), I) /
+                (ϕ_E + ifelse(I < I_threshold, zero(I), I))
+            ) *
+            (
+                1 - S_max * (c_HBsAg * (V + S))^nS /
+                (ϕ_S^nS + (c_HBsAg * (V + S))^nS)
+            ), 0 --> X
+        r_X * (
+                ifelse(I < I_threshold, zero(I), I) /
+                (ϕ_E + ifelse(I < I_threshold, zero(I), I))
+            ) *
+            (
+                1 - S_max * (c_HBsAg * (V + S))^nS /
+                (ϕ_S^nS + (c_HBsAg * (V + S))^nS)
+            ), X --> 0
+        d_X, X --> 0
     end
 
     @vars begin
