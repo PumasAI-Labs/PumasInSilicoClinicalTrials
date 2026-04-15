@@ -1,0 +1,2076 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.27">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Saugandhika Minnikanti">
+<meta name="author" content="Vijay Ivaturi">
+<meta name="author" content="David Müller-Widmann">
+
+<title>Structural Identifiability Analysis – In-Silico Clinical Trials with NLME Models</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+  margin-bottom: 0em;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous"></script><script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-ed96de9b727972fe78a7b5d16c58bf87.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-dark-4d9afe2b8d18ee9fa5d0d57b5ed4214d.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-ed96de9b727972fe78a7b5d16c58bf87.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-5b4ad623e5705c0698d39aec6f10cf02.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-0d4a9d19931feb4fee1ddab4b2489000.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../site_libs/bootstrap/bootstrap-5b4ad623e5705c0698d39aec6f10cf02.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script src="../site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="../site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="../site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+<script id="quarto-search-options" type="application/json">{
+  "location": "sidebar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "start",
+  "type": "textbox",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<meta name="mermaid-theme" content="default">
+<script src="../site_libs/quarto-diagram/mermaid.min.js"></script>
+<script src="../site_libs/quarto-diagram/mermaid-init.js"></script>
+<link href="../site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
+
+<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
+<style>
+  .header-container {
+    width: 100%;
+  }
+  .logo {
+    display: block;
+    width: 150px;
+    margin-left: -2.5%;
+  }
+</style>
+<link rel="shortcut icon" href="https://pumas.ai/favicon.ico">
+
+
+</head>
+
+<body class="nav-sidebar floating quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../tutorials/tb_01_model_introduction_tutorial.html">Tumor Burden Model</a></li><li class="breadcrumb-item"><a href="../tutorials/tb_03_structural_identifiability_tutorial.html">Structural Identifiability Analysis</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-full">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+    <div class="sidebar-title mb-0 py-0">
+      <a href="../">In-Silico Clinical Trials with NLME Models</a> 
+        <div class="sidebar-tools-main">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+</div>
+    </div>
+      </div>
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">In-Silico Clinical Trials with NLME Models</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">Tumor Burden Model</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_01_model_introduction_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Model Introduction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_02_gsa_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Global Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_03_structural_identifiability_tutorial.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Structural Identifiability Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_04_copula_vpop_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Virtual Population Generation using Gaussian Copulas</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_05_milp_calibration_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MILP-Based Virtual Population Calibration</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_06_vct_simulation_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Virtual Clinical Trial Simulation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">HBV model</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_01_model_introduction_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Model Introduction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_02_gsa_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Global Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_03_structural_identifiability_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Structural Identifiability Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_04_copula_vpop_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Virtual Population Generation using Gaussian Copulas</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_05_milp_calibration_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MILP-Based Virtual Population Calibration</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_06_vct_simulation_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Virtual Clinical Trial Simulation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+    <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="2">
+    <h2 id="toc-title">Contents</h2>
+   
+  <ul>
+  <li><a href="#learning-outcomes" id="toc-learning-outcomes" class="nav-link active" data-scroll-target="#learning-outcomes"><span class="header-section-number">1</span> Learning Outcomes</a></li>
+  <li><a href="#background" id="toc-background" class="nav-link" data-scroll-target="#background"><span class="header-section-number">2</span> Background</a>
+  <ul class="collapse">
+  <li><a href="#the-problem-can-we-actually-estimate-these-parameters" id="toc-the-problem-can-we-actually-estimate-these-parameters" class="nav-link" data-scroll-target="#the-problem-can-we-actually-estimate-these-parameters"><span class="header-section-number">2.1</span> The Problem: Can We Actually Estimate These Parameters?</a></li>
+  <li><a href="#what-is-structural-identifiability" id="toc-what-is-structural-identifiability" class="nav-link" data-scroll-target="#what-is-structural-identifiability"><span class="header-section-number">2.2</span> What is Structural Identifiability?</a></li>
+  <li><a href="#the-three-classifications" id="toc-the-three-classifications" class="nav-link" data-scroll-target="#the-three-classifications"><span class="header-section-number">2.3</span> The Three Classifications</a></li>
+  <li><a href="#a-simple-analogy" id="toc-a-simple-analogy" class="nav-link" data-scroll-target="#a-simple-analogy"><span class="header-section-number">2.4</span> A Simple Analogy</a></li>
+  <li><a href="#why-check-identifiability-before-estimation" id="toc-why-check-identifiability-before-estimation" class="nav-link" data-scroll-target="#why-check-identifiability-before-estimation"><span class="header-section-number">2.5</span> Why Check Identifiability Before Estimation?</a></li>
+  </ul></li>
+  <li><a href="#libraries" id="toc-libraries" class="nav-link" data-scroll-target="#libraries"><span class="header-section-number">3</span> Libraries</a></li>
+  <li><a href="#part-1-the-tumor-burden-model" id="toc-part-1-the-tumor-burden-model" class="nav-link" data-scroll-target="#part-1-the-tumor-burden-model"><span class="header-section-number">4</span> Part 1: The Tumor Burden Model</a>
+  <ul class="collapse">
+  <li><a href="#the-clinical-scenario" id="toc-the-clinical-scenario" class="nav-link" data-scroll-target="#the-clinical-scenario"><span class="header-section-number">4.1</span> The Clinical Scenario</a></li>
+  <li><a href="#model-definition" id="toc-model-definition" class="nav-link" data-scroll-target="#model-definition"><span class="header-section-number">4.2</span> Model Definition</a></li>
+  </ul></li>
+  <li><a href="#part-2-running-identifiability-analysis" id="toc-part-2-running-identifiability-analysis" class="nav-link" data-scroll-target="#part-2-running-identifiability-analysis"><span class="header-section-number">5</span> Part 2: Running Identifiability Analysis</a>
+  <ul class="collapse">
+  <li><a href="#step-1-extract-the-ode-system" id="toc-step-1-extract-the-ode-system" class="nav-link" data-scroll-target="#step-1-extract-the-ode-system"><span class="header-section-number">5.1</span> Step 1: Extract the ODE System</a></li>
+  <li><a href="#step-2-define-what-we-can-measure" id="toc-step-2-define-what-we-can-measure" class="nav-link" data-scroll-target="#step-2-define-what-we-can-measure"><span class="header-section-number">5.2</span> Step 2: Define What We Can Measure</a></li>
+  <li><a href="#step-3-run-global-identifiability-analysis" id="toc-step-3-run-global-identifiability-analysis" class="nav-link" data-scroll-target="#step-3-run-global-identifiability-analysis"><span class="header-section-number">5.3</span> Step 3: Run Global Identifiability Analysis</a></li>
+  </ul></li>
+  <li><a href="#part-3-interpreting-the-results" id="toc-part-3-interpreting-the-results" class="nav-link" data-scroll-target="#part-3-interpreting-the-results"><span class="header-section-number">6</span> Part 3: Interpreting the Results</a>
+  <ul class="collapse">
+  <li><a href="#understanding-the-output" id="toc-understanding-the-output" class="nav-link" data-scroll-target="#understanding-the-output"><span class="header-section-number">6.1</span> Understanding the Output</a></li>
+  <li><a href="#why-is-f-non-identifiable" id="toc-why-is-f-non-identifiable" class="nav-link" data-scroll-target="#why-is-f-non-identifiable"><span class="header-section-number">6.2</span> Why is f Non-Identifiable?</a></li>
+  <li><a href="#what-about-measuring-both-populations" id="toc-what-about-measuring-both-populations" class="nav-link" data-scroll-target="#what-about-measuring-both-populations"><span class="header-section-number">6.3</span> What About Measuring Both Populations?</a></li>
+  <li><a href="#why-is-f-still-non-identifiable" id="toc-why-is-f-still-non-identifiable" class="nav-link" data-scroll-target="#why-is-f-still-non-identifiable"><span class="header-section-number">6.4</span> Why is f Still Non-Identifiable?</a></li>
+  </ul></li>
+  <li><a href="#part-4-finding-identifiable-combinations" id="toc-part-4-finding-identifiable-combinations" class="nav-link" data-scroll-target="#part-4-finding-identifiable-combinations"><span class="header-section-number">7</span> Part 4: Finding Identifiable Combinations</a></li>
+  <li><a href="#part-5-visualization" id="toc-part-5-visualization" class="nav-link" data-scroll-target="#part-5-visualization"><span class="header-section-number">8</span> Part 5: Visualization</a>
+  <ul class="collapse">
+  <li><a href="#compile-results-into-dataframes" id="toc-compile-results-into-dataframes" class="nav-link" data-scroll-target="#compile-results-into-dataframes"><span class="header-section-number">8.1</span> Compile Results into DataFrames</a></li>
+  <li><a href="#identifiability-status-chart" id="toc-identifiability-status-chart" class="nav-link" data-scroll-target="#identifiability-status-chart"><span class="header-section-number">8.2</span> Identifiability Status Chart</a></li>
+  <li><a href="#summary-impact-of-measurements" id="toc-summary-impact-of-measurements" class="nav-link" data-scroll-target="#summary-impact-of-measurements"><span class="header-section-number">8.3</span> Summary: Impact of Measurements</a></li>
+  </ul></li>
+  <li><a href="#part-6-practical-recommendations" id="toc-part-6-practical-recommendations" class="nav-link" data-scroll-target="#part-6-practical-recommendations"><span class="header-section-number">9</span> Part 6: Practical Recommendations</a></li>
+  <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary"><span class="header-section-number">10</span> Summary</a>
+  <ul class="collapse">
+  <li><a href="#key-takeaways" id="toc-key-takeaways" class="nav-link" data-scroll-target="#key-takeaways"><span class="header-section-number">10.1</span> Key Takeaways</a></li>
+  <li><a href="#tumor-burden-model-findings" id="toc-tumor-burden-model-findings" class="nav-link" data-scroll-target="#tumor-burden-model-findings"><span class="header-section-number">10.2</span> Tumor Burden Model Findings</a></li>
+  <li><a href="#quick-reference-key-functions" id="toc-quick-reference-key-functions" class="nav-link" data-scroll-target="#quick-reference-key-functions"><span class="header-section-number">10.3</span> Quick Reference: Key Functions</a></li>
+  <li><a href="#whats-next" id="toc-whats-next" class="nav-link" data-scroll-target="#whats-next"><span class="header-section-number">10.4</span> What’s Next?</a></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references"><span class="header-section-number">10.5</span> References</a></li>
+  </ul></li>
+  </ul>
+</nav>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
+    </div>
+<!-- main -->
+<main class="content column-page-right" id="quarto-document-content">
+
+<div class="header-container">
+  <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
+</div>
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../tutorials/tb_01_model_introduction_tutorial.html">Tumor Burden Model</a></li><li class="breadcrumb-item"><a href="../tutorials/tb_03_structural_identifiability_tutorial.html">Structural Identifiability Analysis</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">Structural Identifiability Analysis</h1>
+<p class="subtitle lead">Can We Actually Estimate These Parameters?</p>
+</div>
+
+
+
+<div class="quarto-title-meta column-page-right">
+
+    <div>
+    <div class="quarto-title-meta-heading">Authors</div>
+    <div class="quarto-title-meta-contents">
+             <p>Saugandhika Minnikanti </p>
+             <p>Vijay Ivaturi </p>
+             <p>David Müller-Widmann </p>
+          </div>
+  </div>
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Tumor Burden Tutorial Series
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>This is <strong>Tutorial 3 of 6</strong> in the Tumor Burden series.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Tutorial</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td><a href="../tutorials/tb_01_model_introduction_tutorial.html">Model Introduction</a></td>
+<td>✓ Complete</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td><a href="../tutorials/tb_02_gsa_tutorial.html">Global Sensitivity Analysis</a></td>
+<td>✓ Complete</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td><strong>Structural Identifiability (current)</strong></td>
+<td>← You are here</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td><a href="../tutorials/tb_04_copula_vpop_tutorial.html">Copula Vpop Generation</a></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td><a href="../tutorials/tb_05_milp_calibration_tutorial.html">MILP Calibration</a></td>
+<td></td>
+</tr>
+<tr class="even">
+<td>6</td>
+<td><a href="../tutorials/tb_06_vct_simulation_tutorial.html">VCT Simulation</a></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<section id="learning-outcomes" class="level2" data-number="1">
+<h2 data-number="1" class="anchored" data-anchor-id="learning-outcomes"><span class="header-section-number">1</span> Learning Outcomes</h2>
+<p>Before attempting parameter estimation in pharmacometric models, it is essential to verify that parameters can actually be uniquely determined from the available data. This prerequisite check is called <strong>structural identifiability analysis</strong>, and is a critical early step in the In Silico Clinical Trial (ISCT) workflow <span class="citation" data-cites="cortes2025">(<a href="#ref-cortes2025" role="doc-biblioref">Cortés-Ríos et al., 2025</a>)</span>.</p>
+<p>In this tutorial, you will learn:</p>
+<ul>
+<li>What structural identifiability means and why it matters for NLME modeling</li>
+<li>The three classifications: globally identifiable, locally identifiable, and non-identifiable</li>
+<li>How to use <code>StructuralIdentifiability.jl</code> to analyze Pumas models</li>
+<li>How different measurement scenarios affect identifiability</li>
+<li>How to interpret identifiability results and what actions to take</li>
+<li>How to find identifiable parameter combinations for reparameterization</li>
+</ul>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Prerequisites
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>This tutorial uses the tumor burden model introduced in <a href="../tutorials/tb_01_model_introduction_tutorial.html">Tutorial 1</a>. You should be familiar with:</p>
+<ul>
+<li>The biological meaning of parameters f, g, and k</li>
+<li>The two-population model structure (sensitive vs resistant cells)</li>
+<li>Basic Pumas model syntax (<code>@param</code>, <code>@dynamics</code>, <code>@derived</code>)</li>
+</ul>
+</div>
+</div>
+</section>
+<section id="background" class="level2" data-number="2">
+<h2 data-number="2" class="anchored" data-anchor-id="background"><span class="header-section-number">2</span> Background</h2>
+<section id="the-problem-can-we-actually-estimate-these-parameters" class="level3" data-number="2.1">
+<h3 data-number="2.1" class="anchored" data-anchor-id="the-problem-can-we-actually-estimate-these-parameters"><span class="header-section-number">2.1</span> The Problem: Can We Actually Estimate These Parameters?</h3>
+<p>Imagine you’ve built a pharmacometric model with several parameters. You collect clinical data, run your estimation algorithm, and… it doesn’t converge. Or worse, it converges to wildly different values depending on your initial estimates.</p>
+<p><strong>Why does this happen?</strong></p>
+<p>Often, the issue isn’t your data quality or your algorithm— it’s that some parameters are fundamentally <strong>impossible to estimate</strong> from the available measurements. This is a property of the model structure itself, and it’s called <strong>structural identifiability</strong>.</p>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Important</span>The Key Question
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p><strong>Structural identifiability asks:</strong> Given perfect, noise-free data measured over infinite time, can each parameter be uniquely determined?</p>
+<p>If the answer is “no” for some parameters, then no amount of data or sophisticated algorithms will help— you need to change your model or add measurements.</p>
+</div>
+</div>
+</section>
+<section id="what-is-structural-identifiability" class="level3" data-number="2.2">
+<h3 data-number="2.2" class="anchored" data-anchor-id="what-is-structural-identifiability"><span class="header-section-number">2.2</span> What is Structural Identifiability?</h3>
+<p><strong>Structural identifiability</strong> analyzes whether model parameters can be uniquely estimated from input-output data under ideal conditions:</p>
+<ul>
+<li><strong>Perfect (noise-free) observations</strong> — no measurement error</li>
+<li><strong>Infinite time horizon</strong> — unlimited observation duration</li>
+<li><strong>Known model structure</strong> — the equations are correct</li>
+<li><strong>Known initial conditions</strong> (or treated as parameters)</li>
+</ul>
+<p>This is a <strong>theoretical property</strong> of the model structure, independent of actual data quality.</p>
+</section>
+<section id="the-three-classifications" class="level3" data-number="2.3">
+<h3 data-number="2.3" class="anchored" data-anchor-id="the-three-classifications"><span class="header-section-number">2.3</span> The Three Classifications</h3>
+<p>Every parameter falls into one of three identifiability classes:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 28%">
+<col style="width: 14%">
+<col style="width: 26%">
+<col style="width: 31%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Classification</th>
+<th style="text-align: left;">Symbol</th>
+<th style="text-align: left;">What It Means</th>
+<th style="text-align: left;">Practical Impact</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><strong>Globally identifiable</strong></td>
+<td style="text-align: left;"><code>globally</code></td>
+<td style="text-align: left;">Exactly one parameter value produces the observed output</td>
+<td style="text-align: left;">Safe to estimate — unique solution exists</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>Locally identifiable</strong></td>
+<td style="text-align: left;"><code>locally</code></td>
+<td style="text-align: left;">A finite number of values produce the same output</td>
+<td style="text-align: left;">Estimation depends on initial values — may find wrong solution</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><strong>Non-identifiable</strong></td>
+<td style="text-align: left;"><code>nonidentifiable</code></td>
+<td style="text-align: left;">Infinitely many values produce identical output</td>
+<td style="text-align: left;">Cannot be estimated — must fix or reparameterize</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="a-simple-analogy" class="level3" data-number="2.4">
+<h3 data-number="2.4" class="anchored" data-anchor-id="a-simple-analogy"><span class="header-section-number">2.4</span> A Simple Analogy</h3>
+<p>Think of identifiability like solving equations:</p>
+<ul>
+<li><strong>Globally identifiable</strong>: <code>x + 3 = 5</code> → Only one solution: <code>x = 2</code></li>
+<li><strong>Locally identifiable</strong>: <code>x² = 4</code> → Two solutions: <code>x = 2</code> or <code>x = -2</code></li>
+<li><strong>Non-identifiable</strong>: <code>x + y = 5</code> with only this equation → Infinite solutions</li>
+</ul>
+<p>In pharmacometrics, the “equations” are your ODEs, and the “solutions” are your parameter values.</p>
+</section>
+<section id="why-check-identifiability-before-estimation" class="level3" data-number="2.5">
+<h3 data-number="2.5" class="anchored" data-anchor-id="why-check-identifiability-before-estimation"><span class="header-section-number">2.5</span> Why Check Identifiability Before Estimation?</h3>
+<div class="callout callout-style-default callout-warning callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Warning</span>Common Pitfalls Without Identifiability Analysis
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<ol type="1">
+<li><strong>Estimation fails to converge</strong> — optimizer wanders in flat likelihood regions</li>
+<li><strong>Different initial values give different final estimates</strong> — locally identifiable parameters</li>
+<li><strong>Parameter confidence intervals are enormous</strong> — sign of non-identifiability</li>
+<li><strong>Biologically implausible estimates</strong> — compensating for unidentifiable parameters</li>
+<li><strong>Model predictions are good but parameters are wrong</strong> — many parameter sets give same output</li>
+</ol>
+</div>
+</div>
+</section>
+</section>
+<section id="libraries" class="level2" data-number="3">
+<h2 data-number="3" class="anchored" data-anchor-id="libraries"><span class="header-section-number">3</span> Libraries</h2>
+<p>Load the necessary packages for this tutorial.</p>
+<div id="2" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Pumas</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ModelingToolkit</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">StructuralIdentifiability</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">AlgebraOfGraphics</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">CairoMakie</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">DataFramesMeta</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">SummaryTables</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> <span class="bu">Logging</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p><strong>What each package does:</strong></p>
+<ul>
+<li><code>Pumas</code>: Pharmacometric modeling and simulation</li>
+<li><code>StructuralIdentifiability</code>: The core analysis package — implements algorithms to determine identifiability <span class="citation" data-cites="dong2023">(<a href="#ref-dong2023" role="doc-biblioref">Dong et al., 2023</a>)</span></li>
+<li><code>ModelingToolkit</code>: Symbolic math framework — needed to define measurement equations</li>
+<li><code>AlgebraOfGraphics</code> + <code>CairoMakie</code>: Visualization — for creating publication-quality plots</li>
+<li><code>SummaryTables</code>: Clean rendering of data frames in documents</li>
+</ul>
+</section>
+<section id="part-1-the-tumor-burden-model" class="level2" data-number="4">
+<h2 data-number="4" class="anchored" data-anchor-id="part-1-the-tumor-burden-model"><span class="header-section-number">4</span> Part 1: The Tumor Burden Model</h2>
+<p>Let’s start with the 3-parameter tumor burden model from cancer chemotherapy. This model is small enough to understand completely, making it perfect for learning identifiability concepts.</p>
+<section id="the-clinical-scenario" class="level3" data-number="4.1">
+<h3 data-number="4.1" class="anchored" data-anchor-id="the-clinical-scenario"><span class="header-section-number">4.1</span> The Clinical Scenario</h3>
+<p>A patient receives chemotherapy for lung cancer. We measure tumor size over time using imaging (CT scans). The tumor initially shrinks (sensitive cells die), but eventually regrows (resistant cells take over).</p>
+<p><strong>Question</strong>: From tumor size measurements alone, can we estimate all the model parameters?</p>
+</section>
+<section id="model-definition" class="level3" data-number="4.2">
+<h3 data-number="4.2" class="anchored" data-anchor-id="model-definition"><span class="header-section-number">4.2</span> Model Definition</h3>
+<p>As introduced in <a href="../tutorials/tb_01_model_introduction_tutorial.html">Tutorial 1</a>, the tumor burden model divides tumor cells into two populations:</p>
+<div class="cell" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">flowchart LR
+    subgraph Tumor["Total Tumor: Nt = N_sens + N_res"]
+        direction TB
+        N_sens["N_sens&lt;br/&gt;(sensitive cells)&lt;br/&gt;Initial: f × N₀"]
+        N_res["N_res&lt;br/&gt;(resistant cells)&lt;br/&gt;Initial: (1-f) × N₀"]
+    end
+
+    N_sens --&gt;|"dies at rate k"| Death["☠️ Death"]
+    N_res --&gt;|"grows at rate g"| Growth["📈 Growth"]
+
+    Tumor -.-&gt;|"What we measure"| Obs["🔬 Observed:&lt;br/&gt;Nt"]
+
+    style N_sens fill:#ffcccc,stroke:#cc0000
+    style N_res fill:#ccffcc,stroke:#00cc00
+    style Obs fill:#cce5ff,stroke:#0066cc
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<div id="4" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>tumor_burden_model <span class="op">=</span> <span class="pp">@model</span> <span class="cf">begin</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@metadata</span> <span class="cf">begin</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>        desc <span class="op">=</span> <span class="st">"Tumor Burden Model for NSCLC Chemotherapy"</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>        timeu <span class="op">=</span> u<span class="st">"d"</span>  <span class="co"># Time unit is days</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@param</span> <span class="cf">begin</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Typical values (population parameters)</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        tvf <span class="op">∈</span> <span class="fu">RealDomain</span>(lower <span class="op">=</span> <span class="fl">0.0</span>, upper <span class="op">=</span> <span class="fl">1.0</span>)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        tvg <span class="op">∈</span> <span class="fu">RealDomain</span>(lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        tvk <span class="op">∈</span> <span class="fu">RealDomain</span>(lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Inter-individual variability (diagonal covariance matrix)</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Values on the transformed scale (logit for f, log for g and k)</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        Ω <span class="op">∈</span> <span class="fu">PDiagDomain</span>(<span class="fl">3</span>)</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Residual error (standard deviation)</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        σ <span class="op">∈</span> <span class="fu">RealDomain</span>(lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@random</span> <span class="cf">begin</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Random effects vector (one per parameter)</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>        η <span class="op">~</span> <span class="fu">MvNormal</span>(Ω)</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@covariates</span> treatment</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@pre</span> <span class="cf">begin</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Transform random effects to individual parameters</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>        <span class="co"># f: logit-normal transformation (bounded 0-1)</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>        f <span class="op">=</span> <span class="fu">logistic</span>(<span class="fu">logit</span>(tvf) <span class="op">+</span> η[<span class="fl">1</span>])</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>        <span class="co"># g: log-normal transformation (positive value)</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>        g <span class="op">=</span> tvg <span class="op">*</span> <span class="fu">exp</span>(η[<span class="fl">2</span>])</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>        <span class="co"># k: log-normal transformation (positive value)</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Additionally, treatment affects death rate:</span></span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>        <span class="co"># treatment = false → control arm (no killing)</span></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>        <span class="co"># treatment = true → treatment arm (killing at rate tvk * exp(η[3]))</span></span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>        k <span class="op">=</span> treatment <span class="op">*</span> tvk <span class="op">*</span> <span class="fu">exp</span>(η[<span class="fl">3</span>])</span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Initial conditions (normalized tumor = 1)</span></span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@init</span> <span class="cf">begin</span></span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a>        N_sens <span class="op">=</span> f           <span class="co"># Sensitive cells</span></span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>        N_res <span class="op">=</span> <span class="fl">1</span> <span class="op">-</span> f        <span class="co"># Resistant cells</span></span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@dynamics</span> <span class="cf">begin</span></span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Sensitive cells: die at rate k (0 if control)</span></span>
+<span id="cb2-49"><a href="#cb2-49" aria-hidden="true" tabindex="-1"></a>        N_sens<span class="op">'</span> <span class="op">=</span> <span class="op">-</span>k <span class="op">*</span> N_sens</span>
+<span id="cb2-50"><a href="#cb2-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-51"><a href="#cb2-51" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Resistant cells: grow at rate g</span></span>
+<span id="cb2-52"><a href="#cb2-52" aria-hidden="true" tabindex="-1"></a>        N_res<span class="op">'</span> <span class="op">=</span> g <span class="op">*</span> N_res</span>
+<span id="cb2-53"><a href="#cb2-53" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb2-54"><a href="#cb2-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-55"><a href="#cb2-55" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@derived</span> <span class="cf">begin</span></span>
+<span id="cb2-56"><a href="#cb2-56" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Total normalized tumor size</span></span>
+<span id="cb2-57"><a href="#cb2-57" aria-hidden="true" tabindex="-1"></a>        Nt <span class="op">:=</span> @. N_sens <span class="op">+</span> N_res</span>
+<span id="cb2-58"><a href="#cb2-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-59"><a href="#cb2-59" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Observation with residual error</span></span>
+<span id="cb2-60"><a href="#cb2-60" aria-hidden="true" tabindex="-1"></a>        tumor_size <span class="op">~</span> @. <span class="fu">Normal</span>(Nt, σ)</span>
+<span id="cb2-61"><a href="#cb2-61" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb2-62"><a href="#cb2-62" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>PumasModel
+  Parameters: tvf, tvg, tvk, Ω, σ
+  Random effects: η
+  Covariates: treatment
+  Dynamical system variables: N_sens, N_res
+  Dynamical system type: Matrix exponential
+  Derived: tumor_size
+  Observed: tumor_size</code></pre>
+</div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Understanding the Model
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The <code>@dynamics</code> block defines our ODEs:</p>
+<ul>
+<li><code>N_sens' = -k * N_sens</code>: Sensitive cells decrease exponentially with rate k</li>
+<li><code>N_res' = g * N_res</code>: Resistant cells grow exponentially with rate g</li>
+</ul>
+<p>The <code>@derived</code> block defines what we observe: total tumor = sensitive + resistant cells.</p>
+</div>
+</div>
+</section>
+</section>
+<section id="part-2-running-identifiability-analysis" class="level2" data-number="5">
+<h2 data-number="5" class="anchored" data-anchor-id="part-2-running-identifiability-analysis"><span class="header-section-number">5</span> Part 2: Running Identifiability Analysis</h2>
+<section id="step-1-extract-the-ode-system" class="level3" data-number="5.1">
+<h3 data-number="5.1" class="anchored" data-anchor-id="step-1-extract-the-ode-system"><span class="header-section-number">5.1</span> Step 1: Extract the ODE System</h3>
+<p>Pumas models contain an underlying <code>ModelingToolkit</code> ODE system. This is what we’ll analyze for identifiability.</p>
+<div id="6" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>ode_system <span class="op">=</span> tumor_burden_model.sys</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-bold">Model ##Pumas#232:</span>
+<span class="ansi-bold">Equations (2):</span>
+  2 standard: see equations(##Pumas#232)
+<span class="ansi-bold">Unknowns (2):</span> see unknowns(##Pumas#232)
+  N_sens(t)
+  N_res(t)
+<span class="ansi-bold">Parameters (3):</span> see parameters(##Pumas#232)
+  f
+  g
+  k</pre>
+</div>
+</div>
+</div>
+<p><strong>What happened:</strong> We extracted the symbolic ODE system from the Pumas model. This contains all the equations in a form that <code>StructuralIdentifiability.jl</code> can analyze mathematically.</p>
+</section>
+<section id="step-2-define-what-we-can-measure" class="level3" data-number="5.2">
+<h3 data-number="5.2" class="anchored" data-anchor-id="step-2-define-what-we-can-measure"><span class="header-section-number">5.2</span> Step 2: Define What We Can Measure</h3>
+<p>In clinical practice, we can only measure certain quantities. The <strong>choice of measurements</strong> directly affects which parameters are identifiable.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Key Insight: Measurements Determine Identifiability
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The same model can have different identifiability properties depending on what you measure. Adding a new biomarker or measurement can make previously unidentifiable parameters identifiable.</p>
+</div>
+</div>
+<div class="callout callout-style-default callout-warning callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Warning</span>Inputs (Doses) Also Affect Identifiability
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Which compartments receive inputs (doses) can also affect structural identifiability. In this tutorial, we do not consider inputs. To include them, you would define a separate ModelingToolkit ODE system where dose terms appear as variables that are neither ODE states nor outputs — StructuralIdentifiability.jl automatically treats these as known inputs. See the <a href="https://docs.sciml.ai/StructuralIdentifiability/stable/tutorials/creating_ode/">StructuralIdentifiability.jl documentation</a> for details.</p>
+</div>
+</div>
+<p>We create symbolic variables for measurements. As the existing variables in the ODE system, they depend on time.</p>
+<div id="8" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>t <span class="op">=</span> ModelingToolkit.<span class="fu">independent_variable</span>(ode_system)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="pp">@variables</span> <span class="fu">Nt</span>(t) <span class="fu">N_sens_obs</span>(t) <span class="fu">N_res_obs</span>(t)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Here, <code>@variables Nt(t)</code> creates a symbolic variable <code>Nt</code> that depends on time variable <code>t</code>, the independent variable already present in the ODE system.</p>
+<p>We consider two measurement scenarios:</p>
+<p>In the first scenario, only total tumor burden is measured (most common clinically):</p>
+<div id="10" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>measured_total_only <span class="op">=</span> [Nt <span class="op">~</span> ode_system.N_sens <span class="op">+</span> ode_system.N_res]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div class="callout-info">
+<p><code>Nt ~ ode_system.N_sens + ode_system.N_res</code> defines the measurement equation: “<code>Nt</code> equals the sum of <code>N_sens</code> and <code>N_res</code>”</p>
+<p>The <code>~</code> operator means “equals” in measurement equations. It connects the name of what we observe (left side) and the model expression being measured (right side).</p>
+</div>
+<p>In the second scenario, both populations of treatment-sensitive and treatment-resistant cells are measured separately (e.g., with biomarkers):</p>
+<div id="12" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>measured_both <span class="op">=</span> [</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    N_sens_obs <span class="op">~</span> ode_system.N_sens,</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    N_res_obs <span class="op">~</span> ode_system.N_res,</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="step-3-run-global-identifiability-analysis" class="level3" data-number="5.3">
+<h3 data-number="5.3" class="anchored" data-anchor-id="step-3-run-global-identifiability-analysis"><span class="header-section-number">5.3</span> Step 3: Run Global Identifiability Analysis</h3>
+<p>Now we ask the key question: <strong>Can we estimate f, g, and k from total tumor measurements?</strong></p>
+<div id="14" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>result_total <span class="op">=</span> <span class="fu">assess_identifiability</span>(</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    ode_system;</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    measured_quantities <span class="op">=</span> measured_total_only,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    loglevel <span class="op">=</span> <span class="bu">Logging</span>.Warn,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>OrderedCollections.OrderedDict{SymbolicUtils.BasicSymbolic{Real}, Symbol} with 5 entries:
+  N_sens(t) =&gt; :locally
+  N_res(t)  =&gt; :locally
+  f         =&gt; :nonidentifiable
+  g         =&gt; :locally
+  k         =&gt; :locally</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="part-3-interpreting-the-results" class="level2" data-number="6">
+<h2 data-number="6" class="anchored" data-anchor-id="part-3-interpreting-the-results"><span class="header-section-number">6</span> Part 3: Interpreting the Results</h2>
+<section id="understanding-the-output" class="level3" data-number="6.1">
+<h3 data-number="6.1" class="anchored" data-anchor-id="understanding-the-output"><span class="header-section-number">6.1</span> Understanding the Output</h3>
+<p>Looking at the output above:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 32%">
+<col style="width: 23%">
+<col style="width: 44%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Parameter</th>
+<th style="text-align: left;">Status</th>
+<th style="text-align: left;">What It Means</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><strong>f</strong></td>
+<td style="text-align: left;"><code>nonidentifiable</code></td>
+<td style="text-align: left;">The sensitive fraction CANNOT be estimated from total tumor data alone</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>g</strong></td>
+<td style="text-align: left;"><code>locally</code></td>
+<td style="text-align: left;">The growth rate has a finite number of possible values (ambiguous)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><strong>k</strong></td>
+<td style="text-align: left;"><code>locally</code></td>
+<td style="text-align: left;">The death rate has a finite number of possible values (ambiguous)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>N_sens(t)</strong></td>
+<td style="text-align: left;"><code>locally</code></td>
+<td style="text-align: left;">The sensitive cell trajectory is locally identifiable</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><strong>N_res(t)</strong></td>
+<td style="text-align: left;"><code>locally</code></td>
+<td style="text-align: left;">The resistant cell trajectory is locally identifiable</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The key finding:</strong> When we only measure total tumor burden, the parameter <code>f</code> (sensitive fraction) is completely non-identifiable! This means infinitely many values of <code>f</code> would produce the exact same tumor size curve.</p>
+</section>
+<section id="why-is-f-non-identifiable" class="level3" data-number="6.2">
+<h3 data-number="6.2" class="anchored" data-anchor-id="why-is-f-non-identifiable"><span class="header-section-number">6.2</span> Why is f Non-Identifiable?</h3>
+<p>Think about it intuitively: If we only see total tumor size, we can’t distinguish between:</p>
+<ul>
+<li>80% sensitive cells dying fast, 20% resistant cells growing slow</li>
+<li>60% sensitive cells dying medium, 40% resistant cells growing medium</li>
+</ul>
+<p>Many combinations of (f, g, k) give the same total tumor curve!</p>
+</section>
+<section id="what-about-measuring-both-populations" class="level3" data-number="6.3">
+<h3 data-number="6.3" class="anchored" data-anchor-id="what-about-measuring-both-populations"><span class="header-section-number">6.3</span> What About Measuring Both Populations?</h3>
+<p>Let’s see if measuring both populations separately helps:</p>
+<div id="16" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>result_both <span class="op">=</span> <span class="fu">assess_identifiability</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    ode_system;</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    measured_quantities <span class="op">=</span> measured_both,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    loglevel <span class="op">=</span> <span class="bu">Logging</span>.Warn,</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>OrderedCollections.OrderedDict{SymbolicUtils.BasicSymbolic{Real}, Symbol} with 5 entries:
+  N_sens(t) =&gt; :globally
+  N_res(t)  =&gt; :globally
+  f         =&gt; :nonidentifiable
+  g         =&gt; :globally
+  k         =&gt; :globally</code></pre>
+</div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Dramatic Improvement
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Look at how the results changed:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th style="text-align: left;">Parameter</th>
+<th style="text-align: left;">Total Only</th>
+<th style="text-align: left;">Both Populations</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><strong>f</strong></td>
+<td style="text-align: left;">❌ nonidentifiable</td>
+<td style="text-align: left;">❌ nonidentifiable</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>g</strong></td>
+<td style="text-align: left;">⚠️ locally</td>
+<td style="text-align: left;">✅ globally</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><strong>k</strong></td>
+<td style="text-align: left;">⚠️ locally</td>
+<td style="text-align: left;">✅ globally</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>N_sens(t)</strong></td>
+<td style="text-align: left;">⚠️ locally</td>
+<td style="text-align: left;">✅ globally</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><strong>N_res(t)</strong></td>
+<td style="text-align: left;">⚠️ locally</td>
+<td style="text-align: left;">✅ globally</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key insight:</strong> By measuring both cell populations (perhaps using flow cytometry or specific biomarkers), we go from locally identifiable to <strong>globally identifiable</strong> for g and k!</p>
+<p><strong>But wait:</strong> Parameter <code>f</code> is STILL non-identifiable! Why?</p>
+</div>
+</div>
+</section>
+<section id="why-is-f-still-non-identifiable" class="level3" data-number="6.4">
+<h3 data-number="6.4" class="anchored" data-anchor-id="why-is-f-still-non-identifiable"><span class="header-section-number">6.4</span> Why is f Still Non-Identifiable?</h3>
+<p>The parameter <code>f</code> represents the <strong>initial fraction</strong> of sensitive cells. But look at our initial conditions:</p>
+<pre class="text"><code>N_sens(0) = f
+N_res(0) = 1 - f</code></pre>
+<p>If we measure both N_sens and N_res at time 0, we directly observe <code>f</code>! The issue is that <code>f</code> isn’t really a dynamic parameter — it’s embedded in the initial conditions. The analysis treats initial conditions and parameters differently.</p>
+<p>In practice, you would either:</p>
+<ol type="1">
+<li>Estimate <code>f</code> directly from the first measurement</li>
+<li>Treat it as a known value</li>
+<li>Reparameterize so initial conditions become explicit parameters</li>
+</ol>
+</section>
+</section>
+<section id="part-4-finding-identifiable-combinations" class="level2" data-number="7">
+<h2 data-number="7" class="anchored" data-anchor-id="part-4-finding-identifiable-combinations"><span class="header-section-number">7</span> Part 4: Finding Identifiable Combinations</h2>
+<p>When individual parameters aren’t identifiable, we can find <strong>combinations</strong> of parameters that ARE identifiable. This is extremely useful for reparameterization.</p>
+<div id="18" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">find_identifiable_functions</span>(</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    ode_system;</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    measured_quantities <span class="op">=</span> measured_total_only,</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    loglevel <span class="op">=</span> <span class="bu">Logging</span>.Warn,</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>2-element Vector{Num}:
+ g - k
+   g*k</code></pre>
+</div>
+</div>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Interpreting Identifiable Functions
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The output shows:</p>
+<ul>
+<li><strong>g - k</strong>: The difference between growth and death rates is identifiable</li>
+<li><strong>g × k</strong>: The product of growth and death rates is identifiable</li>
+</ul>
+<p><strong>What this means practically:</strong></p>
+<p>Even though we can’t estimate g and k individually from total tumor data, we CAN estimate:</p>
+<ol type="1">
+<li><p><strong>The net rate difference (g - k)</strong>: How much faster resistant cells grow than sensitive cells die. If positive, tumor eventually grows; if negative, it shrinks.</p></li>
+<li><p><strong>The product g × k</strong>: From this, we can derive the geometric mean √(g×k), which represents a “typical” rate between g and k.</p></li>
+</ol>
+<p><strong>Example:</strong> If the true values were g = 0.04/day and k = 0.16/day:</p>
+<ul>
+<li>Product: g × k = 0.0064/day² (directly identifiable)</li>
+<li>Geometric mean: √(0.0064) = 0.08/day (derived from product)</li>
+<li>Difference: g - k = -0.12/day (tumor shrinks overall)</li>
+</ul>
+<p><strong>Clinical interpretation:</strong> We can determine the NET tumor behavior (is it overall growing or shrinking?) but not the individual rates.</p>
+<p><strong>Reparameterization strategy:</strong> Instead of estimating (g, k), estimate (g-k, g×k) and back-calculate if needed. Or fix one rate to a literature value and estimate the other.</p>
+</div>
+</div>
+</section>
+<section id="part-5-visualization" class="level2" data-number="8">
+<h2 data-number="8" class="anchored" data-anchor-id="part-5-visualization"><span class="header-section-number">8</span> Part 5: Visualization</h2>
+<p>Let’s create visualizations to communicate identifiability findings clearly.</p>
+<section id="compile-results-into-dataframes" class="level3" data-number="8.1">
+<h3 data-number="8.1" class="anchored" data-anchor-id="compile-results-into-dataframes"><span class="header-section-number">8.1</span> Compile Results into DataFrames</h3>
+<div id="20" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Tumor burden results</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>result_total_df <span class="op">=</span> <span class="fu">DataFrame</span>(</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    parameter <span class="op">=</span> [<span class="fu">string</span>(p) for p <span class="kw">in</span> <span class="fu">keys</span>(result_total)],</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    status <span class="op">=</span> <span class="fu">map</span>(string, <span class="fu">values</span>(result_total))</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>result_both_df <span class="op">=</span> <span class="fu">DataFrame</span>(</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    parameter <span class="op">=</span> [<span class="fu">string</span>(p) for p <span class="kw">in</span> <span class="fu">keys</span>(result_both)],</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    status <span class="op">=</span> <span class="fu">map</span>(string, <span class="fu">values</span>(result_both))</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>tumor_results <span class="op">=</span> <span class="fu">outerjoin</span>(</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>    result_total_df,</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>    result_both_df;</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>    on <span class="op">=</span> <span class="op">:</span>parameter,</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>    renamecols <span class="op">=</span> <span class="st">"_total"</span> <span class="op">=&gt;</span> <span class="st">"_both"</span>,</span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a><span class="fu">simple_table</span>(</span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>    tumor_results,</span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>    [</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>        <span class="op">:</span>parameter <span class="op">=&gt;</span> <span class="st">"Parameter"</span>,</span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a>        <span class="op">:</span>status_total <span class="op">=&gt;</span> <span class="st">"Status (total only)"</span>,</span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>        <span class="op">:</span>status_both <span class="op">=&gt;</span> <span class="st">"Status (both populations)"</span>,</span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<table id="st-c9ee8335">
+    <style>
+        #st-c9ee8335 {
+            border: none;
+            margin: 0 auto;
+            padding: 0.25rem;
+            border-collapse: separate;
+            border-spacing: 0.85em 0.2em;
+            line-height: 1.2em;
+        }
+        #st-c9ee8335 tr {
+            background-color: transparent;
+            border: none;
+        }
+        #st-c9ee8335 tr td {
+            vertical-align: top;
+            padding: 0;
+            border: none;
+            background-color: transparent;
+        }
+        #st-c9ee8335 br {
+            line-height: 0em;
+            margin: 0;
+        }
+        #st-c9ee8335 sub {
+            line-height: 0;
+        }
+        #st-c9ee8335 sup {
+            line-height: 0;
+        }
+    </style>
+    <tbody><tr><td colspan="3" style="border-bottom: 1.5px solid currentColor; padding: 0"></td></tr>
+    <tr>
+        <td style="font-weight:bold;text-align:center;">Parameter</td>
+        <td style="font-weight:bold;text-align:center;">Status (total only)</td>
+        <td style="font-weight:bold;text-align:center;">Status (both populations)</td>
+    </tr>
+        <tr><td colspan="3" style="border-bottom:1px solid currentColor;padding:0"></td></tr>    <tr>
+        <td style="text-align:center;">N_sens(t)</td>
+        <td style="text-align:center;">locally</td>
+        <td style="text-align:center;">globally</td>
+    </tr>
+    <tr>
+        <td style="text-align:center;">N_res(t)</td>
+        <td style="text-align:center;">locally</td>
+        <td style="text-align:center;">globally</td>
+    </tr>
+    <tr>
+        <td style="text-align:center;">f</td>
+        <td style="text-align:center;">nonidentifiable</td>
+        <td style="text-align:center;">nonidentifiable</td>
+    </tr>
+    <tr>
+        <td style="text-align:center;">g</td>
+        <td style="text-align:center;">locally</td>
+        <td style="text-align:center;">globally</td>
+    </tr>
+    <tr>
+        <td style="text-align:center;">k</td>
+        <td style="text-align:center;">locally</td>
+        <td style="text-align:center;">globally</td>
+    </tr>
+    <tr><td colspan="3" style="border-bottom: 1.5px solid currentColor; padding: 0"></td></tr>
+</tbody></table>
+</div>
+</div>
+</section>
+<section id="identifiability-status-chart" class="level3" data-number="8.2">
+<h3 data-number="8.2" class="anchored" data-anchor-id="identifiability-status-chart"><span class="header-section-number">8.2</span> Identifiability Status Chart</h3>
+<div id="22" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>long_tumor_results <span class="op">=</span> <span class="fu">vcat</span>(</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    result_total_df,</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    result_both_df;</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    source <span class="op">=</span> <span class="op">:</span>scenario <span class="op">=&gt;</span> [<span class="op">:</span>total, <span class="op">:</span>both],</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>specs <span class="op">=</span> <span class="fu">data</span>(long_tumor_results) <span class="op">*</span> <span class="fu">mapping</span>(</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>parameter <span class="op">=&gt;</span> <span class="st">"Parameter"</span>,</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>scenario <span class="op">=&gt;</span> <span class="fu">renamer</span>(<span class="op">:</span>both <span class="op">=&gt;</span> <span class="st">"Both populations"</span>, <span class="op">:</span>total <span class="op">=&gt;</span> <span class="st">"Total only"</span>) <span class="op">=&gt;</span> <span class="st">"Measurement scenario"</span>,</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> <span class="op">:</span>status <span class="op">=&gt;</span> <span class="fu">renamer</span>(</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">"globally"</span> <span class="op">=&gt;</span> <span class="st">"Globally identifiable"</span>,</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">"locally"</span> <span class="op">=&gt;</span> <span class="st">"Locally identifiable"</span>,</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>        <span class="st">"nonidentifiable"</span> <span class="op">=&gt;</span> <span class="st">"Non-identifiable"</span>,</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">=&gt;</span> <span class="st">"Status"</span>,</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">visual</span>(Scatter; markersize <span class="op">=</span> <span class="fl">30</span>, marker <span class="op">=</span> <span class="op">:</span>rect)</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a><span class="fu">draw</span>(</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>    specs,</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scales</span>(Color <span class="op">=</span> (; palette <span class="op">=</span> [<span class="op">:</span>green, <span class="op">:</span>orange, <span class="op">:</span>red]));</span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a>    axis <span class="op">=</span> (; xticklabelrotation <span class="op">=</span> <span class="cn">π</span> <span class="op">/</span> <span class="fl">4</span>, yticklabelrotation <span class="op">=</span> <span class="cn">π</span> <span class="op">/</span> <span class="fl">2</span>),</span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="tb_03_structural_identifiability_tutorial_files/figure-html/cell-12-output-1.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="Tumor Burden Model: How measurement choice affects identifiability. Green = globally identifiable (unique solution), Orange = locally identifiable (finite solutions), Red = non-identifiable (infinite solutions)."><img src="tb_03_structural_identifiability_tutorial_files/figure-html/cell-12-output-1.svg" class="img-fluid figure-img" alt="Tumor Burden Model: How measurement choice affects identifiability. Green = globally identifiable (unique solution), Orange = locally identifiable (finite solutions), Red = non-identifiable (infinite solutions)."></a></p>
+<figcaption>Tumor Burden Model: How measurement choice affects identifiability. Green = globally identifiable (unique solution), Orange = locally identifiable (finite solutions), Red = non-identifiable (infinite solutions).</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Reading the Chart
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p><strong>Row 1 (Total Only):</strong> When we only measure total tumor size:</p>
+<ul>
+<li><code>f</code> is non-identifiable (red) — cannot be estimated</li>
+<li><code>g</code>, <code>k</code>, state variables are locally identifiable (orange) — finite ambiguity</li>
+</ul>
+<p><strong>Row 2 (Both Populations):</strong> When we measure both cell types:</p>
+<ul>
+<li><code>f</code> is STILL non-identifiable — it’s a structural issue</li>
+<li><code>g</code>, <code>k</code>, state variables become globally identifiable (green) — unique solutions!</li>
+</ul>
+<p><strong>Takeaway:</strong> Adding measurements dramatically improves identifiability for g and k.</p>
+</div>
+</div>
+</section>
+<section id="summary-impact-of-measurements" class="level3" data-number="8.3">
+<h3 data-number="8.3" class="anchored" data-anchor-id="summary-impact-of-measurements"><span class="header-section-number">8.3</span> Summary: Impact of Measurements</h3>
+<div id="24" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Count parameters in each category, per scenario</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>tumor_results_counts <span class="op">=</span> <span class="fu">vcat</span>(</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">combine</span>(<span class="fu">groupby</span>(result_both_df, <span class="op">:</span>status), nrow <span class="op">=&gt;</span> <span class="op">:</span>count),</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">combine</span>(<span class="fu">groupby</span>(result_total_df, <span class="op">:</span>status), nrow <span class="op">=&gt;</span> <span class="op">:</span>count);</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    source <span class="op">=</span> <span class="op">:</span>scenario <span class="op">=&gt;</span> [<span class="op">:</span>total, <span class="op">:</span>both],</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>status_mapping <span class="op">=</span> <span class="op">:</span>status <span class="op">=&gt;</span> <span class="fu">renamer</span>(</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"globally"</span> <span class="op">=&gt;</span> <span class="st">"Globally identifiable"</span>,</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">"locally"</span> <span class="op">=&gt;</span> <span class="st">"Locally identifiable"</span>,</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"nonidentifiable"</span> <span class="op">=&gt;</span> <span class="st">"Non-identifiable"</span>,</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>) <span class="op">=&gt;</span> <span class="st">"Status"</span></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>specs <span class="op">=</span> <span class="fu">data</span>(tumor_results_counts) <span class="op">*</span> <span class="fu">mapping</span>(</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>scenario <span class="op">=&gt;</span> <span class="fu">renamer</span>(<span class="op">:</span>both <span class="op">=&gt;</span> <span class="st">"Both populations"</span>, <span class="op">:</span>total <span class="op">=&gt;</span> <span class="st">"Total only"</span>) <span class="op">=&gt;</span> <span class="st">"Measurement scenario"</span>,</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>count <span class="op">=&gt;</span> <span class="st">"Number of parameters/states"</span>,</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>    stack <span class="op">=</span> status_mapping,</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> status_mapping,</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">visual</span>(BarPlot)</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a><span class="fu">draw</span>(specs, <span class="fu">scales</span>(Color <span class="op">=</span> (; palette <span class="op">=</span> [<span class="op">:</span>green, <span class="op">:</span>orange, <span class="op">:</span>red])))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="tb_03_structural_identifiability_tutorial_files/figure-html/cell-13-output-1.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="Adding measurements increases the percentage of globally identifiable parameters."><img src="tb_03_structural_identifiability_tutorial_files/figure-html/cell-13-output-1.svg" class="img-fluid figure-img" alt="Adding measurements increases the percentage of globally identifiable parameters."></a></p>
+<figcaption>Adding measurements increases the percentage of globally identifiable parameters.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="part-6-practical-recommendations" class="level2" data-number="9">
+<h2 data-number="9" class="anchored" data-anchor-id="part-6-practical-recommendations"><span class="header-section-number">9</span> Part 6: Practical Recommendations</h2>
+<p>Based on what we’ve learned, here are actionable guidelines for the tumor burden model and beyond.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>1. Always Check Identifiability BEFORE Estimation
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Run identifiability analysis as the <strong>first step</strong> after building your model, not as a debugging step when estimation fails. This saves enormous time and frustration.</p>
+<p><strong>Workflow:</strong></p>
+<pre class="text"><code>Build model → Check identifiability → Fix issues → THEN estimate</code></pre>
+</div>
+</div>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>2. Design Measurements for Identifiability
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>When planning a clinical study:</p>
+<ol type="1">
+<li>List the parameters you need to estimate</li>
+<li>Run identifiability analysis with your planned measurements</li>
+<li>If key parameters are non-identifiable, consider adding biomarkers</li>
+<li>Balance cost/invasiveness against identifiability gains</li>
+</ol>
+<p><strong>Example:</strong> In the tumor burden model, adding biomarkers to distinguish sensitive vs resistant cells would make g and k globally identifiable.</p>
+</div>
+</div>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>3. Handle Non-Identifiable Parameters
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>When you find non-identifiable parameters, you have four options:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 31%">
+<col style="width: 40%">
+<col style="width: 28%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Strategy</th>
+<th style="text-align: left;">When to Use</th>
+<th style="text-align: left;">Example</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><strong>Fix to literature value</strong></td>
+<td style="text-align: left;">Parameter well-characterized elsewhere</td>
+<td style="text-align: left;">Fix k to published death rate</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>Reparameterize</strong></td>
+<td style="text-align: left;">Only combinations are identifiable</td>
+<td style="text-align: left;">Estimate (g-k, g×k) instead of (g, k)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><strong>Add measurements</strong></td>
+<td style="text-align: left;">Feasible in study design</td>
+<td style="text-align: left;">Add biomarker for cell types</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>Use informative Bayesian priors</strong></td>
+<td style="text-align: left;">Have prior knowledge</td>
+<td style="text-align: left;">Strong prior on growth rate</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>4. Local Analysis First, Global Analysis to Confirm
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>For complex models (&gt;5 parameters, &gt;3 state variables):</p>
+<ol type="1">
+<li><strong>Start with local identifiability</strong> — fast screening</li>
+<li><strong>If locally identifiable</strong> — follow up with global analysis for complete picture</li>
+<li><strong>If locally non-identifiable</strong> — definitely non-identifiable globally, fix first</li>
+</ol>
+<p>This saves computational time on large models.</p>
+</div>
+</div>
+<div class="callout callout-style-default callout-warning callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Warning</span>5. Structural vs Practical Identifiability
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Remember: <strong>Structural identifiability is necessary but not sufficient!</strong> <span class="citation" data-cites="wieland2021">(<a href="#ref-wieland2021" role="doc-biblioref">Wieland et al., 2021</a>)</span></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 37%">
+<col style="width: 37%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Type</th>
+<th style="text-align: left;">Assumes</th>
+<th style="text-align: left;">Answers</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><strong>Structural</strong></td>
+<td style="text-align: left;">Perfect data, infinite time</td>
+<td style="text-align: left;"><em>Can</em> parameters theoretically be identified?</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>Practical</strong></td>
+<td style="text-align: left;">Real data, finite samples</td>
+<td style="text-align: left;"><em>Will</em> parameters be well-estimated in practice?</td>
+</tr>
+</tbody>
+</table>
+<p>Even structurally identifiable parameters may be <strong>practically non-identifiable</strong> due to:</p>
+<ul>
+<li>Limited data</li>
+<li>Poor sampling times</li>
+<li>High measurement noise</li>
+<li>Parameter values near boundaries</li>
+</ul>
+<p><strong>Always follow up with practical identifiability</strong> (FIM, profile likelihood, bootstrap) on your actual data <span class="citation" data-cites="raue2009">(<a href="#ref-raue2009" role="doc-biblioref">Raue et al., 2009</a>)</span>.</p>
+</div>
+</div>
+</section>
+<section id="summary" class="level2" data-number="10">
+<h2 data-number="10" class="anchored" data-anchor-id="summary"><span class="header-section-number">10</span> Summary</h2>
+<section id="key-takeaways" class="level3" data-number="10.1">
+<h3 data-number="10.1" class="anchored" data-anchor-id="key-takeaways"><span class="header-section-number">10.1</span> Key Takeaways</h3>
+<ol type="1">
+<li><p><strong>Structural identifiability</strong> tells you whether parameters CAN be estimated, assuming perfect data</p></li>
+<li><p><strong>Three classifications matter:</strong></p>
+<ul>
+<li><strong>Globally identifiable</strong>: Safe to estimate (unique solution)</li>
+<li><strong>Locally identifiable</strong>: Estimation depends on starting values (finite solutions)</li>
+<li><strong>Non-identifiable</strong>: Cannot estimate (infinite solutions)</li>
+</ul></li>
+<li><p><strong>Measurements determine identifiability</strong>: The same model can be identifiable or not depending on what you observe</p></li>
+<li><p><strong>When parameters aren’t identifiable individually</strong>, look for identifiable <strong>combinations</strong> (reparameterization)</p></li>
+<li><p><strong>Always check BEFORE estimation</strong> to avoid wasted effort on impossible problems</p></li>
+</ol>
+</section>
+<section id="tumor-burden-model-findings" class="level3" data-number="10.2">
+<h3 data-number="10.2" class="anchored" data-anchor-id="tumor-burden-model-findings"><span class="header-section-number">10.2</span> Tumor Burden Model Findings</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 29%">
+<col style="width: 70%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Finding</th>
+<th style="text-align: left;">Practical Implication</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>f</code> non-identifiable from total tumor</td>
+<td style="text-align: left;">Can’t separate sensitive/resistant fractions without biomarkers</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>g-k</code> and <code>g×k</code> identifiable</td>
+<td style="text-align: left;">Can estimate net tumor behavior, not individual rates</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Measuring both populations helps</td>
+<td style="text-align: left;">Biomarkers for cell types dramatically improve estimation</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="quick-reference-key-functions" class="level3" data-number="10.3">
+<h3 data-number="10.3" class="anchored" data-anchor-id="quick-reference-key-functions"><span class="header-section-number">10.3</span> Quick Reference: Key Functions</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 52%">
+<col style="width: 47%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Function</th>
+<th style="text-align: left;">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>model.sys</code></td>
+<td style="text-align: left;">Extract ODESystem from Pumas model</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>@variables x(t)</code></td>
+<td style="text-align: left;">Define symbolic measurement variable</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>assess_identifiability()</code></td>
+<td style="text-align: left;">Global analysis (globally/locally/non)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>assess_local_identifiability()</code></td>
+<td style="text-align: left;">Local analysis (identifiable yes/no)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>find_identifiable_functions()</code></td>
+<td style="text-align: left;">Find identifiable parameter combinations</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="whats-next" class="level3" data-number="10.4">
+<h3 data-number="10.4" class="anchored" data-anchor-id="whats-next"><span class="header-section-number">10.4</span> What’s Next?</h3>
+<p>In <a href="../tutorials/tb_04_copula_vpop_tutorial.html">Tutorial 4: Copula Vpop Generation</a>, we’ll learn how to generate realistic virtual populations using Gaussian copulas that preserve the parameter correlations from NLME estimation.</p>
+</section>
+<section id="references" class="level3" data-number="10.5">
+<h3 data-number="10.5" class="anchored" data-anchor-id="references"><span class="header-section-number">10.5</span> References</h3>
+<div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" data-line-spacing="2" role="list">
+<div id="ref-cortes2025" class="csl-entry" role="listitem">
+Cortés-Ríos, J., Magee, M., Sher, A., Jusko, W. J., &amp; Desikan, R. (2025). A step-by-step workflow for performing in silico clinical trials with nonlinear mixed effects models. <em>CPT: Pharmacometrics &amp; Systems Pharmacology</em>. <a href="https://doi.org/10.1002/psp4.70122">https://doi.org/10.1002/psp4.70122</a>
+</div>
+<div id="ref-dong2023" class="csl-entry" role="listitem">
+Dong, R., Goodbrake, C., Harrington, H. A., &amp; Pogudin, G. (2023). StructuralIdentifiability.jl: Structural identifiability analysis of differential equation models in julia. <em>Journal of Open Source Software</em>, <em>8</em>(90), 5610. <a href="https://doi.org/10.21105/joss.05610">https://doi.org/10.21105/joss.05610</a>
+</div>
+<div id="ref-raue2009" class="csl-entry" role="listitem">
+Raue, A., Kreutz, C., Maiwald, T., Bachmann, J., Schilling, M., Klingmüller, U., &amp; Timmer, J. (2009). Structural and practical identifiability analysis of partially observed dynamical models by exploiting the profile likelihood. <em>Bioinformatics</em>, <em>25</em>(15), 1923–1929. <a href="https://doi.org/10.1093/bioinformatics/btp358">https://doi.org/10.1093/bioinformatics/btp358</a>
+</div>
+<div id="ref-wieland2021" class="csl-entry" role="listitem">
+Wieland, F.-G., Hauber, A. L., Rosenblatt, M., Tönsing, C., &amp; Timmer, J. (2021). On structural and practical identifiability. <em>Current Opinion in Systems Biology</em>, <em>25</em>, 60–69. <a href="https://doi.org/10.1016/j.coisb.2021.03.005">https://doi.org/10.1016/j.coisb.2021.03.005</a>
+</div>
+</div>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","descPosition":"bottom","loop":false,"openEffect":"zoom","selector":".lightbox"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>
