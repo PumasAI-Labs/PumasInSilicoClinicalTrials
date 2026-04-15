@@ -129,8 +129,16 @@ hbv_model = @model begin
         "Scaling factor for observed effector CD4/8 T cell numbers []"
         tv_log10_conv_E ∈ RealDomain()
 
-        # IIV of estimated parameters in log10 scale
-        Ω ∈ PDiagDomain(9)
+        # IIV of estimated parameters (on their transformed scales)
+        ω_p_S ∈ RealDomain(; lower = 0.0)
+        ω_β ∈ RealDomain(; lower = 0.0)
+        ω_m ∈ RealDomain(; lower = 0.0)
+        ω_k_P ∈ RealDomain(; lower = 0.0)
+        ω_k_A ∈ RealDomain(; lower = 0.0)
+        ω_ϵ_NA ∈ RealDomain(; lower = 0.0)
+        ω_ϵ_IFN ∈ RealDomain(; lower = 0.0)
+        ω_r_E_IFN ∈ RealDomain(; lower = 0.0)
+        ω_conv_E ∈ RealDomain(; lower = 0.0)
 
         # Fixed parameters
         "Baseline of HBV [copies/mL]"
@@ -194,32 +202,37 @@ hbv_model = @model begin
     end
 
     @random begin
-        η ~ MvNormal(Ω)
+        # Logit-normal on [0, 1]; mapped to the log10 range of each parameter in @pre
+        z_p_S ~ LogitNormal(logit((tv_log10_p_S - 2) / 10), ω_p_S)     # log10(p_S) ∈ [2, 12]
+        z_β ~ LogitNormal(logit(tv_log10_β / 10 + 1), ω_β)        # log10(β)   ∈ [-10, 0]
+        z_m ~ LogitNormal(logit((tv_log10_m + 3) / 8), ω_m)        # log10(m)   ∈ [-3, 5]
+        # Normal on log10 scale (unbounded)
+        log10_k_P ~ Normal(tv_log10_k_P, ω_k_P)
+        log10_k_A ~ Normal(tv_log10_k_A, ω_k_A)
+        # Logit-normal on [0, 1]; mapped to log10 ranges and gated by treatment in @pre
+        z_ϵ_NA ~ LogitNormal(logit(tv_log10_ϵ_NA / 5 + 1), ω_ϵ_NA)     # log10(ϵ_NA)    ∈ [-5, 0]
+        z_ϵ_IFN ~ LogitNormal(logit(tv_log10_ϵ_IFN / 5 + 1), ω_ϵ_IFN)    # log10(ϵ_IFN)   ∈ [-5, 0]
+        z_r_E_IFN ~ LogitNormal(logit(tv_log10_r_E_IFN / 4), ω_r_E_IFN)  # log10(r_E_IFN) ∈ [0, 4]
+        # Normal on log10 scale (unbounded)
+        log10_conv_E ~ Normal(tv_log10_conv_E, ω_conv_E)
     end
 
     # Time-varying covariates for treatment phases
     @covariates NA IFN
 
     @pre begin
-        # Individual parameters
-        # Logit-normal distribution of log10(p_S), scaled to range [2, 12]
-        p_S = exp10(10 * logistic(logit((tv_log10_p_S - 2) / 10) + η[1]) + 2)
-        # Logit-normal distribution of log10(β), scaled to range [-10, 0]
-        β = exp10(10 * (logistic(logit(tv_log10_β / 10 + 1) + η[2]) - 1))
-        # Logit-normal distribution of log10(m), scaled to range [-3, 5]
-        m = exp10(8 * logistic(logit((tv_log10_m + 3) / 8) + η[3]) - 3)
-        # Normal distribution of log10(k_P)
-        k_P = exp10(tv_log10_k_P + η[4])
-        # Normal distribution of log10(k_A)
-        k_A = exp10(tv_log10_k_A + η[5])
-        # Logit-normal distribution of log10(ϵ_NA), scaled to range [-5, 0]
-        ϵ_NA = exp10(NA * 5 * (logistic(logit(tv_log10_ϵ_NA / 5 + 1) + η[6]) - 1))
-        # Logit-normal distribution of log10(ϵ_IFN), scaled to range [-5, 0]
-        ϵ_IFN = exp10(IFN * 5 * (logistic(logit(tv_log10_ϵ_IFN / 5 + 1) + η[7]) - 1))
-        # Logit-normal distribution of log10(r_E_IFN), scaled to range [0, 4]
-        r_E_IFN = exp10(IFN * 4 * logistic(logit(tv_log10_r_E_IFN / 4) + η[8]))
-        # Normal distribution
-        conv_E = exp10(tv_log10_conv_E + η[9])
+        # Map logit-normal [0, 1] random effects back to the natural scale
+        p_S = exp10(10 * z_p_S + 2)
+        β = exp10(10 * (z_β - 1))
+        m = exp10(8 * z_m - 3)
+        # Exponentiate unbounded log10 random effects
+        k_P = exp10(log10_k_P)
+        k_A = exp10(log10_k_A)
+        # Treatment-dependent parameters (NA, IFN are 0/1 indicators)
+        ϵ_NA = exp10(NA * 5 * (z_ϵ_NA - 1))
+        ϵ_IFN = exp10(IFN * 5 * (z_ϵ_IFN - 1))
+        r_E_IFN = exp10(IFN * 4 * z_r_E_IFN)
+        conv_E = exp10(log10_conv_E)
     end
 
     # Initial conditions
@@ -352,7 +365,7 @@ hbv_estimated_params = (;
     tv_log10_r_E_IFN = 0.313,
     tv_log10_conv_E = 2.745,
 
-    Ω = Diagonal([ω_p_S^2, ω_β^2, ω_m^2, ω_k_P^2, ω_k_A^2, ω_ϵ_NA^2, ω_ϵ_IFN^2, ω_r_E_IFN^2, ω_conv_E^2]),
+    ω_p_S, ω_β, ω_m, ω_k_P, ω_k_A, ω_ϵ_NA, ω_ϵ_IFN, ω_r_E_IFN, ω_conv_E,
 
     σ_add_log10_HBsAg = 0.0972,
     σ_prop_log10_HBsAg = 2.2204e-16,
@@ -392,15 +405,19 @@ Rho = [
 copula = GaussianCopula(Rho)
 correlated_randeffs_dist = SklarDist(
     copula, (
-        Normal(0, ω_p_S),
-        Normal(0, ω_β),
-        Normal(0, ω_m),
-        Normal(0, ω_k_P),
-        Normal(0, ω_k_A),
-        Normal(0, ω_ϵ_NA),
-        Normal(0, ω_ϵ_IFN),
-        Normal(0, ω_r_E_IFN),
-        Normal(0, ω_conv_E),
+        # Logit-normal on [0, 1] — matches `z_p_S`, `z_β`, `z_m` in @random
+        LogitNormal(logit((hbv_params.tv_log10_p_S - 2) / 10), ω_p_S),
+        LogitNormal(logit(hbv_params.tv_log10_β / 10 + 1), ω_β),
+        LogitNormal(logit((hbv_params.tv_log10_m + 3) / 8), ω_m),
+        # Normal on log10 scale — matches `log10_k_P`, `log10_k_A`
+        Normal(hbv_params.tv_log10_k_P, ω_k_P),
+        Normal(hbv_params.tv_log10_k_A, ω_k_A),
+        # Logit-normal on [0, 1] — matches `z_ϵ_NA`, `z_ϵ_IFN`, `z_r_E_IFN`
+        LogitNormal(logit(hbv_params.tv_log10_ϵ_NA / 5 + 1), ω_ϵ_NA),
+        LogitNormal(logit(hbv_params.tv_log10_ϵ_IFN / 5 + 1), ω_ϵ_IFN),
+        LogitNormal(logit(hbv_params.tv_log10_r_E_IFN / 4), ω_r_E_IFN),
+        # Normal on log10 scale — matches `log10_conv_E`
+        Normal(hbv_params.tv_log10_conv_E, ω_conv_E),
     )
 )
 ```
@@ -428,9 +445,24 @@ baseline_pop = map(1:nvps) do id
         covariates_time = [0, t_chronic],
     )
 end
-baseline_vrandeffs = map(baseline_pop) do _
-    return (; η = rand(correlated_randeffs_dist))
+# Convert a copula sample (length-9 vector) into a named tuple of random effects
+# matching the order of the `SklarDist` marginals above.
+function _sample_randeffs(dist)
+    sample = rand(dist)
+    return (;
+        z_p_S = sample[1],
+        z_β = sample[2],
+        z_m = sample[3],
+        log10_k_P = sample[4],
+        log10_k_A = sample[5],
+        z_ϵ_NA = sample[6],
+        z_ϵ_IFN = sample[7],
+        z_r_E_IFN = sample[8],
+        log10_conv_E = sample[9],
+    )
 end
+
+baseline_vrandeffs = map(_ -> _sample_randeffs(correlated_randeffs_dist), baseline_pop)
 
 # Compute baseline HBsAg (after 5 yr chronic infection + 4 year NA suppression)
 baseline_obstimes = [t_chronic + t_na_suppression]
@@ -444,9 +476,7 @@ while true
     # Resample random effects for failed simulation
     pop = @view(baseline_pop[baseline_invalid])
     vrandeffs = @view(baseline_vrandeffs[baseline_invalid])
-    map!(vrandeffs, pop) do _
-        return (; η = rand(correlated_randeffs_dist))
-    end
+    map!(_ -> _sample_randeffs(correlated_randeffs_dist), vrandeffs, pop)
     baseline_sims[baseline_invalid] = simobs(hbv_model, pop, hbv_params, vrandeffs; simulate_error = false, obstimes = baseline_obstimes)
 end
 
