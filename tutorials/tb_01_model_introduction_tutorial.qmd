@@ -176,9 +176,9 @@ The parameter values come from @qi2022, who fit this model to NSCLC clinical tri
 ```{julia}
 #| output: false
 # Population (typical) parameter values
-pop_f = 0.27    # 27% of tumor is treatment-sensitive
-pop_g = 0.0013  # Resistant cells grow ~0.13% per day
-pop_k = 0.0091  # Sensitive cells die ~0.91% per day
+median_f = 0.27    # 27% of tumor is treatment-sensitive
+median_g = 0.0013  # Resistant cells grow ~0.13% per day
+median_k = 0.0091  # Sensitive cells die ~0.91% per day
 
 # Inter-individual variability (standard deviations on transformed scale)
 ω_f = 2.16  # High variability in sensitive fraction
@@ -208,32 +208,33 @@ tumor_burden_model = @model begin
         tvg ∈ RealDomain(lower = 0.0)
         tvk ∈ RealDomain(lower = 0.0)
 
-        # Inter-individual variability (diagonal covariance matrix)
+        # Inter-individual variability
         # Values on the transformed scale (logit for f, log for g and k)
-        Ω ∈ PDiagDomain(3)
+        ωf ∈ RealDomain(; lower = 0.0)
+        ωg ∈ RealDomain(; lower = 0.0)
+        ωk ∈ RealDomain(; lower = 0.0)
 
         # Residual error (standard deviation)
         σ ∈ RealDomain(lower = 0.0)
     end
 
+    # Random effects
     @random begin
-        # Random effects vector (one per parameter)
-        η ~ MvNormal(Ω)
+        # f: logit-normal distribution (bounded 0-1)
+        f ~ LogitNormal(logit(tvf), ωf)
+        # g: log-normal distribution (positive value)
+        g ~ LogNormal(log(tvg), ωg)
+        # k under treatment: log-normal distribution (positive value)
+        k_treatment ~ LogNormal(log(tvk), ωk)
     end
 
     @covariates treatment
 
     @pre begin
-        # Transform random effects to individual parameters
-        # f: logit-normal transformation (bounded 0-1)
-        f = logistic(logit(tvf) + η[1])
-        # g: log-normal transformation (positive value)
-        g = tvg * exp(η[2])
-        # k: log-normal transformation (positive value)
-        # Additionally, treatment affects death rate:
+        # treatment affects death rate:
         # treatment = false → control arm (no killing)
-        # treatment = true → treatment arm (killing at rate tvk * exp(η[3]))
-        k = treatment * tvk * exp(η[3])
+        # treatment = true → treatment arm (killing at rate k_treatment)
+        k = treatment * k_treatment
     end
 
     # Initial conditions (normalized tumor = 1)
@@ -270,7 +271,8 @@ Let's examine each model block in detail.
   Typical value of `f` (bounded between 0 and 1)
 - `tvg ∈ RealDomain(lower=0.0)`: Typical value of `g` (positive)
 - `tvk ∈ RealDomain(lower=0.0)`: Typical value of `k` (positive)
-- `Ω ∈ PDiagDomain(3)`: Diagonal covariance matrix
+- `ωf`, `ωg`, `ωk ∈ RealDomain(lower=0.0)`:
+  Inter-individual variability parameters (standard deviations on the transformed scale)
 - `σ ∈ RealDomain(lower=0.0)`: Residual error SD
 
 :::{.callout-note}
@@ -279,20 +281,21 @@ Let's examine each model block in detail.
 | Domain | Constraints | Use Case |
 |:-------|:------------|:---------|
 | `RealDomain()` | Any real number | Unbounded parameters |
-| `RealDomain(lower=0.0)` | Positive only | Rates, clearances |
+| `RealDomain(lower=0.0)` | Positive only | Rates, SDs, clearances |
 | `RealDomain(lower=0.0, upper=1.0)` | Between 0 and 1 | Fractions, bioavailability |
-| `PDiagDomain(n)` | Positive diagonal matrix | Variance-covariance |
 
 :::
 
 #### The `@random` Block
 
-`η ~ MvNormal(Ω)` defines a vector of 3 random effects,
-sampled from $\mathcal{N}(0, \Omega)$ for each virtual patient:
+The `@random` block defines the individual-level parameter distributions directly:
 
-- `η[1]`: affects `f` (sensitive fraction)
-- `η[2]`: affects `g` (growth rate)
-- `η[3]`: affects `k` (death rate)
+- `f ~ LogitNormal(logit(tvf), ωf)`: Sensitive fraction, bounded between 0 and 1
+- `g ~ LogNormal(log(tvg), ωg)`: Growth rate, always positive
+- `k_treatment ~ LogNormal(log(tvk), ωk)`: Death rate under treatment, always positive
+
+Each virtual patient gets parameter values sampled from these distributions.
+The distribution types ensure parameters stay in valid ranges (see callout below).
 
 #### The `@covariates` Block
 
@@ -302,30 +305,36 @@ specifically, it multiplies the death rate `k`,
 so `treatment = false` yields `k = 0` (no killing)
 while `treatment = true` yields the estimated death rate.
 
-#### The `@pre` Block: Parameter Transformations
+#### The `@pre` Block: Derived Parameters
 
-The `@pre` block contains the **key transformations** that convert population parameters
-and random effects into individual parameters:
+The `@pre` block computes derived individual parameters from the random effects:
 
-- `f = logistic(logit(tvf) + η[1])` (bounded between 0 and 1)
-- `g = tvg * exp(η[2])` (positive value)
-- `k = tvk * exp(η[3])` (positive value)
+- `k = treatment * k_treatment`: The effective death rate.
+  In the control arm (`treatment = false`), `k = 0` (no killing).
+  In the treatment arm (`treatment = true`), `k = k_treatment`.
+
+The individual parameters `f` and `g` are used directly from the `@random` block in `@init`
+and `@dynamics`.
 
 :::{.callout-important}
-#### Why These Transformations?
+#### Why LogitNormal and LogNormal?
 
-The transformations ensure:
+The distribution types in `@random` ensure:
 
 1. **Parameters stay in valid ranges:**
-   - f always between 0 and 1 (logit-normal)
-   - g and k always positive (log-normal)
+   - `f` always between 0 and 1 (`LogitNormal`)
+   - `g` and `k` always positive (`LogNormal`)
 
 2. **Symmetric variability on the transformed scale:**
-   - A patient with η = +1 is as "far from typical" as one with η = -1
+   - On the logit/log scale, a patient one standard deviation above typical
+     is as "far from typical" as one standard deviation below
 
 3. **Realistic distributions:**
    - Log-normal for rates (right-skewed, common in PK/PD)
    - Logit-normal for fractions (appropriate for bounded parameters)
+
+4. **Median interpretation:**
+   - `tvf`, `tvg`, `tvk` are the **medians** of the individual-level distributions
 :::
 
 #### The `@init` Block
@@ -388,10 +397,12 @@ Let us simulate a "typical" patient (η = 0) receiving treatment.
 ```{julia}
 # Population parameters
 pop_params = (
-    tvf = pop_f,
-    tvg = pop_g,
-    tvk = pop_k,
-    Ω = Diagonal([ω_f^2, ω_g^2, ω_k^2]),
+    tvf = median_f,
+    tvg = median_g,
+    tvk = median_k,
+    ωf = ω_f,
+    ωg = ω_g,
+    ωk = ω_k,
     σ = resid_σ,
 )
 
@@ -416,7 +427,7 @@ subject_control = Subject(
 This gives individual parameters equal to population typical values:
 
 ```{julia}
-typical_randeffs = zero_randeffs(tumor_burden_model, subject_treatment, pop_params)
+typical_randeffs = center_randeffs(tumor_burden_model, subject_treatment, pop_params)
 ```
 
 Simulate treatment arm:
@@ -502,7 +513,7 @@ $$ t = \frac{\ln{(kf / (g(1-f)))}}{k + g}. $$
 Thus, time to nadir for a typical patient is (in days):
 
 ```{julia}
-t_nadir = log(pop_k * pop_f / (pop_g * (1 - pop_f))) / (pop_k + pop_g)
+t_nadir = log(median_k * median_f / (median_g * (1 - median_f))) / (median_k + median_g)
 ```
 
 Let us compute the tumor size at nadir and after 18 weeks for a typical patient:
@@ -536,11 +547,12 @@ f_values = [0.1, 0.27, 0.5, 0.8]
 
 # Build DataFrame with all trajectories
 df_sensitivity = mapreduce(vcat, f_values) do f
+    params = merge(pop_params, (; tvf = f))
     sim = simobs(
         tumor_burden_model,
         subject_treatment,
-        merge(pop_params, (; tvf = f)),
-        typical_randeffs;
+        params,
+        center_randeffs(tumor_burden_model, subject_treatment, params);
         simulate_error = false,
         obstimes = obs_times,
     )
@@ -588,7 +600,8 @@ patients = [Subject(; id, covariates = (; treatment = true)) for id in 1:100]
 # Just to show variability concept
 patients_sims = simobs(
     tumor_burden_model,
-    patients, pop_params;
+    patients,
+    pop_params;
     obstimes = 0:(7 * 18),
     simulate_error = false,
 )

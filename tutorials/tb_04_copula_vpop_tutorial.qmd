@@ -172,32 +172,33 @@ tumor_burden_model = @model begin
         tvg ∈ RealDomain(lower = 0.0)
         tvk ∈ RealDomain(lower = 0.0)
 
-        # Inter-individual variability (diagonal covariance matrix)
+        # Inter-individual variability
         # Values on the transformed scale (logit for f, log for g and k)
-        Ω ∈ PDiagDomain(3)
+        ωf ∈ RealDomain(; lower = 0.0)
+        ωg ∈ RealDomain(; lower = 0.0)
+        ωk ∈ RealDomain(; lower = 0.0)
 
         # Residual error (standard deviation)
         σ ∈ RealDomain(lower = 0.0)
     end
 
+    # Random effects
     @random begin
-        # Random effects vector (one per parameter)
-        η ~ MvNormal(Ω)
+        # f: logit-normal distribution (bounded 0-1)
+        f ~ LogitNormal(logit(tvf), ωf)
+        # g: log-normal distribution (positive value)
+        g ~ LogNormal(log(tvg), ωg)
+        # k under treatment: log-normal distribution (positive value)
+        k_treatment ~ LogNormal(log(tvk), ωk)
     end
 
     @covariates treatment
 
     @pre begin
-        # Transform random effects to individual parameters
-        # f: logit-normal transformation (bounded 0-1)
-        f = logistic(logit(tvf) + η[1])
-        # g: log-normal transformation (positive value)
-        g = tvg * exp(η[2])
-        # k: log-normal transformation (positive value)
-        # Additionally, treatment affects death rate:
+        # treatment affects death rate:
         # treatment = false → control arm (no killing)
-        # treatment = true → treatment arm (killing at rate tvk * exp(η[3]))
-        k = treatment * tvk * exp(η[3])
+        # treatment = true → treatment arm (killing at rate k_treatment)
+        k = treatment * k_treatment
     end
 
     # Initial conditions (normalized tumor = 1)
@@ -234,9 +235,9 @@ The parameter values come from @qi2022, who fit this model to NSCLC clinical tri
 ```{julia}
 #| output: false
 # Population (typical) parameter values
-pop_f = 0.27    # 27% of tumor is treatment-sensitive
-pop_g = 0.0013  # Resistant cells grow ~0.13% per day
-pop_k = 0.0091  # Sensitive cells die ~0.91% per day
+median_f = 0.27    # 27% of tumor is treatment-sensitive
+median_g = 0.0013  # Resistant cells grow ~0.13% per day
+median_k = 0.0091  # Sensitive cells die ~0.91% per day
 
 # Inter-individual variability (standard deviations on transformed scale)
 ω_f = 2.16  # High variability in sensitive fraction
@@ -282,10 +283,12 @@ patients = [
         ) for id in 1:10_000
 ]
 param = (;
-    tvf = pop_f,
-    tvg = pop_g,
-    tvk = pop_k,
-    Ω = Diagonal([ω_f^2, ω_g^2, ω_k^2]),
+    tvf = median_f,
+    tvg = median_g,
+    tvk = median_k,
+    ωf = ω_f,
+    ωg = ω_g,
+    ωk = ω_k,
     σ = resid_σ,
 )
 sims = simobs(tumor_burden_model, patients, param; simulate_error = false)
@@ -373,7 +376,7 @@ copula = GaussianCopula(Rho)
 ```{julia}
 correlated_randeffs_dist = SklarDist(
     copula,
-    (Normal(0, ω_f), Normal(0, ω_g), Normal(0, ω_k)),
+    (LogitNormal(logit(median_f), ω_f), LogNormal(log(median_g), ω_g), LogNormal(log(median_k), ω_k)),
 )
 ```
 
@@ -387,19 +390,17 @@ correlated_randeffs = rand(correlated_randeffs_dist, length(patients))
 :::{.callout-note}
 ## Understanding Copula Samples
 
-The matrix `correlated_randeffs` contains values
-where each random effect is distributed according to a normal distribution with the specified
-standard deviation:
+The matrix `correlated_randeffs` contains parameter values sampled from their respective marginal
+distributions (LogitNormal for `f`, LogNormal for `g` and `k_treatment`).
+The rows correspond to `f`, `g`, and `k_treatment`:
 
 ```{julia}
-mean(correlated_randeffs; dims = 2)
+median(correlated_randeffs; dims = 2)
 ```
 
-```{julia}
-std(correlated_randeffs; dims = 2)
-```
-
-Additionally, the samples are **correlated** according to our Gaussian copula:
+The key property is that the samples are **correlated** according to our Gaussian copula.
+Spearman (rank) correlations are preserved through any monotonic transformation,
+so the correlation structure is maintained even though the marginals are non-normal:
 
 ```{julia}
 corspearman(correlated_randeffs')
@@ -412,7 +413,7 @@ corspearman(correlated_randeffs')
 We now have correlated random effects that we can use for performing model simulations.
 
 ```{julia}
-vrandeffs = [(; η) for η in eachcol(correlated_randeffs)]
+vrandeffs = [(; f, g, k_treatment) for (f, g, k_treatment) in eachcol(correlated_randeffs)]
 sims = simobs(
     tumor_burden_model,
     patients,
@@ -470,7 +471,7 @@ and observed median and omega (standard deviation of untransformed sample):
 ```{julia}
 marginals_df = DataFrame(
     parameter = ["f", "g", "k"],
-    median_exp = [pop_f, pop_g, pop_k],
+    median_exp = [median_f, median_g, median_k],
     median_obs = [median(vpop.f), median(vpop.g), median(vpop.k)],
     omega_exp = [ω_f, ω_g, ω_k],
     omega_obs = [std(logit.(vpop.f)), std(log.(vpop.g)), std(log.(vpop.k))],
@@ -498,7 +499,7 @@ specs = mapping(
     col = dims(1),
 ) * (
     data(vpop) * histogram(; normalization = :pdf, datalimits = extrema) +
-        data((; f = [pop_f], g = [pop_g], k = [pop_k])) * visual(VLines; label = "expected median")
+        data((; f = [median_f], g = [median_g], k = [median_k])) * visual(VLines; label = "expected median")
 )
 draw(
     specs;

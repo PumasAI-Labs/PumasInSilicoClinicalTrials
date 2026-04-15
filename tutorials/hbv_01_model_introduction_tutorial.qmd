@@ -212,14 +212,17 @@ and **9 estimated parameters** (with inter-individual variability):
 :::{.callout-note}
 ## Log10-Scale Parameterization
 
-Parameters are on the **log10 scale** with additive random effects.
-This achieves log-normal behavior when used in dynamics as `10^param`:
+Parameters are parameterized on the **log10 scale**.
+Inter-individual variability is expressed via **named random effects with explicit distributions**
+in the `@random` block:
 
-```text
-Individual value = 10^(typical_value + η)
-```
+- `LogitNormal` for parameters whose log10 values are restricted to a physiologically plausible
+  range (`p_S`, `β`, `m`, `ϵ_NA`, `ϵ_IFN`, `r_E_IFN`) — mapped back to that range in `@pre`.
+- `Normal` for parameters with unbounded log10 values (`k_P`, `k_A`, `conv_E`) — exponentiated
+  in `@pre`.
 
-This is equivalent to multiplicative IIV on the natural scale.
+Individual values on the natural scale are reconstructed in `@pre` via monotonic transformations
+(logistic rescaling or `exp10`), which preserves rank correlations in later copula sampling.
 :::
 
 ## Part 2: The Pumas Model Definition
@@ -251,8 +254,16 @@ hbv_model = @model begin
         "Scaling factor for observed effector CD4/8 T cell numbers []"
         tv_log10_conv_E ∈ RealDomain()
 
-        # IIV of estimated parameters in log10 scale
-        Ω ∈ PDiagDomain(9)
+        # IIV of estimated parameters (on their transformed scales)
+        ω_p_S ∈ RealDomain(; lower = 0.0)
+        ω_β ∈ RealDomain(; lower = 0.0)
+        ω_m ∈ RealDomain(; lower = 0.0)
+        ω_k_P ∈ RealDomain(; lower = 0.0)
+        ω_k_A ∈ RealDomain(; lower = 0.0)
+        ω_ϵ_NA ∈ RealDomain(; lower = 0.0)
+        ω_ϵ_IFN ∈ RealDomain(; lower = 0.0)
+        ω_r_E_IFN ∈ RealDomain(; lower = 0.0)
+        ω_conv_E ∈ RealDomain(; lower = 0.0)
 
         # Fixed parameters
         "Baseline of HBV [copies/mL]"
@@ -316,32 +327,37 @@ hbv_model = @model begin
     end
 
     @random begin
-        η ~ MvNormal(Ω)
+        # Logit-normal on [0, 1]; mapped to the log10 range of each parameter in @pre
+        z_p_S ~ LogitNormal(logit((tv_log10_p_S - 2) / 10), ω_p_S)     # log10(p_S) ∈ [2, 12]
+        z_β ~ LogitNormal(logit(tv_log10_β / 10 + 1), ω_β)        # log10(β)   ∈ [-10, 0]
+        z_m ~ LogitNormal(logit((tv_log10_m + 3) / 8), ω_m)        # log10(m)   ∈ [-3, 5]
+        # Normal on log10 scale (unbounded)
+        log10_k_P ~ Normal(tv_log10_k_P, ω_k_P)
+        log10_k_A ~ Normal(tv_log10_k_A, ω_k_A)
+        # Logit-normal on [0, 1]; mapped to log10 ranges and gated by treatment in @pre
+        z_ϵ_NA ~ LogitNormal(logit(tv_log10_ϵ_NA / 5 + 1), ω_ϵ_NA)     # log10(ϵ_NA)    ∈ [-5, 0]
+        z_ϵ_IFN ~ LogitNormal(logit(tv_log10_ϵ_IFN / 5 + 1), ω_ϵ_IFN)    # log10(ϵ_IFN)   ∈ [-5, 0]
+        z_r_E_IFN ~ LogitNormal(logit(tv_log10_r_E_IFN / 4), ω_r_E_IFN)  # log10(r_E_IFN) ∈ [0, 4]
+        # Normal on log10 scale (unbounded)
+        log10_conv_E ~ Normal(tv_log10_conv_E, ω_conv_E)
     end
 
     # Time-varying covariates for treatment phases
     @covariates NA IFN
 
     @pre begin
-        # Individual parameters
-        # Logit-normal distribution of log10(p_S), scaled to range [2, 12]
-        p_S = exp10(10 * logistic(logit((tv_log10_p_S - 2) / 10) + η[1]) + 2)
-        # Logit-normal distribution of log10(β), scaled to range [-10, 0]
-        β = exp10(10 * (logistic(logit(tv_log10_β / 10 + 1) + η[2]) - 1))
-        # Logit-normal distribution of log10(m), scaled to range [-3, 5]
-        m = exp10(8 * logistic(logit((tv_log10_m + 3) / 8) + η[3]) - 3)
-        # Normal distribution of log10(k_P)
-        k_P = exp10(tv_log10_k_P + η[4])
-        # Normal distribution of log10(k_A)
-        k_A = exp10(tv_log10_k_A + η[5])
-        # Logit-normal distribution of log10(ϵ_NA), scaled to range [-5, 0]
-        ϵ_NA = exp10(NA * 5 * (logistic(logit(tv_log10_ϵ_NA / 5 + 1) + η[6]) - 1))
-        # Logit-normal distribution of log10(ϵ_IFN), scaled to range [-5, 0]
-        ϵ_IFN = exp10(IFN * 5 * (logistic(logit(tv_log10_ϵ_IFN / 5 + 1) + η[7]) - 1))
-        # Logit-normal distribution of log10(r_E_IFN), scaled to range [0, 4]
-        r_E_IFN = exp10(IFN * 4 * logistic(logit(tv_log10_r_E_IFN / 4) + η[8]))
-        # Normal distribution
-        conv_E = exp10(tv_log10_conv_E + η[9])
+        # Map logit-normal [0, 1] random effects back to the natural scale
+        p_S = exp10(10 * z_p_S + 2)
+        β = exp10(10 * (z_β - 1))
+        m = exp10(8 * z_m - 3)
+        # Exponentiate unbounded log10 random effects
+        k_P = exp10(log10_k_P)
+        k_A = exp10(log10_k_A)
+        # Treatment-dependent parameters (NA, IFN are 0/1 indicators)
+        ϵ_NA = exp10(NA * 5 * (z_ϵ_NA - 1))
+        ϵ_IFN = exp10(IFN * 5 * (z_ϵ_IFN - 1))
+        r_E_IFN = exp10(IFN * 4 * z_r_E_IFN)
+        conv_E = exp10(log10_conv_E)
     end
 
     # Initial conditions
@@ -471,7 +487,16 @@ hbv_estimated_params = (;
     tv_log10_r_E_IFN = 0.313,
     tv_log10_conv_E = 2.745,
 
-    Ω = Diagonal([0.632^2, 2.489^2, 0.827^2, 1.292^2, 1.156^2, 1.583^2, 1.626^2, 2.739^2, 1.248^2]),
+    # IIV standard deviations (on each parameter's transformed scale)
+    ω_p_S = 0.632,
+    ω_β = 2.489,
+    ω_m = 0.827,
+    ω_k_P = 1.292,
+    ω_k_A = 1.156,
+    ω_ϵ_NA = 1.583,
+    ω_ϵ_IFN = 1.626,
+    ω_r_E_IFN = 2.739,
+    ω_conv_E = 1.248,
 
     σ_add_log10_HBsAg = 0.0972,
     σ_prop_log10_HBsAg = 2.2204e-16,
@@ -546,7 +571,7 @@ sim_no_tx = simobs(
     hbv_model,
     subject_no_tx,
     hbv_params,
-    zero_randeffs(hbv_model, subject_no_tx, hbv_params);
+    center_randeffs(hbv_model, subject_no_tx, hbv_params);
     obstimes = 0:7:(5 * 365),
     simulate_error = false
 )
@@ -619,7 +644,7 @@ sims = simobs(
     hbv_model,
     pop,
     hbv_params,
-    zero_randeffs(hbv_model, pop, hbv_params);
+    center_randeffs(hbv_model, pop, hbv_params);
     obstimes = t_na_suppressed:t_end,
     simulate_error = false,
 )
@@ -702,7 +727,7 @@ and simulate 50 patients to capture the range of outcomes.
 ```{julia}
 #| fig-cap: "Biomarker dynamics with inter-individual variability under NA+IFN treatment. Each line is a virtual patient sampled from the estimated population distribution. Most patients rebound after treatment stops (week 48), but patients with favorable immune parameters show steeper HBsAg decline."
 #| warning: false
-# Simulate 50 patients with IIV using the estimated Ω
+# Simulate 50 patients with IIV sampled from the estimated random-effect distributions
 sims = map(1:50) do id
     subj = Subject(;
         id,
@@ -781,11 +806,15 @@ covariates_time = [0.0, t_chronic, t_na_suppressed, t_eot]
 covariates = (NA = [false, true, true, false], IFN = [false, false, true, false])
 # Typical patient: η = 0
 typical_subject = Subject(; id = "Typical", covariates_time, covariates)
-typical_randeffs = zero_randeffs(hbv_model, typical_subject, hbv_params)
+typical_randeffs = center_randeffs(hbv_model, typical_subject, hbv_params)
 # Responder: favorable random effects
-# For instance, higher immune enhancement
+# For instance, higher immune enhancement via a large shift in the IFN boost r_E_IFN
+# (three standard deviations above the typical logit location)
 responder_subject = Subject(; id = "Responder", covariates_time, covariates)
-responder_randeffs = (; η = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0])
+responder_randeffs = merge(
+    center_randeffs(hbv_model, responder_subject, hbv_params),
+    (; z_r_E_IFN = logistic(logit(hbv_params.tv_log10_r_E_IFN / 4) + 3.0)),
+)
 
 # Simulate both
 sims = simobs(
