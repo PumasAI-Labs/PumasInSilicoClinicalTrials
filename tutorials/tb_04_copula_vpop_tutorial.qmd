@@ -333,7 +333,7 @@ In Pumas this algorithm corresponds to the following steps:
 ```{mermaid}
 %%| echo: false
 flowchart TB
-    A["Step 1: Define Model Parameters"] --> B["Step 2: Define Correlation Matrix<br/>(Spearman correlations)"]
+    A["Step 1: Define Model Parameters"] --> B["Step 2: Define Correlation Matrix<br/>(from the NLME fit)"]
     B --> C["Step 3: Create Gaussian Copula<br/>with correlation matrix"]
     C --> D["Step 4: Create Joint Distribution of Random Effects<br/>from marginals and copula"]
     D --> E["Step 5: Sample Correlated Random Effects"]
@@ -349,7 +349,9 @@ Already done above.
 
 ### Step 2: Define the Correlation Matrix
 
-Spearman correlation matrix from NLME estimation:
+The correlation matrix estimated from the NLME fit.
+This is the **linear (Pearson) correlation of the random effects**,
+which the Gaussian copula uses as the correlation of its underlying Gaussian distribution:
 
 ```{julia}
 # r(f,g) = -0.64, r(f,k) = 0, r(g,k) = 0
@@ -399,10 +401,12 @@ mean(correlated_randeffs; dims = 2)
 std(correlated_randeffs; dims = 2)
 ```
 
-Additionally, the samples are **correlated** according to our Gaussian copula:
+Additionally, the samples are **correlated** according to our Gaussian copula.
+Because the marginals are Gaussian, the sampled η are jointly Gaussian,
+so their Pearson correlation matches `Rho` up to sampling variability:
 
 ```{julia}
-corspearman(correlated_randeffs')
+cor(correlated_randeffs')
 ```
 
 :::
@@ -438,28 +442,50 @@ table_one(vpop)
 
 ## Part 4: Validation
 
-### Check Spearman Correlations
+### Check that Spearman Correlations Are Preserved
 
-The most critical validation is checking that our target correlations are preserved.
+The Gaussian copula preserves **rank (Spearman) correlations** through the monotonic `@pre`
+transformations, but **not** Pearson correlations.
+We can see both facts directly.
 
-Compute observed Spearman correlations:
+The random effects η are Gaussian, but the parameters `f`, `g`,
+`k` are not (they are logit-/log-normal).
+Strictly increasing transforms leave the ranks — and therefore the Spearman correlation — unchanged,
+so the Spearman correlation on the parameter scale matches the one on the η scale:
 
 ```{julia}
 param_matrix = Matrix(vpop[:, [:f, :g, :k]])
-observed_corr = corspearman(param_matrix)
-````
+spearman_eta = corspearman(correlated_randeffs')   # η (random-effect) scale
+spearman_param = corspearman(param_matrix)          # parameter scale
+@. abs(spearman_param - spearman_eta)               # ≈ 0: rank correlation preserved
+```
 
-The absolute difference from the target correlation matrix is:
+The Pearson correlation, in contrast, is distorted by the nonlinear transforms —
+on the parameter scale it no longer matches `Rho`:
 
 ```{julia}
-@. abs(observed_corr - Rho)
+abs.(cor(param_matrix) - Rho)                       # ≠ 0: Pearson correlation not preserved
+```
+
+The preserved rank correlation is close to `Rho`, but not identical:
+`Rho` is the correlation of the copula's underlying Gaussian distribution (a linear/Pearson
+correlation), and a Gaussian copula's Spearman correlation is slightly smaller in magnitude than
+that parameter.
+
+```{julia}
+@. abs(spearman_param - Rho)
 ```
 
 :::{.callout-tip}
 ## Validation Passed
 
-The observed correlations closely match the expected correlations.
-The small differences are due to sampling variability and decrease with larger sample sizes.
+The observed f–g Spearman correlation is `{julia} round(spearman_param[1, 2], digits = 3)`,
+close to the target `{julia} Rho[1, 2]`.
+The small remaining difference is partly sampling variability, which shrinks as the sample grows,
+and partly a **systematic** gap between a Gaussian copula's correlation parameter
+and its Spearman correlation, which does not.
+Setting `Rho` directly is an excellent approximation;
+matching a target Spearman correlation exactly would require a small conversion or calibration step.
 :::
 
 ### Check Marginal Distributions
@@ -516,7 +542,7 @@ draw(
 vpop_total = vcat(
     vpop_indep,
     vpop;
-    source = "method" => ["Independent (r ≈ 0)", "Copula (r = -0.64)"],
+    source = "method" => ["Independent (r ≈ 0)", "Copula (target r = $(cor_f_g))"],
 )
 
 # Create scatter plot with faceting by method
@@ -544,8 +570,9 @@ tumors with more treatment-sensitive cells tend to grow more slowly.
 
 ### Corner Plot: All Pairwise Relationships
 
+::: {#fig-tb-corner}
+
 ```{julia}
-#| fig-cap: "Corner plot showing all pairwise parameter relationships and marginal distributions. The negative correlation between f and g (r = -0.64) is clearly visible."
 pairplot(
     vpop => (
         PairPlots.Scatter(; rasterize = 1),
@@ -560,17 +587,28 @@ pairplot(
 )
 ```
 
+Corner plot of all pairwise parameter relationships and marginal distributions.
+The negative f–g relationship (target r = `{julia} cor_f_g`) is clearly visible;
+each panel reports the realized Spearman correlation.
+
+:::
+
 ## Practical Recommendations
 
 :::{.callout-tip}
-## 1. Always Use Spearman Correlations
+## 1. Correlations for the Copula
 
-When specifying the correlation matrix for a Gaussian copula:
-
-- Use **Spearman (rank) correlations** from your NLME output
-- Pearson correlations can be distorted by nonlinear transformations
-- Most NLME software reports correlation matrices on the eta (random effect)
-  scale
+- The Gaussian copula uses `Rho` as the correlation of its underlying Gaussian distribution —
+  a **linear (Pearson) correlation**.
+  An NLME fit reports exactly this:
+  the correlation of the random effects on the (transformed) η scale, which you can use directly.
+- What the copula **preserves through the nonlinear `@pre` transforms is the rank (Spearman)
+  correlation**, not the Pearson correlation — Pearson correlations get distorted.
+- The copula's realized Spearman correlation is close to, but slightly smaller in magnitude than,
+  the `Rho` you supply.
+  Setting `Rho` directly to your estimated correlation is a very good approximation;
+  matching a target Spearman correlation exactly would require a small conversion
+  or iterative calibration step.
 :::
 
 :::{.callout-tip}
@@ -614,7 +652,7 @@ Always validate your virtual population before running ISCTs:
 
 3. **The algorithm in Pumas:**
    - Define parameter specifications
-   - Define Spearman correlation matrix
+   - Define the correlation matrix (from the NLME fit)
    - Create Gaussian copula
    - Create joint distribution from marginals of random effects and copula
    - Sample random effects from joint distribution

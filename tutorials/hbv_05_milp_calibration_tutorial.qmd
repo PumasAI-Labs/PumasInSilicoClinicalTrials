@@ -370,12 +370,12 @@ hbv_params = merge(hbv_fixed_params, hbv_estimated_params)
 
 ### Copula Sampling and Simulation
 
-We sample correlated random effects using the Gaussian copula with the Spearman correlation matrix
-from @cortes2025HBV (see [HBV-04](hbv_04_copula_vpop_tutorial.qmd) for details):
+We sample correlated random effects using the Gaussian copula with the correlation matrix from
+@cortes2025HBV (see [HBV-04](hbv_04_copula_vpop_tutorial.qmd) for details):
 
 ```{julia}
 #| output: false
-# Spearman correlation matrix (9×9) from @cortes2025HBV Figure S5B
+# Correlation matrix (9×9) from @cortes2025HBV Figure S5B (Pearson correlation of the random effects)
 Rho = [
     # p_S     β      m     k_P    k_A    ϵ_NA   ϵ_IFN  r_E_IFN conv_E
     1.0    0.43   0.46   0.51  -0.7   0.58  -0.14  -0.38    0.0;  # p_S

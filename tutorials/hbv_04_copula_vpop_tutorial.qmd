@@ -366,7 +366,7 @@ In Pumas this algorithm corresponds to the following steps:
 ```{mermaid}
 %%| echo: false
 flowchart TB
-    A["Step 1: Define Model Parameters"] --> B["Step 2: Define Correlation Matrix<br/>(Spearman correlations)"]
+    A["Step 1: Define Model Parameters"] --> B["Step 2: Define Correlation Matrix<br/>(from the NLME fit)"]
     B --> C["Step 3: Create Gaussian Copula<br/>with correlation matrix"]
     C --> D["Step 4: Create Joint Distribution of Random Effects<br/>from marginals and copula"]
     D --> E["Step 5: Sample Correlated Random Effects"]
@@ -391,12 +391,14 @@ patients = [
 
 ### Step 2: Define the Correlation Matrix
 
-The Spearman correlation matrix from NLME estimation [@cortes2025HBV] captures the dependence
-structure among the 8 correlated parameters.
+The correlation matrix from the NLME fit [@cortes2025HBV] captures the dependence structure among
+the 8 correlated parameters.
+This is the **linear (Pearson) correlation of the random effects**,
+which the Gaussian copula uses as the correlation of its underlying Gaussian distribution.
 `conv_E` is independent (off-diagonal entries in the last row and the last column are all zeros):
 
 ```{julia}
-# Spearman correlation matrix (9×9) from @cortes2025HBV Figure S5B
+# Correlation matrix (9×9) from @cortes2025HBV Figure S5B (Pearson correlation of the random effects)
 Rho = [
     # p_S     β      m     k_P    k_A    ϵ_NA   ϵ_IFN  r_E_IFN conv_E
     1.0    0.43   0.46   0.51  -0.7   0.58  -0.14  -0.38    0.0;  # p_S
@@ -495,29 +497,50 @@ For a detailed explanation, see [TB-04](tb_04_copula_vpop_tutorial.qmd).
 
 ## Part 3: Validation
 
-### Check Spearman Correlations
+### Check that Spearman Correlations Are Preserved
 
-The most critical validation is checking that our target correlations are preserved.
+The Gaussian copula preserves **rank (Spearman) correlations** through the monotonic `@pre`
+transformations, but **not** Pearson correlations.
+We can see both facts directly.
 
-Compute observed Spearman correlations:
+The random effects η are Gaussian, but the 9 parameters are not (they are logit-/log-normal).
+Strictly increasing transforms leave the ranks — and therefore the Spearman correlation — unchanged,
+so the Spearman correlation on the parameter scale matches the one on the η scale:
 
 ```{julia}
 param_cols = [:p_S, :β, :m, :k_P, :k_A, :ϵ_NA, :ϵ_IFN, :r_E_IFN, :conv_E]
 param_matrix = Matrix(vpop[:, param_cols])
-observed_corr = corspearman(param_matrix)
+spearman_eta = corspearman(correlated_randeffs')   # η (random-effect) scale
+spearman_param = corspearman(param_matrix)          # parameter scale
+@. abs(spearman_param - spearman_eta)               # ≈ 0: rank correlation preserved
 ```
 
-The absolute difference from the target correlation matrix is:
+The Pearson correlation, in contrast, is distorted by the nonlinear transforms —
+on the parameter scale it no longer matches `Rho`:
 
 ```{julia}
-@. abs(observed_corr - Rho)
+abs.(cor(param_matrix) - Rho)                       # ≠ 0: Pearson correlation not preserved
+```
+
+The preserved rank correlation is close to `Rho`, but not identical:
+`Rho` is the correlation of the copula's underlying Gaussian distribution (a linear/Pearson
+correlation), and a Gaussian copula's Spearman correlation is slightly smaller in magnitude than
+that parameter.
+
+```{julia}
+@. abs(spearman_param - Rho)
 ```
 
 :::{.callout-tip}
 ## Validation Passed
 
-The observed correlations closely match the expected correlations from @cortes2025HBV.
-The small differences are due to sampling variability and decrease with larger sample sizes.
+The observed p_S–k_A Spearman correlation is `{julia} round(spearman_param[1, 5], digits = 3)`,
+close to the target `{julia} Rho[1, 5]` from @cortes2025HBV.
+The small remaining difference is partly sampling variability, which shrinks as the sample grows,
+and partly a **systematic** gap between a Gaussian copula's correlation parameter
+and its Spearman correlation, which does not.
+Setting `Rho` directly is an excellent approximation;
+matching a target Spearman correlation exactly would require a small conversion or calibration step.
 :::
 
 ### Check Marginal Distributions
@@ -617,7 +640,7 @@ pairplot(
 ### Key Takeaways
 
 1. **The HBV model has 8 correlated parameters** whose NLME-estimated
-   Spearman correlations must be preserved in the virtual population
+   correlations must be preserved in the virtual population
 
 2. **Gaussian copulas preserve rank (Spearman) correlations** through the
    complex logit-normal and log-normal transformations in the HBV model's `@pre` block
