@@ -308,10 +308,6 @@ The correlation of the samples of `f` and `g` is
 cor(vpop_indep.f, vpop_indep.g)
 ```
 
-```{julia}
-corspearman(vpop_indep.f, vpop_indep.g)
-```
-
 but the expected correlation was -0.64!
 
 :::{.callout-warning}
@@ -442,50 +438,93 @@ table_one(vpop)
 
 ## Part 4: Validation
 
-### Check that Spearman Correlations Are Preserved
+### `Rho` Is Not the Spearman Correlation
 
-The Gaussian copula preserves **rank (Spearman) correlations** through the monotonic `@pre`
-transformations, but **not** Pearson correlations.
-We can see both facts directly.
+`Rho` is the correlation of the copula's underlying Gaussian distribution —
+a linear (Pearson) correlation.
+The **Spearman** correlation the Gaussian copula induces is a different thing;
+`Copulas.jl` computes it for us in closed form:
 
-The random effects η are Gaussian, but the parameters `f`, `g`,
-`k` are not (they are logit-/log-normal).
-Strictly increasing transforms leave the ranks — and therefore the Spearman correlation — unchanged,
-so the Spearman correlation on the parameter scale matches the one on the η scale:
+```{julia}
+spearman_target = corspearman(copula)   # Spearman correlation the copula induces
+```
+
+For a Gaussian copula it is almost equal to `Rho`, but not quite — slightly smaller in magnitude:
+
+```{julia}
+abs.(spearman_target - Rho)
+```
+
+:::{.callout-note}
+## Rank correlation of a Gaussian copula
+
+For normally distributed variables with (Pearson) correlation $\rho$, the Spearman correlation is
+
+$$\rho_S = \frac{6}{\pi}\arcsin(\rho/2),$$
+
+close to $\rho$ but slightly smaller in magnitude:
+
+```{julia}
+#| echo: false
+#| fig-cap: "Spearman correlation induced by a Gaussian copula as a function of its ρ parameter."
+r = range(-1, 1; length = 201)
+fig_rank = Figure(; size = (480, 320))
+ax_rank = Axis(
+    fig_rank[1, 1];
+    xlabel = "ρ  (Gaussian copula parameter)",
+    ylabel = "induced Spearman ρ_S",
+)
+lines!(ax_rank, r, r; color = :gray, linestyle = :dash, label = "ρ_S = ρ")
+lines!(ax_rank, r, (6 / π) .* asin.(r ./ 2); label = "ρ_S = (6/π) arcsin(ρ/2)")
+axislegend(ax_rank; position = :lt)
+fig_rank
+```
+
+:::
+
+### Sampling Adds Noise, but the Transforms Preserve Spearman Exactly
+
+The virtual population is a finite sample.
+On the random-effect (η) scale,
+both its Spearman and its Pearson correlations differ from their population values
+(`spearman_target` and `Rho`) only by sampling noise:
+
+```{julia}
+spearman_eta = corspearman(correlated_randeffs')
+pearson_eta = cor(correlated_randeffs')
+(;
+    spearman = maximum(abs.(spearman_eta - spearman_target)),
+    pearson = maximum(abs.(pearson_eta - Rho)),
+)   # both small: sampling noise
+```
+
+The nonlinear `@pre` transforms then leave the Spearman correlation unchanged,
+because they are strictly increasing and rank correlations depend only on the ranks.
+So the parameter-scale Spearman correlation equals the η-scale one exactly:
 
 ```{julia}
 param_matrix = Matrix(vpop[:, [:f, :g, :k]])
-spearman_eta = corspearman(correlated_randeffs')   # η (random-effect) scale
-spearman_param = corspearman(param_matrix)          # parameter scale
-@. abs(spearman_param - spearman_eta)               # ≈ 0: rank correlation preserved
+spearman_param = corspearman(param_matrix)
+maximum(abs.(spearman_param - spearman_eta))      # ≈ 0: unchanged by the monotone transforms
 ```
 
-The Pearson correlation, in contrast, is distorted by the nonlinear transforms —
-on the parameter scale it no longer matches `Rho`:
+The Pearson correlation is not preserved: the transforms distort it,
+so on the parameter scale it no longer matches `Rho`:
 
 ```{julia}
-abs.(cor(param_matrix) - Rho)                       # ≠ 0: Pearson correlation not preserved
-```
-
-The preserved rank correlation is close to `Rho`, but not identical:
-`Rho` is the correlation of the copula's underlying Gaussian distribution (a linear/Pearson
-correlation), and a Gaussian copula's Spearman correlation is slightly smaller in magnitude than
-that parameter.
-
-```{julia}
-@. abs(spearman_param - Rho)
+abs.(cor(param_matrix) - Rho)                     # ≠ 0: Pearson correlation not preserved
 ```
 
 :::{.callout-tip}
 ## Validation Passed
 
-The observed f–g Spearman correlation is `{julia} round(spearman_param[1, 2], digits = 3)`,
-close to the target `{julia} Rho[1, 2]`.
-The small remaining difference is partly sampling variability, which shrinks as the sample grows,
-and partly a **systematic** gap between a Gaussian copula's correlation parameter
-and its Spearman correlation, which does not.
+The Spearman correlation the copula induces
+for `f`–`g` is `{julia} round(spearman_target[1, 2], digits = 3)` — close to,
+but smaller in magnitude than, the `{julia} Rho[1, 2]` we supplied.
+The virtual population reproduces it up to sampling variability.
 Setting `Rho` directly is an excellent approximation;
-matching a target Spearman correlation exactly would require a small conversion or calibration step.
+matching a target Spearman correlation exactly would require converting it to the copula's
+correlation parameter (or calibrating iteratively).
 :::
 
 ### Check Marginal Distributions
