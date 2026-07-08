@@ -517,7 +517,7 @@ non-identifiability from the model, so an optimizer or sampler no longer has to 
 multiple optima. It does not, however, recover the individual rates: we still only learn
 their difference and product.
 
-The second is to **measure more**. Parameters that are unidentifiable from the available
+The only approach that can solve the non-identifiability is to **measure more**. Parameters that are unidentifiable from the available
 measurements can often be recovered once additional quantities are observed. Here, suppose a
 biomarker or assay lets us follow the sensitive and resistant populations separately:
 
