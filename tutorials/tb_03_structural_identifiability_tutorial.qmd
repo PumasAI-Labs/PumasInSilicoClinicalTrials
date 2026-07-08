@@ -542,7 +542,7 @@ Now `g`, `k`, and both cell trajectories are globally identifiable, with no posi
 assumption needed.
 Each observable is now a single exponential, whose rate is just its (log) slope, recovered
 uniquely and with an unambiguous sign, so there is nothing left to resolve.
-The parameter `f` is still reported non-identifiable for the same structural reason as
+The parameter `f` is still reported non-identifiable due to the same `StructuralIdentifiability.jl` limitation as
 before, but its value `N_sens(0) = f` is now observed directly at `t = 0`, so the initial
 fraction is globally identifiable here as well.
 
