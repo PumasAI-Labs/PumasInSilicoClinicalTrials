@@ -362,7 +362,7 @@ Looking at the output above:
 
 | Parameter | Status | What It Means |
 |:----------|:-------|:--------------|
-| **f** | `nonidentifiable` | The sensitive fraction cannot be recovered as a stand-alone parameter |
+| **f** | `nonidentifiable` | The sensitive fraction CANNOT be estimated from total tumor data alone |
 | **g** | `locally` | The growth rate has a finite number of possible values (ambiguous) |
 | **k** | `locally` | The death rate has a finite number of possible values (ambiguous) |
 | **N_sens(t)** | `locally` | The sensitive cell trajectory is locally identifiable |
