@@ -302,13 +302,19 @@ vpop_indep = postprocess(sims) do generated, _
 end |> DataFrame
 ```
 
-The Spearman correlation of the samples of `f` and `g` is
+The Pearson correlation of the samples of `f` and `g` is
+
+```{julia}
+cor(vpop_indep.f, vpop_indep.g)
+```
+
+and their Spearman correlation is
 
 ```{julia}
 corspearman(vpop_indep.f, vpop_indep.g)
 ```
 
-but the desired correlation was -0.64!
+but the desired correlation was `{julia} cor_f_g`!
 
 :::{.callout-warning}
 ## Result: Correlation Lost
