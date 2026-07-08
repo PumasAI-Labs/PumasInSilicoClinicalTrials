@@ -203,7 +203,7 @@ pop_k = 0.0091  # Sensitive cells die ~0.91% per day
 # Residual error (standard deviation)
 resid_σ = 0.095
 
-# Critical correlation from the data
+# Target Spearman correlation from the NLME estimates
 cor_f_g = -0.64  # Negative correlation: high f ↔ low g
 ```
 
@@ -233,13 +233,14 @@ patients = [
         ) for id in 1:2_000
 ]
 
-# Define Gaussian copula based on the estimated correlation matrix
+# Define Gaussian copula from the target Spearman correlation (converted to the Gaussian's correlation)
 Rho = [
     1.0 -0.64 0.0
     -0.64 1.0 0.0
     0.0 0.0 1.0
 ]
-copula = GaussianCopula(Rho)
+Rho_gauss = @. 2 * sin(π * Rho / 6)
+copula = GaussianCopula(Rho_gauss)
 
 # Define joint distribution of correlated random effects,
 # based on marginal distributions and Gaussian copula

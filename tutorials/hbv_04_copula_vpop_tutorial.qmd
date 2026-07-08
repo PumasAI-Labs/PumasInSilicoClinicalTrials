@@ -366,7 +366,7 @@ In Pumas this algorithm corresponds to the following steps:
 ```{mermaid}
 %%| echo: false
 flowchart TB
-    A["Step 1: Define Model Parameters"] --> B["Step 2: Define Correlation Matrix<br/>(from the NLME fit)"]
+    A["Step 1: Define Model Parameters"] --> B["Step 2: Define Correlation Matrix<br/>(Spearman correlations)"]
     B --> C["Step 3: Create Gaussian Copula<br/>with correlation matrix"]
     C --> D["Step 4: Create Joint Distribution of Random Effects<br/>from marginals and copula"]
     D --> E["Step 5: Sample Correlated Random Effects"]
@@ -391,14 +391,13 @@ patients = [
 
 ### Step 2: Define the Correlation Matrix
 
-The correlation matrix from the NLME fit [@cortes2025HBV] captures the dependence structure among
-the 8 correlated parameters.
-This is the **linear (Pearson) correlation of the random effects**,
-which the Gaussian copula uses as the correlation of its underlying Gaussian distribution.
+The target **Spearman (rank) correlation** matrix of the parameters,
+from the NLME estimates [@cortes2025HBV],
+capturing the dependence structure among the 8 correlated parameters.
 `conv_E` is independent (off-diagonal entries in the last row and the last column are all zeros):
 
 ```{julia}
-# Correlation matrix (9×9) from @cortes2025HBV Figure S5B (Pearson correlation of the random effects)
+# Spearman correlation matrix (9×9) from @cortes2025HBV Figure S5B
 Rho = [
     # p_S     β      m     k_P    k_A    ϵ_NA   ϵ_IFN  r_E_IFN conv_E
     1.0    0.43   0.46   0.51  -0.7   0.58  -0.14  -0.38    0.0;  # p_S
@@ -424,10 +423,18 @@ as independent in the copula.
 
 ### Step 3: Create the Gaussian Copula
 
-Create the Gaussian copula with the specified correlation structure:
+We convert the target Spearman correlation to the underlying Gaussian's (Pearson) correlation (see
+[TB-04](tb_04_copula_vpop_tutorial.qmd) for the formula), so the copula reproduces it exactly:
 
 ```{julia}
-copula = GaussianCopula(Rho)
+Rho_gauss = @. 2 * sin(π * Rho / 6)
+copula = GaussianCopula(Rho_gauss)
+```
+
+By construction, the copula's Spearman correlation equals the target `Rho`:
+
+```{julia}
+maximum(abs.(corspearman(copula) - Rho))   # ≈ 0: the copula's Spearman matches the target
 ```
 
 ### Step 4: Create the Joint Distribution
@@ -497,63 +504,32 @@ For a detailed explanation, see [TB-04](tb_04_copula_vpop_tutorial.qmd).
 
 ## Part 3: Validation
 
-### `Rho` Is Not the Spearman Correlation
+### Check Spearman Correlations
 
-`Rho` is the correlation of the copula's underlying Gaussian distribution —
-a linear (Pearson) correlation.
-The **Spearman** correlation the Gaussian copula induces is a different thing;
-`Copulas.jl` computes it for us in closed form:
-
-```{julia}
-spearman_target = corspearman(copula)
-maximum(abs.(spearman_target - Rho))   # induced Spearman is close to Rho, but a little smaller
-```
-
-### Sampling Adds Noise, but the Transforms Preserve Spearman Exactly
-
-The virtual population is a finite sample.
-On the random-effect (η) scale,
-both its Spearman and its Pearson correlations differ from their population values
-(`spearman_target` and `Rho`) only by sampling noise:
-
-```{julia}
-spearman_eta = corspearman(correlated_randeffs')
-pearson_eta = cor(correlated_randeffs')
-(;
-    spearman = maximum(abs.(spearman_eta - spearman_target)),
-    pearson = maximum(abs.(pearson_eta - Rho)),
-)   # both small: sampling noise
-```
-
-The nonlinear `@pre` transforms then leave the Spearman correlation unchanged,
-because they are strictly increasing and rank correlations depend only on the ranks.
-So the parameter-scale Spearman correlation equals the η-scale one exactly:
+The sample drawn from the copula reproduces the target Spearman correlation `Rho`,
+up to sampling noise:
 
 ```{julia}
 param_cols = [:p_S, :β, :m, :k_P, :k_A, :ϵ_NA, :ϵ_IFN, :r_E_IFN, :conv_E]
-param_matrix = Matrix(vpop[:, param_cols])
-spearman_param = corspearman(param_matrix)
-maximum(abs.(spearman_param - spearman_eta))   # ≈ 0: unchanged by the monotone transforms
+maximum(abs.(corspearman(correlated_randeffs') - Rho))   # ≈ 0: sample Spearman vs target
 ```
 
-The Pearson correlation is not preserved: the transforms distort it,
-so on the parameter scale it no longer matches `Rho`:
+Because the `@pre` transforms are strictly increasing, they leave the ranks unchanged,
+so the parameters have the *exact* same Spearman correlation as the random effects:
 
 ```{julia}
-maximum(abs.(cor(param_matrix) - Rho))   # ≠ 0: Pearson correlation not preserved
+param_matrix = Matrix(vpop[:, param_cols])
+maximum(abs.(corspearman(param_matrix) - corspearman(correlated_randeffs')))   # exactly 0
 ```
 
-:::{.callout-tip}
-## Validation Passed
+The Pearson correlation, by contrast, is not preserved:
 
-The Spearman correlation the copula induces
-for `p_S`–`k_A` is `{julia} round(spearman_target[1, 5], digits = 3)` — close to,
-but smaller in magnitude than, the `{julia} Rho[1, 5]` we supplied (from @cortes2025HBV).
-The virtual population reproduces it up to sampling variability.
-Setting `Rho` directly is an excellent approximation;
-matching a target Spearman correlation exactly would require converting it to the copula's
-correlation parameter (or calibrating iteratively).
-:::
+```{julia}
+maximum(abs.(cor(param_matrix) - cor(correlated_randeffs')))   # ≠ 0: Pearson not preserved
+```
+
+So the Spearman correlation of the parameters equals the target `Rho`, up to sampling noise —
+exactly what we wanted.
 
 ### Check Marginal Distributions
 
@@ -652,7 +628,7 @@ pairplot(
 ### Key Takeaways
 
 1. **The HBV model has 8 correlated parameters** whose NLME-estimated
-   correlations must be preserved in the virtual population
+   Spearman correlations must be preserved in the virtual population
 
 2. **Gaussian copulas preserve rank (Spearman) correlations** through the
    complex logit-normal and log-normal transformations in the HBV model's `@pre` block

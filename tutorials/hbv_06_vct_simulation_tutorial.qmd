@@ -382,7 +382,7 @@ We sample correlated random effects using the Gaussian copula (see
 
 ```{julia}
 #| output: false
-# Correlation matrix (9×9) from @cortes2025HBV Figure S5B (Pearson correlation of the random effects)
+# Spearman correlation matrix (9×9) from @cortes2025HBV Figure S5B
 Rho = [
     # p_S     β      m     k_P    k_A    ϵ_NA   ϵ_IFN  r_E_IFN conv_E
     1.0    0.43   0.46   0.51  -0.7   0.58  -0.14  -0.38    0.0;  # p_S
@@ -396,7 +396,9 @@ Rho = [
     0.0    0.0    0.0    0.0    0.0    0.0    0.0    0.0      1.0;  # conv_E
 ]
 
-copula = GaussianCopula(Rho)
+# Convert the target Spearman correlation to the underlying Gaussian's (Pearson) correlation
+Rho_gauss = @. 2 * sin(π * Rho / 6)
+copula = GaussianCopula(Rho_gauss)
 correlated_randeffs_dist = SklarDist(
     copula, (
         Normal(0, ω_p_S),
