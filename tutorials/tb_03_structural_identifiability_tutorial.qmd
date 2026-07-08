@@ -511,7 +511,7 @@ find_identifiable_functions(
 If we could not assume `g, k > 0`, the rates and the cell trajectories would remain only
 locally identifiable. There are two standard ways to deal with this.
 
-The first is to **reparametrize** the model in terms of the identifiable combinations
+The first is to simply fix one rate to a literature value and estimate the other. Another is to **reparametrize** the model in terms of the identifiable combinations
 `g - k` and `g · k` found above. Estimating these instead of `g` and `k` removes the
 non-identifiability from the model, so an optimizer or sampler no longer has to deal with
 multiple optima. It does not, however, recover the individual rates: we still only learn
