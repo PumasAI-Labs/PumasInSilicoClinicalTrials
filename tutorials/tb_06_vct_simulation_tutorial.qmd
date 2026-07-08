@@ -233,7 +233,7 @@ patients = [
         ) for id in 1:2_000
 ]
 
-# Define Gaussian copula from the target Spearman correlation (converted to the Gaussian's correlation)
+# Define Gaussian copula from the target Spearman correlation
 Rho = [
     1.0 -0.64 0.0
     -0.64 1.0 0.0

@@ -509,7 +509,6 @@ The sample drawn from the copula reproduces the target Spearman correlation `Rho
 up to sampling noise:
 
 ```{julia}
-param_cols = [:p_S, :β, :m, :k_P, :k_A, :ϵ_NA, :ϵ_IFN, :r_E_IFN, :conv_E]
 maximum(abs, corspearman(correlated_randeffs') - Rho)   # ≈ 0: sample Spearman vs target
 ```
 
@@ -517,6 +516,7 @@ Because the `@pre` transforms are strictly increasing, they leave the ranks unch
 so the parameters have the *exact* same Spearman correlation as the random effects:
 
 ```{julia}
+param_cols = [:p_S, :β, :m, :k_P, :k_A, :ϵ_NA, :ϵ_IFN, :r_E_IFN, :conv_E]
 param_matrix = Matrix(vpop[:, param_cols])
 corspearman(param_matrix) == corspearman(correlated_randeffs')   # true
 ```
@@ -527,8 +527,8 @@ The Pearson correlation, by contrast, is not preserved:
 maximum(abs, cor(param_matrix) - cor(correlated_randeffs'))   # ≠ 0: Pearson not preserved
 ```
 
-So the Spearman correlation of the parameters equals the target `Rho`, up to sampling noise —
-exactly what we wanted.
+So the Spearman correlation of the parameters equals the target `Rho`, up to sampling noise,
+which is expected to become smaller as the sample size increases.
 
 ### Check Marginal Distributions
 

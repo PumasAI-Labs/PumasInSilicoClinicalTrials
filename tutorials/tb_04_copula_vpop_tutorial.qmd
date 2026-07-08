@@ -407,6 +407,16 @@ fig_rank
 
 :::
 
+:::{.callout-note}
+## Other copulas
+
+The closed-form conversion $\rho = 2\sin(\pi\rho_S/6)$ is specific to the Gaussian copula.
+More complex copula families do not in general admit such a formula; there,
+the target Spearman correlation may have to be matched by
+**numerically optimizing the copula's parameters** until the induced rank correlation equals the
+target.
+:::
+
 ### Step 4: Create the Joint Distribution
 
 ```{julia}
@@ -429,7 +439,8 @@ correlated_randeffs = rand(correlated_randeffs_dist, length(patients))
 `correlated_randeffs` holds the sampled random effects.
 By construction each marginal is normal with mean 0
 and standard deviation given by the corresponding `ω`.
-Because the sample is finite, these statistics match their targets only up to sampling noise.
+Because the sample is finite, these statistics match their targets only up to sampling noise,
+which is expected to become smaller as the sample size increases.
 The means are close to 0:
 
 ```{julia}
