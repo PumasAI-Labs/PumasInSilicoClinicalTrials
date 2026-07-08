@@ -397,7 +397,7 @@ Rho = [
 ]
 
 # Convert the target Spearman correlation to the underlying Gaussian's (Pearson) correlation
-Rho_gauss = @. 2 * sin(π * Rho / 6)
+Rho_gauss = @. 2 * sinpi(Rho / 6)
 copula = GaussianCopula(Rho_gauss)
 correlated_randeffs_dist = SklarDist(
     copula, (

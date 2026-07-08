@@ -302,13 +302,13 @@ vpop_indep = postprocess(sims) do generated, _
 end |> DataFrame
 ```
 
-The correlation of the samples of `f` and `g` is
+The Spearman correlation of the samples of `f` and `g` is
 
 ```{julia}
-cor(vpop_indep.f, vpop_indep.g)
+corspearman(vpop_indep.f, vpop_indep.g)
 ```
 
-but the expected correlation was -0.64!
+but the desired correlation was -0.64!
 
 :::{.callout-warning}
 ## Result: Correlation Lost
@@ -345,11 +345,10 @@ Already done above.
 
 ### Step 2: Define the Correlation Matrix
 
-`Rho` is the target **Spearman (rank) correlation** matrix of the parameters,
-from the NLME estimates:
+Spearman correlation matrix from NLME estimation:
 
 ```{julia}
-# Spearman correlations: r(f,g) = -0.64, r(f,k) = 0, r(g,k) = 0
+# r(f,g) = -0.64, r(f,k) = 0, r(g,k) = 0
 Rho = [
     1.0 cor_f_g 0.0
     cor_f_g 1.0 0.0
@@ -365,15 +364,15 @@ its underlying Gaussian; inverting it gives the Gaussian correlation we need —
 
 ```{julia}
 # Convert the target Spearman correlations to the underlying Gaussian's (Pearson) correlations
-Rho_gauss = @. 2 * sin(π * Rho / 6)
+Rho_gauss = @. 2 * sinpi(Rho / 6)
 copula = GaussianCopula(Rho_gauss)
 ```
 
 By construction, the copula's Spearman correlation now equals the target `Rho` (up to floating point
-errors) — this is what makes the formula worth using:
+errors):
 
 ```{julia}
-maximum(abs.(corspearman(copula) - Rho))   # ≈ 0: the copula's Spearman matches the target
+maximum(abs, corspearman(copula) - Rho)   # ≈ 0: the copula's Spearman matches the target
 ```
 
 :::{.callout-note}
@@ -402,7 +401,7 @@ ax_rank = Axis(
     ylabel = L"\rho - \rho_S",
 )
 hlines!(ax_rank, 0; color = :gray, linestyle = :dash)
-lines!(ax_rank, rs, (2 .* sin.(π .* rs ./ 6)) .- rs)
+lines!(ax_rank, rs, 2 .* sinpi.(rs ./ 6) .- rs)
 fig_rank
 ```
 
@@ -428,7 +427,9 @@ correlated_randeffs = rand(correlated_randeffs_dist, length(patients))
 ## Understanding Copula Samples
 
 `correlated_randeffs` holds the sampled random effects.
-Because the sample is finite, its statistics match their targets only up to sampling noise.
+By construction each marginal is normal with mean 0
+and standard deviation given by the corresponding `ω`.
+Because the sample is finite, these statistics match their targets only up to sampling noise.
 The means are close to 0:
 
 ```{julia}
@@ -441,7 +442,7 @@ the standard deviations are close to the specified `ω`:
 vec(std(correlated_randeffs; dims = 2)) - [ω_f, ω_g, ω_k]   # ≈ 0: sampled SD vs ω
 ```
 
-and their Spearman correlation matches the target `Rho`:
+and their Spearman correlation matches the target `Rho` thanks to our Gaussian copula:
 
 ```{julia}
 corspearman(correlated_randeffs') - Rho   # ≈ 0: Spearman matches the target (sampling noise only)
@@ -489,14 +490,14 @@ correlation:
 
 ```{julia}
 param_matrix = Matrix(vpop[:, [:f, :g, :k]])
-maximum(abs.(corspearman(param_matrix) - corspearman(correlated_randeffs')))   # exactly 0
+corspearman(param_matrix) == corspearman(correlated_randeffs')   # true
 ```
 
 The Pearson correlation, by contrast, is not preserved: the transforms distort it,
 so it differs between the two scales.
 
 ```{julia}
-maximum(abs.(cor(param_matrix) - cor(correlated_randeffs')))   # ≠ 0: Pearson not preserved
+maximum(abs, cor(param_matrix) - cor(correlated_randeffs'))   # ≠ 0: Pearson not preserved
 ```
 
 We saw above that the Spearman correlation of the sampled random effects is already equal to the
@@ -558,7 +559,7 @@ draw(
 vpop_total = vcat(
     vpop_indep,
     vpop;
-    source = "method" => ["Independent (r ≈ 0)", "Copula (target r = $(cor_f_g))"],
+    source = "method" => ["Independent (r ≈ 0)", "Copula (r = $(cor_f_g))"],
 )
 
 # Create scatter plot with faceting by method
@@ -604,7 +605,7 @@ pairplot(
 ```
 
 Corner plot of all pairwise parameter relationships and marginal distributions.
-The negative f–g relationship (target r = `{julia} cor_f_g`) is clearly visible;
+The negative f–g relationship (r = `{julia} cor_f_g`) is clearly visible;
 each panel reports the realized Spearman correlation.
 
 :::
@@ -612,17 +613,14 @@ each panel reports the realized Spearman correlation.
 ## Practical Recommendations
 
 :::{.callout-tip}
-## 1. Correlations for the Copula
+## 1. Always Use Spearman Correlations
 
-- Use **Spearman (rank) correlations** as the target: unlike Pearson correlations, they are
-  preserved through the nonlinear `@pre` transforms, so the virtual population reproduces them on
-  the parameter scale.
-- Do **not** pass the target Spearman correlation to the Gaussian copula directly —
-  its parameter is the Pearson correlation of its underlying Gaussian.
-  Convert first, with $\rho = 2\sin(\pi\rho_S/6)$,
-  so the copula's Spearman correlation equals the target exactly.
-- Confirm the conversion by checking `corspearman(copula)` against your target, then validate the
-  sampled population.
+When specifying the correlation matrix for a Gaussian copula:
+
+- Use **Spearman (rank) correlations** from your NLME output
+- Pearson correlations can be distorted by nonlinear transformations
+- Most NLME software reports correlation matrices on the eta (random effect)
+  scale
 :::
 
 :::{.callout-tip}
@@ -666,8 +664,8 @@ Always validate your virtual population before running ISCTs:
 
 3. **The algorithm in Pumas:**
    - Define parameter specifications
-   - Define the target Spearman correlation matrix
-   - Convert it to the underlying Gaussian's correlation, then create the Gaussian copula
+   - Define Spearman correlation matrix
+   - Create Gaussian copula
    - Create joint distribution from marginals of random effects and copula
    - Sample random effects from joint distribution
    - Perform simulations using the sampled random effects

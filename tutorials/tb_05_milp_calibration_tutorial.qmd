@@ -278,7 +278,7 @@ Rho = [
     0.0 0.0 1.0
 ]
 # Convert the target Spearman correlation to the underlying Gaussian's (Pearson) correlation
-Rho_gauss = @. 2 * sin(π * Rho / 6)
+Rho_gauss = @. 2 * sinpi(Rho / 6)
 copula = GaussianCopula(Rho_gauss)
 ```
 

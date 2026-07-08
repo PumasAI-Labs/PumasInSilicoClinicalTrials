@@ -391,9 +391,8 @@ patients = [
 
 ### Step 2: Define the Correlation Matrix
 
-The target **Spearman (rank) correlation** matrix of the parameters,
-from the NLME estimates [@cortes2025HBV],
-capturing the dependence structure among the 8 correlated parameters.
+The Spearman correlation matrix from NLME estimation [@cortes2025HBV] captures the dependence
+structure among the 8 correlated parameters.
 `conv_E` is independent (off-diagonal entries in the last row and the last column are all zeros):
 
 ```{julia}
@@ -427,14 +426,14 @@ We convert the target Spearman correlation to the underlying Gaussian's (Pearson
 [TB-04](tb_04_copula_vpop_tutorial.qmd) for the formula), so the copula reproduces it exactly:
 
 ```{julia}
-Rho_gauss = @. 2 * sin(π * Rho / 6)
+Rho_gauss = @. 2 * sinpi(Rho / 6)
 copula = GaussianCopula(Rho_gauss)
 ```
 
 By construction, the copula's Spearman correlation equals the target `Rho`:
 
 ```{julia}
-maximum(abs.(corspearman(copula) - Rho))   # ≈ 0: the copula's Spearman matches the target
+maximum(abs, corspearman(copula) - Rho)   # ≈ 0: the copula's Spearman matches the target
 ```
 
 ### Step 4: Create the Joint Distribution
@@ -511,7 +510,7 @@ up to sampling noise:
 
 ```{julia}
 param_cols = [:p_S, :β, :m, :k_P, :k_A, :ϵ_NA, :ϵ_IFN, :r_E_IFN, :conv_E]
-maximum(abs.(corspearman(correlated_randeffs') - Rho))   # ≈ 0: sample Spearman vs target
+maximum(abs, corspearman(correlated_randeffs') - Rho)   # ≈ 0: sample Spearman vs target
 ```
 
 Because the `@pre` transforms are strictly increasing, they leave the ranks unchanged,
@@ -519,13 +518,13 @@ so the parameters have the *exact* same Spearman correlation as the random effec
 
 ```{julia}
 param_matrix = Matrix(vpop[:, param_cols])
-maximum(abs.(corspearman(param_matrix) - corspearman(correlated_randeffs')))   # exactly 0
+corspearman(param_matrix) == corspearman(correlated_randeffs')   # true
 ```
 
 The Pearson correlation, by contrast, is not preserved:
 
 ```{julia}
-maximum(abs.(cor(param_matrix) - cor(correlated_randeffs')))   # ≠ 0: Pearson not preserved
+maximum(abs, cor(param_matrix) - cor(correlated_randeffs'))   # ≠ 0: Pearson not preserved
 ```
 
 So the Spearman correlation of the parameters equals the target `Rho`, up to sampling noise —
