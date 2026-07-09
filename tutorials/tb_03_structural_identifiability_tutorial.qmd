@@ -369,36 +369,36 @@ Looking at the output above:
 | **N_res(t)** | `locally` | The resistant cell trajectory is locally identifiable |
 
 This should look suspicious.
-At large times the tumor is dominated by the resistant population, which grows like
-`exp(g·t)`, so the slope of the (log) tumor curve tends to `g`.
-That alone ought to pin down the growth rate, yet the analysis reports `g` as only locally
-identifiable.
+At large times the tumor is dominated by the resistant population, which grows like `exp(g·t)`,
+so the slope of the (log) tumor curve tends to `g`.
+That alone ought to pin down the growth rate,
+yet the analysis reports `g` as only locally identifiable.
 
-The reason is that `StructuralIdentifiability.jl` treats `g` and `k` as arbitrary **real**
-numbers.
-It does not see the `RealDomain(lower = 0.0)` bounds from the Pumas model,
-so it also admits solutions with negative rates.
-Our model does constrain `g, k > 0`, and below we will see that, once this is taken into
-account, the rates (and everything else) are in fact globally identifiable.
+The reason is that `StructuralIdentifiability.jl` treats `g` and `k` as arbitrary **real** numbers.
+It does not know that the model constrains both rates to be positive —
+imposed through the `RealDomain(lower = 0.0)` domains and the log/exp parameterization of `g`
+and `k` — so it also admits solutions with negative rates.
+Our model does constrain `g, k > 0`, and below we will see that, once this is taken into account,
+the rates (and everything else) are in fact globally identifiable.
 
 The parameter `f` is a special case.
-It appears **only** in the initial conditions (`N_sens(0) = f`, `N_res(0) = 1 - f`) and
-nowhere in the dynamics or the output.
-`StructuralIdentifiability.jl` is only concerned with the differential equations and treats
-every initial condition as an unknown quantity in its own right: there is no way for it to
-know that a parameter equals an initial condition.
-A parameter that influences nothing is trivially non-identifiable, hence the verdict made by
-the `assess_identifiability` function.
-However, note that the initial condition `N_sens(0)` equals `f` by definition; since
-`N_sens(t)` is reported to be locally identifiable (at all times), it follows that `f`
-should also be at least locally identifiable.
+It appears **only** in the initial conditions (`N_sens(0) = f`,
+`N_res(0) = 1 - f`) and nowhere in the dynamics or the output.
+`StructuralIdentifiability.jl` is only concerned with the differential equations
+and treats every initial condition as an unknown quantity in its own right:
+there is no way for it to know that a parameter equals an initial condition.
+A parameter that influences nothing is trivially non-identifiable,
+hence the verdict made by the `assess_identifiability` function.
+However, note that the initial condition `N_sens(0)` equals `f` by definition;
+since `N_sens(t)` is reported to be locally identifiable (at all times),
+it follows that `f` should also be at least locally identifiable.
 
 ### Finding Identifiable Combinations
 
 When individual parameters aren't identifiable,
 we can find **combinations** of parameters that ARE identifiable.
-This is extremely useful for reparameterization and for checking the effect of additional
-constraints such as positivity.
+This is extremely useful for reparameterization and
+for checking the effect of additional constraints such as positivity.
 
 ```{julia}
 find_identifiable_functions(
@@ -409,17 +409,16 @@ find_identifiable_functions(
 ```
 
 So from total tumor data we can always recover the difference and the product of the rates,
-but nothing more as long as we assume that the signs of the rates are unknown. However, as
-we will show next, knowing that both rate parameters are positive allows us to pin down the
-individual rates.
+but nothing more as long as we assume that the signs of the rates are unknown.
+However, as we will show next,
+knowing that both rate parameters are positive allows us to pin down the individual rates.
 
 ### Using Positivity to Recover the Rates
 
 Write the two identifiable combinations as $g - k = D$ and $g \cdot k = P$.
 Any pair $(g, k)$ consistent with the data must satisfy both,
 so it lies on the line $k = g - D$ and on the hyperbola $k = P / g$.
-Because we assume $g, k > 0$, the product $P = g \cdot k$ is positive,
-so the two curves look like:
+Because we assume $g, k > 0$, the product $P = g \cdot k$ is positive, so the two curves look like:
 
 ```{julia}
 #| echo: false
@@ -450,8 +449,8 @@ end
 plot_rate_solutions(1.5, 0.5)
 ```
 
-The line crosses the hyperbola at two points, but only one of them lies in the positive
-quadrant (shaded).
+The line crosses the hyperbola at two points,
+but only one of them lies in the positive quadrant (shaded).
 Restricting to $g, k > 0$ therefore leaves a single solution.
 We can see the same thing algebraically: substituting $k = g - D$ into $g \cdot k = P$ gives
 
@@ -459,12 +458,13 @@ $$ g^2 - D\,g - P = 0 \quad\Longrightarrow\quad g = \frac{D \pm \sqrt{D^2 + 4P}}
 
 Since $P > 0$, we have $\sqrt{D^2 + 4P} > |D|$, so only the $+$ root is positive, and it
 gives $k = g - D > 0$.
-There is thus a single positive solution, and **$g$ and $k$ are globally identifiable from
-total tumor data once we use $g, k > 0$.**
-Intuitively, positivity forces one population to grow and the other to shrink. Because
-`StructuralIdentifiability.jl` ignores this constraint, it allows the two roles to be
-exchanged: for example, when $g, k > 0$, the solutions $(g, k, f)$ and $(-k, -g, 1 - f)$
-give identical tumor curves, which is the local non-identifiability the tool reported.
+There is thus a single positive solution,
+and **$g$ and $k$ are globally identifiable from total tumor data once we use $g, k > 0$.**
+Intuitively, positivity forces one population to grow and the other to shrink.
+Because `StructuralIdentifiability.jl` ignores this constraint,
+it allows the two roles to be exchanged: for example, when $g, k > 0$,
+the solutions $(g, k, f)$ and $(-k, -g, 1 - f)$ give identical tumor curves,
+which is the local non-identifiability the tool reported.
 
 ### What about the Cell Populations and $f$?
 
@@ -492,8 +492,8 @@ so we can conclude that the initial fraction `f` is globally identifiable too.
 :::{.callout-note}
 ## For completeness: combinations involving the states
 
-We don't need this here, but `find_identifiable_functions` can also report identifiable
-combinations that involve the states:
+We don't need this here, but `find_identifiable_functions` can also report identifiable combinations
+that involve the states:
 
 ```{julia}
 find_identifiable_functions(
@@ -508,18 +508,23 @@ find_identifiable_functions(
 
 ### What can we do without the positivity constraints?
 
-If we could not assume `g, k > 0`, the rates and the cell trajectories would remain only
-locally identifiable. There are two standard ways to deal with this.
+If we could not assume `g, k > 0`,
+the rates and the cell trajectories would remain only locally identifiable.
+There are two standard ways to deal with this.
 
-The first is to simply fix one rate to a literature value and estimate the other. Another is to **reparametrize** the model in terms of the identifiable combinations
-`g - k` and `g · k` found above. Estimating these instead of `g` and `k` removes the
-non-identifiability from the model, so an optimizer or sampler no longer has to deal with
-multiple optima. It does not, however, recover the individual rates: we still only learn
-their difference and product.
+The first is to simply fix one rate to a literature value and estimate the other.
+Another is to **reparameterize** the model in terms of the identifiable combinations `g - k`
+and `g · k` found above.
+Estimating these instead of `g` and `k` removes the non-identifiability from the model,
+so an optimizer or sampler no longer has to deal with multiple optima.
+It does not, however, recover the individual rates:
+we still only learn their difference and product.
 
-The only approach that can solve the non-identifiability is to **measure more**. Parameters that are unidentifiable from the available
-measurements can often be recovered once additional quantities are observed. Here, suppose a
-biomarker or assay lets us follow the sensitive and resistant populations separately:
+The only approach that can solve the non-identifiability is to **measure more**.
+Parameters that are unidentifiable from the available measurements can often be recovered
+once additional quantities are observed.
+Here, suppose a biomarker or assay lets us follow the sensitive
+and resistant populations separately:
 
 ```{julia}
 #| output: false
@@ -538,20 +543,21 @@ result_both = assess_identifiability(
 )
 ```
 
-Now `g`, `k`, and both cell trajectories are globally identifiable, with no positivity
-assumption needed.
-Each observable is now a single exponential, whose rate is just its (log) slope, recovered
-uniquely and with an unambiguous sign, so there is nothing left to resolve.
-The parameter `f` is still reported non-identifiable due to the same `StructuralIdentifiability.jl` limitation as
-before, but its value `N_sens(0) = f` is now observed directly at `t = 0`, so the initial
-fraction is globally identifiable here as well.
+Now `g`, `k`, and both cell trajectories are globally identifiable,
+with no positivity assumption needed.
+Each observable is now a single exponential, whose rate is just its (log) slope,
+recovered uniquely and with an unambiguous sign, so there is nothing left to resolve.
+The parameter `f` is still reported non-identifiable due to the same `StructuralIdentifiability.jl`
+limitation as before, but its value `N_sens(0) = f` is now observed directly at `t = 0`, so the
+initial fraction is globally identifiable here as well.
 
 ## Part 4: Visualization
 
-Once we account for `g, k > 0`, every parameter and state in this model is globally
-identifiable, so for this example there is nothing particularly useful to visualize.
-We keep the plotting code below as a reusable template because a visual summary of
-identifiability status is useful in larger models that do have real identifiability issues.
+Once we account for `g, k > 0`, every parameter and state in this model is globally identifiable,
+so for this example there is nothing particularly useful to visualize.
+We keep the plotting code below as a reusable template
+because a visual summary of identifiability status is useful in larger models
+that do have real identifiability issues.
 The charts show the tool's raw output, before the positivity constraint is applied.
 
 ### Compile Results into DataFrames
@@ -611,20 +617,21 @@ draw(
 :::{.callout-note}
 ## Reading the Chart
 
-**Row 1 (Total Only):** When we only measure total tumor size:
+Remember that this chart shows the tool's **raw output** — it is a reusable template,
+not the final word on our model, which we already established in Part 3.
 
-- `f` is non-identifiable (red) — cannot be estimated
-- `g`, `k`, state variables are locally identifiable (orange) — finite ambiguity
+**Row 1 (Total Only):** When we only measure total tumor size, the tool reports:
 
-**Row 2 (Both Populations):** When we measure both cell types:
+- `f` non-identifiable (red)
+- `g`, `k`, and the state variables locally identifiable (orange) — finite ambiguity
 
-- `f` is STILL non-identifiable — it's a structural issue
-- `g`, `k`, state variables become globally identifiable (green) —
-  unique solutions!
+**Row 2 (Both Populations):** When we measure both cell types, the tool reports:
 
-**Takeaway:** Adding measurements dramatically improves identifiability for g and k.
+- `f` still non-identifiable
+- `g`, `k`, and the state variables globally identifiable (green) — unique solutions!
 
-**Note:** Remember that this is what the raw output says, not what actually happens in our model.
+**Takeaway (as read from the raw output):** adding measurements moves `g`
+and `k` from locally to globally identifiable.
 :::
 
 ### Summary: Impact of Measurements
@@ -679,9 +686,9 @@ When planning a clinical study:
 3. If key parameters are non-identifiable, consider adding biomarkers
 4. Balance cost/invasiveness against identifiability gains
 
-**Example:** In the tumor burden model, adding biomarkers to distinguish sensitive vs
-resistant cells identifies both rates and the initial fraction without relying on the
-positivity constraint.
+**Example:** In the tumor burden model,
+adding biomarkers to distinguish sensitive vs resistant cells identifies both rates
+and the initial fraction without relying on the positivity constraint.
 :::
 
 :::{.callout-tip}
@@ -690,9 +697,9 @@ positivity constraint.
 A "locally identifiable" or "non-identifiable" verdict is not necessarily accurate,
 because `StructuralIdentifiability.jl` does not know:
 
-1. **Your parameters' domains** — it assumes a parameter can take any value on the real
-   line, which may lead it to spuriously conclude non-identifiability. Check that taking all
-   the constraints on the parameters into account does not change the verdict.
+1. **Your parameters' domains** — it assumes a parameter can take any value on the real line,
+   which may lead it to spuriously conclude non-identifiability.
+   Check that taking all the constraints on the parameters into account does not change the verdict.
 2. **Your differential equations' initial conditions** — the influence of a parameter on the
    initial conditions cannot be taken into account automatically, again potentially leading
    to more identifiability issues being reported than are actually present.
@@ -771,8 +778,8 @@ bootstrap) on your actual data [@raue2009].
    and parameters that live only in the initial conditions can appear non-identifiable due
    to intrinsic limitations of the `StructuralIdentifiability.jl` package
 
-6. **In the tumor burden model, all parameters and states are globally identifiable** even
-   if only total tumor size is measured by taking into account the `g, k > 0` constraint
+6. **In the tumor burden model, all parameters and states are globally identifiable** from
+   total tumor size alone, once the `g, k > 0` constraint is taken into account
 
 7. **Always check BEFORE estimation** to avoid wasted effort on impossible
    problems
