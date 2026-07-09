@@ -28,6 +28,11 @@ jobs:
             exit 0
           fi
 
+          # Capture the remote gh-pages SHA as checked out so we can use
+          # --force-with-lease to reject the push if another job (concurrent
+          # cleanup or a deploy) advanced gh-pages in the meantime.
+          BEFORE_SHA="$(git rev-parse HEAD)"
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -52,4 +57,4 @@ jobs:
 
           # Squash all gh-pages history into a single orphan commit
           git branch gh-pages-new "$(echo 'Squash gh-pages history' | git commit-tree 'HEAD^{tree}')"
-          git push --force origin gh-pages-new:gh-pages
+          git push --force-with-lease="gh-pages:$BEFORE_SHA" origin gh-pages-new:gh-pages

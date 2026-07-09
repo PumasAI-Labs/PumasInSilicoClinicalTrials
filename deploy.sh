@@ -26,15 +26,28 @@ DEST=$([[ "$BRANCH" == "main" ]] && echo "." || echo "preview/$(echo "$BRANCH" |
 TMPDIR=""
 
 cleanup() {
-  # Remove worktree if created
+  # Remove worktree if created, then the temp directory (may still exist if
+  # we fell into the `git init` branch where no worktree was registered).
+  # Each line ends with `|| true` because this runs as an EXIT trap under
+  # `set -e` — a failing conditional must not propagate as a script failure.
   [[ -n "$TMPDIR" ]] && git -C "$REPO_ROOT" worktree remove --force "$TMPDIR" 2>/dev/null || true
+  [[ -n "$TMPDIR" && -d "$TMPDIR" ]] && rm -rf "$TMPDIR" || true
 }
 trap cleanup EXIT
 
-# Deploy to gh-pages subdirectory via worktree (or fresh repo if gh-pages doesn't exist yet)
+# Delete any stale `_deploy_tmp` branch from a previous run (worktrees share
+# branch refs with the main repo, so the branch persists across invocations)
+git -C "$REPO_ROOT" branch -D _deploy_tmp 2>/dev/null || true
+
+# Fetch the latest gh-pages from the remote so the deploy is always based on
+# the current remote state, not a stale or missing local branch
+git -C "$REPO_ROOT" fetch --quiet origin gh-pages 2>/dev/null || true
+
+# Deploy to gh-pages subdirectory via worktree based on the latest origin/gh-pages
+# (or fresh repo if gh-pages doesn't exist remotely yet)
 TMPDIR="$(mktemp -d)"
-if git rev-parse --verify gh-pages >/dev/null 2>&1; then
-  git -C "$REPO_ROOT" worktree add -q "$TMPDIR" gh-pages
+if git -C "$REPO_ROOT" rev-parse --verify --quiet origin/gh-pages >/dev/null; then
+  git -C "$REPO_ROOT" worktree add -q --detach "$TMPDIR" origin/gh-pages
 else
   git init -q "$TMPDIR"
   git -C "$TMPDIR" remote add origin "$(git -C "$REPO_ROOT" remote get-url origin)"
@@ -78,6 +91,13 @@ git diff --cached --quiet && { echo "gh-pages/$DEST is already up to date."; exi
 git checkout --orphan _deploy_tmp
 git add -A
 git commit -m "Deploy $BRANCH -> $DEST"
-git push --force origin HEAD:gh-pages
+# --force-with-lease refuses the push if origin/gh-pages moved since we fetched,
+# so a concurrent deploy/cleanup can't be silently clobbered
+if EXPECTED_SHA=$(git -C "$REPO_ROOT" rev-parse --verify --quiet origin/gh-pages); then
+  git push --force-with-lease="gh-pages:$EXPECTED_SHA" origin HEAD:gh-pages
+else
+  # First-ever deploy into an empty remote gh-pages: no lease to check
+  git push origin HEAD:gh-pages
+fi
 
 echo "Deployed to /$DEST/"
