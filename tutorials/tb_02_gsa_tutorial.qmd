@@ -1052,7 +1052,6 @@ In **Tutorial 3: Structural Identifiability**, we will:
 
 - Learn whether parameters CAN be uniquely estimated from data
 - Understand the difference between identifiable and non-identifiable parameters
-- Discover that `f` is non-identifiable from total tumor measurements alone
 
 ### Quick Reference: Key Functions
 
