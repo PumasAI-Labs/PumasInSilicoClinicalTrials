@@ -422,10 +422,18 @@ as independent in the copula.
 
 ### Step 3: Create the Gaussian Copula
 
-Create the Gaussian copula with the specified correlation structure:
+We convert the target Spearman correlation to the underlying Gaussian's (Pearson) correlation (see
+[TB-04](tb_04_copula_vpop_tutorial.qmd) for the formula), so the copula reproduces it exactly:
 
 ```{julia}
-copula = GaussianCopula(Rho)
+Rho_gauss = @. 2 * sinpi(Rho / 6)
+copula = GaussianCopula(Rho_gauss)
+```
+
+By construction, the copula's Spearman correlation equals the target `Rho`:
+
+```{julia}
+maximum(abs, corspearman(copula) - Rho)   # ≈ 0: the copula's Spearman matches the target
 ```
 
 ### Step 4: Create the Joint Distribution
@@ -497,28 +505,30 @@ For a detailed explanation, see [TB-04](tb_04_copula_vpop_tutorial.qmd).
 
 ### Check Spearman Correlations
 
-The most critical validation is checking that our target correlations are preserved.
+The sample drawn from the copula reproduces the target Spearman correlation `Rho`,
+up to sampling noise:
 
-Compute observed Spearman correlations:
+```{julia}
+maximum(abs, corspearman(correlated_randeffs') - Rho)   # ≈ 0: sample Spearman vs target
+```
+
+Because the `@pre` transforms are strictly increasing, they leave the ranks unchanged,
+so the parameters have the *exact* same Spearman correlation as the random effects:
 
 ```{julia}
 param_cols = [:p_S, :β, :m, :k_P, :k_A, :ϵ_NA, :ϵ_IFN, :r_E_IFN, :conv_E]
 param_matrix = Matrix(vpop[:, param_cols])
-observed_corr = corspearman(param_matrix)
+corspearman(param_matrix) == corspearman(correlated_randeffs')   # true
 ```
 
-The absolute difference from the target correlation matrix is:
+The Pearson correlation, by contrast, is not preserved:
 
 ```{julia}
-@. abs(observed_corr - Rho)
+maximum(abs, cor(param_matrix) - cor(correlated_randeffs'))   # ≠ 0: Pearson not preserved
 ```
 
-:::{.callout-tip}
-## Validation Passed
-
-The observed correlations closely match the expected correlations from @cortes2025HBV.
-The small differences are due to sampling variability and decrease with larger sample sizes.
-:::
+So the Spearman correlation of the parameters equals the target `Rho`, up to sampling noise,
+which is expected to become smaller as the sample size increases.
 
 ### Check Marginal Distributions
 

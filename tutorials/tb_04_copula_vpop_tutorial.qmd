@@ -246,7 +246,7 @@ pop_k = 0.0091  # Sensitive cells die ~0.91% per day
 # Residual error (standard deviation)
 resid_σ = 0.095
 
-# Critical correlation from the data
+# Target Spearman correlation from the NLME estimates
 cor_f_g = -0.64  # Negative correlation: high f ↔ low g
 ```
 
@@ -302,17 +302,19 @@ vpop_indep = postprocess(sims) do generated, _
 end |> DataFrame
 ```
 
-The correlation of the samples of `f` and `g` is
+The Pearson correlation of the samples of `f` and `g` is
 
 ```{julia}
 cor(vpop_indep.f, vpop_indep.g)
 ```
 
+and their Spearman correlation is
+
 ```{julia}
 corspearman(vpop_indep.f, vpop_indep.g)
 ```
 
-but the expected correlation was -0.64!
+but the desired correlation was `{julia} cor_f_g`!
 
 :::{.callout-warning}
 ## Result: Correlation Lost
@@ -362,11 +364,64 @@ Rho = [
 
 ### Step 3: Create the Gaussian Copula
 
-Create Gaussian copula with the specified correlation structure:
+We want the copula to reproduce the target Spearman correlation `Rho`.
+For a Gaussian copula, the Spearman correlation is a known function of the Pearson correlation of
+its underlying Gaussian; inverting it gives the Gaussian correlation we need — see the box below:
 
 ```{julia}
-copula = GaussianCopula(Rho)
+# Convert the target Spearman correlations to the underlying Gaussian's (Pearson) correlations
+Rho_gauss = @. 2 * sinpi(Rho / 6)
+copula = GaussianCopula(Rho_gauss)
 ```
+
+By construction, the copula's Spearman correlation now equals the target `Rho` (up to floating point
+errors):
+
+```{julia}
+maximum(abs, corspearman(copula) - Rho)   # ≈ 0: the copula's Spearman matches the target
+```
+
+:::{.callout-note}
+## Rank correlation of a Gaussian copula
+
+For normally distributed variables with (Pearson) correlation $\rho$, the Spearman correlation is
+
+$$\rho_S = \frac{6}{\pi}\arcsin(\rho/2).$$
+
+Inverting this gives the (Pearson) correlation $\rho$ needed to obtain a target Spearman correlation
+$\rho_S$:
+
+$$\rho = 2\sin\!\left(\frac{\pi}{6}\,\rho_S\right).$$
+
+The adjustment is small — the required $\rho$ is only slightly larger in magnitude than the target
+Spearman correlation:
+
+```{julia}
+#| echo: false
+#| fig-cap: "Extra Gaussian (Pearson) correlation needed to obtain a given target Spearman correlation."
+rs = range(-1, 1; length = 201)
+fig_rank = Figure(; size = (480, 320))
+ax_rank = Axis(
+    fig_rank[1, 1];
+    xlabel = L"\rho_S",
+    ylabel = L"\rho - \rho_S",
+)
+hlines!(ax_rank, 0; color = :gray, linestyle = :dash)
+lines!(ax_rank, rs, 2 .* sinpi.(rs ./ 6) .- rs)
+fig_rank
+```
+
+:::
+
+:::{.callout-note}
+## Other copulas
+
+The closed-form conversion $\rho = 2\sin(\pi\rho_S/6)$ is specific to the Gaussian copula.
+More complex copula families do not in general admit such a formula; there,
+the target Spearman correlation may have to be matched by
+**numerically optimizing the copula's parameters** until the induced rank correlation equals the
+target.
+:::
 
 ### Step 4: Create the Joint Distribution
 
@@ -387,22 +442,27 @@ correlated_randeffs = rand(correlated_randeffs_dist, length(patients))
 :::{.callout-note}
 ## Understanding Copula Samples
 
-The matrix `correlated_randeffs` contains values
-where each random effect is distributed according to a normal distribution with the specified
-standard deviation:
+`correlated_randeffs` holds the sampled random effects.
+By construction each marginal is normal with mean 0
+and standard deviation given by the corresponding `ω`.
+Because the sample is finite, these statistics match their targets only up to sampling noise,
+which is expected to become smaller as the sample size increases.
+The means are close to 0:
 
 ```{julia}
 mean(correlated_randeffs; dims = 2)
 ```
 
+the standard deviations are close to the specified `ω`:
+
 ```{julia}
-std(correlated_randeffs; dims = 2)
+vec(std(correlated_randeffs; dims = 2)) - [ω_f, ω_g, ω_k]   # ≈ 0: sampled SD vs ω
 ```
 
-Additionally, the samples are **correlated** according to our Gaussian copula:
+and their Spearman correlation matches the target `Rho` thanks to our Gaussian copula:
 
 ```{julia}
-corspearman(correlated_randeffs')
+corspearman(correlated_randeffs') - Rho   # ≈ 0: Spearman matches the target (sampling noise only)
 ```
 
 :::
@@ -440,27 +500,27 @@ table_one(vpop)
 
 ### Check Spearman Correlations
 
-The most critical validation is checking that our target correlations are preserved.
-
-Compute observed Spearman correlations:
+Because the `@pre` transforms are strictly increasing, they leave the ranks —
+and therefore the Spearman correlation — unchanged.
+The sampled parameters and the sampled random effects thus have the *exact* same Spearman
+correlation:
 
 ```{julia}
 param_matrix = Matrix(vpop[:, [:f, :g, :k]])
-observed_corr = corspearman(param_matrix)
-````
-
-The absolute difference from the target correlation matrix is:
-
-```{julia}
-@. abs(observed_corr - Rho)
+corspearman(param_matrix) == corspearman(correlated_randeffs')   # true
 ```
 
-:::{.callout-tip}
-## Validation Passed
+The Pearson correlation, by contrast, is not preserved: the transforms distort it,
+so it differs between the two scales.
 
-The observed correlations closely match the expected correlations.
-The small differences are due to sampling variability and decrease with larger sample sizes.
-:::
+```{julia}
+maximum(abs, cor(param_matrix) - cor(correlated_randeffs'))   # ≠ 0: Pearson not preserved
+```
+
+We saw above that the Spearman correlation of the sampled random effects is already equal to the
+target `Rho`, up to sampling noise.
+Since the transforms preserve it exactly, the same is true of the parameters —
+exactly what we set out to achieve.
 
 ### Check Marginal Distributions
 
@@ -516,7 +576,7 @@ draw(
 vpop_total = vcat(
     vpop_indep,
     vpop;
-    source = "method" => ["Independent (r ≈ 0)", "Copula (r = -0.64)"],
+    source = "method" => ["Independent (r ≈ 0)", "Copula (r = $(cor_f_g))"],
 )
 
 # Create scatter plot with faceting by method
@@ -544,8 +604,9 @@ tumors with more treatment-sensitive cells tend to grow more slowly.
 
 ### Corner Plot: All Pairwise Relationships
 
+::: {#fig-tb-corner}
+
 ```{julia}
-#| fig-cap: "Corner plot showing all pairwise parameter relationships and marginal distributions. The negative correlation between f and g (r = -0.64) is clearly visible."
 pairplot(
     vpop => (
         PairPlots.Scatter(; rasterize = 1),
@@ -559,6 +620,12 @@ pairplot(
     )
 )
 ```
+
+Corner plot of all pairwise parameter relationships and marginal distributions.
+The negative f–g relationship (r = `{julia} cor_f_g`) is clearly visible;
+each panel reports the realized Spearman correlation.
+
+:::
 
 ## Practical Recommendations
 
