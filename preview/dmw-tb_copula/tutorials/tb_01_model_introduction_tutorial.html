@@ -1,0 +1,2084 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.27">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Vijay Ivaturi">
+<meta name="author" content="David Müller-Widmann">
+
+<title>Model Introduction – In-Silico Clinical Trials with NLME Models</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+  margin-bottom: 0em;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous"></script><script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-ed96de9b727972fe78a7b5d16c58bf87.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-dark-4d9afe2b8d18ee9fa5d0d57b5ed4214d.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-ed96de9b727972fe78a7b5d16c58bf87.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-5b4ad623e5705c0698d39aec6f10cf02.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-0d4a9d19931feb4fee1ddab4b2489000.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../site_libs/bootstrap/bootstrap-5b4ad623e5705c0698d39aec6f10cf02.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script src="../site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="../site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="../site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+<script id="quarto-search-options" type="application/json">{
+  "location": "sidebar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "start",
+  "type": "textbox",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<meta name="mermaid-theme" content="default">
+<script src="../site_libs/quarto-diagram/mermaid.min.js"></script>
+<script src="../site_libs/quarto-diagram/mermaid-init.js"></script>
+<link href="../site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
+
+<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
+<style>
+  .header-container {
+    width: 100%;
+  }
+  .logo {
+    display: block;
+    width: 150px;
+    margin-left: -2.5%;
+  }
+</style>
+<link rel="shortcut icon" href="https://pumas.ai/favicon.ico">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-sidebar floating quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../tutorials/tb_01_model_introduction_tutorial.html">Tumor Burden Model</a></li><li class="breadcrumb-item"><a href="../tutorials/tb_01_model_introduction_tutorial.html">Model Introduction</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-full">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+    <div class="sidebar-title mb-0 py-0">
+      <a href="../">In-Silico Clinical Trials with NLME Models</a> 
+        <div class="sidebar-tools-main">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+</div>
+    </div>
+      </div>
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">In-Silico Clinical Trials with NLME Models</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">Tumor Burden Model</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_01_model_introduction_tutorial.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Model Introduction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_02_gsa_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Global Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_03_structural_identifiability_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Structural Identifiability Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_04_copula_vpop_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Virtual Population Generation using Gaussian Copulas</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_05_milp_calibration_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MILP-Based Virtual Population Calibration</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_06_vct_simulation_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Virtual Clinical Trial Simulation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">HBV model</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_01_model_introduction_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Model Introduction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_02_gsa_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Global Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_03_structural_identifiability_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Structural Identifiability Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_04_copula_vpop_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Virtual Population Generation using Gaussian Copulas</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_05_milp_calibration_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MILP-Based Virtual Population Calibration</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_06_vct_simulation_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Virtual Clinical Trial Simulation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+    <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="2">
+    <h2 id="toc-title">Contents</h2>
+   
+  <ul>
+  <li><a href="#learning-outcomes" id="toc-learning-outcomes" class="nav-link active" data-scroll-target="#learning-outcomes"><span class="header-section-number">1</span> Learning Outcomes</a></li>
+  <li><a href="#background" id="toc-background" class="nav-link" data-scroll-target="#background"><span class="header-section-number">2</span> Background</a>
+  <ul class="collapse">
+  <li><a href="#clinical-context-nsclc-chemotherapy" id="toc-clinical-context-nsclc-chemotherapy" class="nav-link" data-scroll-target="#clinical-context-nsclc-chemotherapy"><span class="header-section-number">2.1</span> Clinical Context: NSCLC Chemotherapy</a></li>
+  <li><a href="#the-two-population-hypothesis" id="toc-the-two-population-hypothesis" class="nav-link" data-scroll-target="#the-two-population-hypothesis"><span class="header-section-number">2.2</span> The Two-Population Hypothesis</a></li>
+  </ul></li>
+  <li><a href="#libraries" id="toc-libraries" class="nav-link" data-scroll-target="#libraries"><span class="header-section-number">3</span> Libraries</a></li>
+  <li><a href="#part-1-the-model-equation" id="toc-part-1-the-model-equation" class="nav-link" data-scroll-target="#part-1-the-model-equation"><span class="header-section-number">4</span> Part 1: The Model Equation</a>
+  <ul class="collapse">
+  <li><a href="#mathematical-formulation" id="toc-mathematical-formulation" class="nav-link" data-scroll-target="#mathematical-formulation"><span class="header-section-number">4.1</span> Mathematical Formulation</a></li>
+  <li><a href="#parameter-values-from-literature" id="toc-parameter-values-from-literature" class="nav-link" data-scroll-target="#parameter-values-from-literature"><span class="header-section-number">4.2</span> Parameter Values from Literature</a></li>
+  </ul></li>
+  <li><a href="#part-2-building-the-pumas-model" id="toc-part-2-building-the-pumas-model" class="nav-link" data-scroll-target="#part-2-building-the-pumas-model"><span class="header-section-number">5</span> Part 2: Building the Pumas Model</a>
+  <ul class="collapse">
+  <li><a href="#complete-model-definition" id="toc-complete-model-definition" class="nav-link" data-scroll-target="#complete-model-definition"><span class="header-section-number">5.1</span> Complete Model Definition</a></li>
+  <li><a href="#understanding-each-block" id="toc-understanding-each-block" class="nav-link" data-scroll-target="#understanding-each-block"><span class="header-section-number">5.2</span> Understanding Each Block</a></li>
+  </ul></li>
+  <li><a href="#part-3-simulating-a-typical-patient" id="toc-part-3-simulating-a-typical-patient" class="nav-link" data-scroll-target="#part-3-simulating-a-typical-patient"><span class="header-section-number">6</span> Part 3: Simulating a Typical Patient</a>
+  <ul class="collapse">
+  <li><a href="#setting-up-the-simulation" id="toc-setting-up-the-simulation" class="nav-link" data-scroll-target="#setting-up-the-simulation"><span class="header-section-number">6.1</span> Setting Up the Simulation</a></li>
+  <li><a href="#simulating-the-typical-patient" id="toc-simulating-the-typical-patient" class="nav-link" data-scroll-target="#simulating-the-typical-patient"><span class="header-section-number">6.2</span> Simulating the Typical Patient</a></li>
+  <li><a href="#visualizing-treatment-vs-control" id="toc-visualizing-treatment-vs-control" class="nav-link" data-scroll-target="#visualizing-treatment-vs-control"><span class="header-section-number">6.3</span> Visualizing Treatment vs Control</a></li>
+  </ul></li>
+  <li><a href="#part-4-understanding-the-dynamics" id="toc-part-4-understanding-the-dynamics" class="nav-link" data-scroll-target="#part-4-understanding-the-dynamics"><span class="header-section-number">7</span> Part 4: Understanding the Dynamics</a>
+  <ul class="collapse">
+  <li><a href="#analytical-solution" id="toc-analytical-solution" class="nav-link" data-scroll-target="#analytical-solution"><span class="header-section-number">7.1</span> Analytical Solution</a></li>
+  <li><a href="#sensitivity-to-parameters" id="toc-sensitivity-to-parameters" class="nav-link" data-scroll-target="#sensitivity-to-parameters"><span class="header-section-number">7.2</span> Sensitivity to Parameters</a></li>
+  </ul></li>
+  <li><a href="#part-5-population-variability-preview" id="toc-part-5-population-variability-preview" class="nav-link" data-scroll-target="#part-5-population-variability-preview"><span class="header-section-number">8</span> Part 5: Population Variability Preview</a>
+  <ul class="collapse">
+  <li><a href="#simulating-multiple-patients" id="toc-simulating-multiple-patients" class="nav-link" data-scroll-target="#simulating-multiple-patients"><span class="header-section-number">8.1</span> Simulating Multiple Patients</a></li>
+  </ul></li>
+  <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary"><span class="header-section-number">9</span> Summary</a>
+  <ul class="collapse">
+  <li><a href="#key-concepts" id="toc-key-concepts" class="nav-link" data-scroll-target="#key-concepts"><span class="header-section-number">9.1</span> Key Concepts</a></li>
+  <li><a href="#whats-next" id="toc-whats-next" class="nav-link" data-scroll-target="#whats-next"><span class="header-section-number">9.2</span> What’s Next</a></li>
+  <li><a href="#quick-reference-key-functions" id="toc-quick-reference-key-functions" class="nav-link" data-scroll-target="#quick-reference-key-functions"><span class="header-section-number">9.3</span> Quick Reference: Key Functions</a></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references"><span class="header-section-number">9.4</span> References</a></li>
+  </ul></li>
+  </ul>
+</nav>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
+    </div>
+<!-- main -->
+<main class="content column-page-right" id="quarto-document-content">
+
+<div class="header-container">
+  <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
+</div>
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../tutorials/tb_01_model_introduction_tutorial.html">Tumor Burden Model</a></li><li class="breadcrumb-item"><a href="../tutorials/tb_01_model_introduction_tutorial.html">Model Introduction</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">Model Introduction</h1>
+</div>
+
+
+
+<div class="quarto-title-meta column-page-right">
+
+    <div>
+    <div class="quarto-title-meta-heading">Authors</div>
+    <div class="quarto-title-meta-contents">
+             <p>Vijay Ivaturi </p>
+             <p>David Müller-Widmann </p>
+          </div>
+  </div>
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Tumor Burden Tutorial Series
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>This is <strong>Tutorial 1 of 6</strong> in the Tumor Burden series.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Tutorial</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td><strong>Model Introduction (current)</strong></td>
+<td>You are here</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td><a href="../tutorials/tb_02_gsa_tutorial.html">Global Sensitivity Analysis</a></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td><a href="../tutorials/tb_03_structural_identifiability_tutorial.html">Structural Identifiability</a></td>
+<td></td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td><a href="../tutorials/tb_04_copula_vpop_tutorial.html">Copula Vpop Generation</a></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td><a href="../tutorials/tb_05_milp_calibration_tutorial.html">MILP Calibration</a></td>
+<td></td>
+</tr>
+<tr class="even">
+<td>6</td>
+<td><a href="../tutorials/tb_06_vct_simulation_tutorial.html">VCT Simulation</a></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<section id="learning-outcomes" class="level2" data-number="1">
+<h2 data-number="1" class="anchored" data-anchor-id="learning-outcomes"><span class="header-section-number">1</span> Learning Outcomes</h2>
+<p>This tutorial introduces the Tumor Burden Model, a foundational example for understanding In Silico Clinical Trials (ISCTs). The model describes tumor dynamics during cancer chemotherapy and will be used throughout this tutorial series <span class="citation" data-cites="cortes2025 qi2022">(<a href="#ref-cortes2025" role="doc-biblioref">Cortés-Ríos et al., 2025</a>; <a href="#ref-qi2022" role="doc-biblioref">Qi &amp; Cao, 2022</a>)</span>.</p>
+<p>In this tutorial, you will learn:</p>
+<ul>
+<li>The clinical context: non-small cell lung cancer (NSCLC) chemotherapy</li>
+<li>The biological basis of tumor response: treatment-sensitive vs resistant cells</li>
+<li>The mathematical model equation and what each parameter represents</li>
+<li>How to build a Pumas model using the <code>@model</code> macro</li>
+<li>How to simulate typical patient dynamics</li>
+<li>How to visualize treatment vs control scenarios</li>
+</ul>
+</section>
+<section id="background" class="level2" data-number="2">
+<h2 data-number="2" class="anchored" data-anchor-id="background"><span class="header-section-number">2</span> Background</h2>
+<section id="clinical-context-nsclc-chemotherapy" class="level3" data-number="2.1">
+<h3 data-number="2.1" class="anchored" data-anchor-id="clinical-context-nsclc-chemotherapy"><span class="header-section-number">2.1</span> Clinical Context: NSCLC Chemotherapy</h3>
+<p>Non-small cell lung cancer (NSCLC) is the most common type of lung cancer, accounting for approximately 85% of all lung cancer cases. Chemotherapy remains a cornerstone of treatment, but patient responses vary dramatically:</p>
+<ul>
+<li>Some patients achieve <strong>complete response</strong> (tumor disappears)</li>
+<li>Some achieve <strong>partial response</strong> (tumor shrinks significantly)</li>
+<li>Others experience <strong>progressive disease</strong> (tumor grows despite treatment)</li>
+</ul>
+<p><strong>The central question:</strong> What determines which patients respond to treatment?</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>From Observation to Model
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Researchers observed that tumors often show a characteristic <strong>biphasic response</strong> to chemotherapy:</p>
+<ol type="1">
+<li><strong>Initial shrinkage:</strong> Chemotherapy kills treatment-sensitive cells</li>
+<li><strong>Eventual regrowth:</strong> Treatment-resistant cells proliferate</li>
+</ol>
+<p>This observation suggests a simple but powerful model: tumors contain two distinct cell populations with different drug sensitivities.</p>
+</div>
+</div>
+</section>
+<section id="the-two-population-hypothesis" class="level3" data-number="2.2">
+<h3 data-number="2.2" class="anchored" data-anchor-id="the-two-population-hypothesis"><span class="header-section-number">2.2</span> The Two-Population Hypothesis</h3>
+<p>The tumor burden model posits that a tumor consists of two cell populations:</p>
+<div class="cell" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">flowchart TB
+    subgraph tumor["Tumor at Diagnosis"]
+        direction LR
+        sens["Treatment-Sensitive Cells&lt;br/&gt;(fraction f)"]
+        res["Treatment-Resistant Cells&lt;br/&gt;(fraction 1-f)"]
+    end
+
+    sens --&gt;|"Under treatment"| sens_fate["Die at rate k"]
+    res --&gt;|"Always"| res_fate["Grow at rate g"]
+
+    sens_fate --&gt; outcome1["Tumor shrinks initially"]
+    res_fate --&gt; outcome2["Tumor regrows eventually"]
+
+    style sens fill:#ffcccc,stroke:#cc0000
+    style res fill:#ccffcc,stroke:#00cc00
+    style outcome1 fill:#e1f5fe,stroke:#01579b
+    style outcome2 fill:#fff3e0,stroke:#e65100
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p><strong>Biological interpretation:</strong></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 21%">
+<col style="width: 14%">
+<col style="width: 30%">
+<col style="width: 32%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Population</th>
+<th style="text-align: left;">Symbol</th>
+<th style="text-align: left;">Under Treatment</th>
+<th style="text-align: left;">Biological Basis</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><strong>Sensitive cells</strong></td>
+<td style="text-align: left;">f</td>
+<td style="text-align: left;">Die at rate k</td>
+<td style="text-align: left;">Express drug targets, susceptible to chemotherapy</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>Resistant cells</strong></td>
+<td style="text-align: left;">1-f</td>
+<td style="text-align: left;">Grow at rate g</td>
+<td style="text-align: left;">Pre-existing mutations, drug efflux pumps, stem-like properties</td>
+</tr>
+</tbody>
+</table>
+<p>This simple model captures the essence of why some patients respond better than others: <strong>patients with a higher fraction of sensitive cells (high f) will show better initial response</strong>.</p>
+</section>
+</section>
+<section id="libraries" class="level2" data-number="3">
+<h2 data-number="3" class="anchored" data-anchor-id="libraries"><span class="header-section-number">3</span> Libraries</h2>
+<p>Load the necessary packages for this tutorial.</p>
+<div id="2" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Pumas</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">AlgebraOfGraphics</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">CairoMakie</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">DataFramesMeta</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">SummaryTables</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Random</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Statistics</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Set seed for reproducibility</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="bu">Random</span>.<span class="fu">seed!</span>(<span class="fl">1234</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p><strong>What each package does:</strong></p>
+<ul>
+<li><code>Pumas</code>: Pharmacometric modeling and simulation</li>
+<li><code>AlgebraOfGraphics</code> + <code>CairoMakie</code>: Publication-quality visualizations</li>
+<li><code>DataFramesMeta</code>: DataFrame manipulation</li>
+<li><code>SummaryTables</code>: Clean rendering of data frames in documents</li>
+<li><code>Random</code>: Julia standard library for random number generation (<code>randn</code>, <code>randn!</code>, <code>seed!</code>, etc.)</li>
+<li><code>Statistics</code>: Julia standard library for statistics (<code>mean</code>, <code>std</code>, etc.)</li>
+</ul>
+</section>
+<section id="part-1-the-model-equation" class="level2" data-number="4">
+<h2 data-number="4" class="anchored" data-anchor-id="part-1-the-model-equation"><span class="header-section-number">4</span> Part 1: The Model Equation</h2>
+<section id="mathematical-formulation" class="level3" data-number="4.1">
+<h3 data-number="4.1" class="anchored" data-anchor-id="mathematical-formulation"><span class="header-section-number">4.1</span> Mathematical Formulation</h3>
+<p>The tumor burden model describes the total tumor size <span class="math inline">\(N(t)\)</span> as the sum of two exponential terms <span class="citation" data-cites="qi2022">(<a href="#ref-qi2022" role="doc-biblioref">Qi &amp; Cao, 2022</a>)</span>:</p>
+<p><span class="math display">\[N(t) = N_0 \cdot f \cdot e^{-k \cdot t} + N_0 \cdot (1-f) \cdot e^{g \cdot t}\]</span></p>
+<p>Where:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 28%">
+<col style="width: 17%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Symbol</th>
+<th style="text-align: left;">Parameter</th>
+<th style="text-align: left;">Units</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><span class="math inline">\(N_0\)</span></td>
+<td style="text-align: left;">Initial tumor</td>
+<td style="text-align: left;">normalized</td>
+<td style="text-align: left;">Baseline tumor size (set to 1)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><span class="math inline">\(f\)</span></td>
+<td style="text-align: left;">Sensitive fraction</td>
+<td style="text-align: left;">unitless</td>
+<td style="text-align: left;">Fraction of treatment-sensitive cells (0 to 1)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><span class="math inline">\(k\)</span></td>
+<td style="text-align: left;">Death rate</td>
+<td style="text-align: left;">d⁻¹</td>
+<td style="text-align: left;">Rate at which sensitive cells die under treatment</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><span class="math inline">\(g\)</span></td>
+<td style="text-align: left;">Growth rate</td>
+<td style="text-align: left;">d⁻¹</td>
+<td style="text-align: left;">Rate at which resistant cells proliferate</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><span class="math inline">\(t\)</span></td>
+<td style="text-align: left;">Time</td>
+<td style="text-align: left;">days</td>
+<td style="text-align: left;">Time since treatment start</td>
+</tr>
+</tbody>
+</table>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Understanding the Equation
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Let us break down the two terms:</p>
+<p><strong>First term:</strong> <span class="math inline">\(N_0 \cdot f \cdot \exp{(-k \cdot t)}\)</span> — Sensitive cell population</p>
+<ul>
+<li>Starts at <span class="math inline">\(N_0 \cdot f\)</span> (fraction f of the initial tumor)</li>
+<li>Decays exponentially with rate <span class="math inline">\(k\)</span> when treated</li>
+<li>Eventually approaches 0 as sensitive cells are eliminated</li>
+</ul>
+<p><strong>Second term:</strong> <span class="math inline">\(N_0 \cdot (1-f) \cdot \exp{(g \cdot t)}\)</span> — Resistant cell population</p>
+<ul>
+<li>Starts at <span class="math inline">\(N_0 \cdot (1-f)\)</span> (the remaining fraction)</li>
+<li>Grows exponentially with rate <span class="math inline">\(g\)</span></li>
+<li>Eventually dominates the total tumor</li>
+</ul>
+<p><strong>Net effect:</strong> Initial shrinkage (first term dominates) followed by regrowth (second term dominates).</p>
+</div>
+</div>
+</section>
+<section id="parameter-values-from-literature" class="level3" data-number="4.2">
+<h3 data-number="4.2" class="anchored" data-anchor-id="parameter-values-from-literature"><span class="header-section-number">4.2</span> Parameter Values from Literature</h3>
+<p>The parameter values come from <span class="citation" data-cites="qi2022">Qi &amp; Cao (<a href="#ref-qi2022" role="doc-biblioref">2022</a>)</span>, who fit this model to NSCLC clinical trial data:</p>
+<div id="4" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Population (typical) parameter values</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>median_f <span class="op">=</span> <span class="fl">0.27</span>    <span class="co"># 27% of tumor is treatment-sensitive</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>median_g <span class="op">=</span> <span class="fl">0.0013</span>  <span class="co"># Resistant cells grow ~0.13% per day</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>median_k <span class="op">=</span> <span class="fl">0.0091</span>  <span class="co"># Sensitive cells die ~0.91% per day</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Inter-individual variability (standard deviations on transformed scale)</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>ω_f <span class="op">=</span> <span class="fl">2.16</span>  <span class="co"># High variability in sensitive fraction</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>ω_g <span class="op">=</span> <span class="fl">1.57</span>  <span class="co"># Moderate variability in growth rate</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>ω_k <span class="op">=</span> <span class="fl">1.24</span>  <span class="co"># Moderate variability in death rate</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Residual error (standard deviation)</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>resid_σ <span class="op">=</span> <span class="fl">0.095</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+</section>
+<section id="part-2-building-the-pumas-model" class="level2" data-number="5">
+<h2 data-number="5" class="anchored" data-anchor-id="part-2-building-the-pumas-model"><span class="header-section-number">5</span> Part 2: Building the Pumas Model</h2>
+<section id="complete-model-definition" class="level3" data-number="5.1">
+<h3 data-number="5.1" class="anchored" data-anchor-id="complete-model-definition"><span class="header-section-number">5.1</span> Complete Model Definition</h3>
+<p>A Pumas model is defined using the <code>@model</code> macro with several blocks:</p>
+<div id="6" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>tumor_burden_model <span class="op">=</span> <span class="pp">@model</span> <span class="cf">begin</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@metadata</span> <span class="cf">begin</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>        desc <span class="op">=</span> <span class="st">"Tumor Burden Model for NSCLC Chemotherapy"</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        timeu <span class="op">=</span> u<span class="st">"d"</span>  <span class="co"># Time unit is days</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@param</span> <span class="cf">begin</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Typical values (population parameters)</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>        tvf <span class="op">∈</span> <span class="fu">RealDomain</span>(lower <span class="op">=</span> <span class="fl">0.0</span>, upper <span class="op">=</span> <span class="fl">1.0</span>)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        tvg <span class="op">∈</span> <span class="fu">RealDomain</span>(lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        tvk <span class="op">∈</span> <span class="fu">RealDomain</span>(lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Inter-individual variability</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Values on the transformed scale (logit for f, log for g and k)</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>        ωf <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>        ωg <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>        ωk <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Residual error (standard deviation)</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>        σ <span class="op">∈</span> <span class="fu">RealDomain</span>(lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Random effects</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@random</span> <span class="cf">begin</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>        <span class="co"># f: logit-normal distribution (bounded 0-1)</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        f <span class="op">~</span> <span class="fu">LogitNormal</span>(<span class="fu">logit</span>(tvf), ωf)</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>        <span class="co"># g: log-normal distribution (positive value)</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>        g <span class="op">~</span> <span class="fu">LogNormal</span>(<span class="fu">log</span>(tvg), ωg)</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>        <span class="co"># k under treatment: log-normal distribution (positive value)</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>        k_treatment <span class="op">~</span> <span class="fu">LogNormal</span>(<span class="fu">log</span>(tvk), ωk)</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@covariates</span> treatment</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@pre</span> <span class="cf">begin</span></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>        <span class="co"># treatment affects death rate:</span></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>        <span class="co"># treatment = false → control arm (no killing)</span></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>        <span class="co"># treatment = true → treatment arm (killing at rate k_treatment)</span></span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>        k <span class="op">=</span> treatment <span class="op">*</span> k_treatment</span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Initial conditions (normalized tumor = 1)</span></span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@init</span> <span class="cf">begin</span></span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>        N_sens <span class="op">=</span> f           <span class="co"># Sensitive cells</span></span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>        N_res <span class="op">=</span> <span class="fl">1</span> <span class="op">-</span> f        <span class="co"># Resistant cells</span></span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@dynamics</span> <span class="cf">begin</span></span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Sensitive cells: die at rate k (0 if control)</span></span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>        N_sens<span class="op">'</span> <span class="op">=</span> <span class="op">-</span>k <span class="op">*</span> N_sens</span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Resistant cells: grow at rate g</span></span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>        N_res<span class="op">'</span> <span class="op">=</span> g <span class="op">*</span> N_res</span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@derived</span> <span class="cf">begin</span></span>
+<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Total normalized tumor size</span></span>
+<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a>        Nt <span class="op">:=</span> @. N_sens <span class="op">+</span> N_res</span>
+<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Observation with residual error</span></span>
+<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a>        tumor_size <span class="op">~</span> @. <span class="fu">Normal</span>(Nt, σ)</span>
+<span id="cb3-62"><a href="#cb3-62" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb3-63"><a href="#cb3-63" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>PumasModel
+  Parameters: tvf, tvg, tvk, ωf, ωg, ωk, σ
+  Random effects: f, g, k_treatment
+  Covariates: treatment
+  Dynamical system variables: N_sens, N_res
+  Dynamical system type: Matrix exponential
+  Derived: tumor_size
+  Observed: tumor_size</code></pre>
+</div>
+</div>
+</section>
+<section id="understanding-each-block" class="level3" data-number="5.2">
+<h3 data-number="5.2" class="anchored" data-anchor-id="understanding-each-block"><span class="header-section-number">5.2</span> Understanding Each Block</h3>
+<p>Let’s examine each model block in detail.</p>
+<section id="the-param-block" class="level4" data-number="5.2.1">
+<h4 data-number="5.2.1" class="anchored" data-anchor-id="the-param-block"><span class="header-section-number">5.2.1</span> The <code>@param</code> Block</h4>
+<ul>
+<li><code>tvf ∈ RealDomain(lower=0.0, upper=1.0)</code>: Typical value of <code>f</code> (bounded between 0 and 1)</li>
+<li><code>tvg ∈ RealDomain(lower=0.0)</code>: Typical value of <code>g</code> (positive)</li>
+<li><code>tvk ∈ RealDomain(lower=0.0)</code>: Typical value of <code>k</code> (positive)</li>
+<li><code>ωf</code>, <code>ωg</code>, <code>ωk ∈ RealDomain(lower=0.0)</code>: Inter-individual variability parameters (standard deviations on the transformed scale)</li>
+<li><code>σ ∈ RealDomain(lower=0.0)</code>: Residual error SD</li>
+</ul>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Domain Types
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 41%">
+<col style="width: 32%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Domain</th>
+<th style="text-align: left;">Constraints</th>
+<th style="text-align: left;">Use Case</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>RealDomain()</code></td>
+<td style="text-align: left;">Any real number</td>
+<td style="text-align: left;">Unbounded parameters</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>RealDomain(lower=0.0)</code></td>
+<td style="text-align: left;">Positive only</td>
+<td style="text-align: left;">Rates, SDs, clearances</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>RealDomain(lower=0.0, upper=1.0)</code></td>
+<td style="text-align: left;">Between 0 and 1</td>
+<td style="text-align: left;">Fractions, bioavailability</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<section id="the-random-block" class="level4" data-number="5.2.2">
+<h4 data-number="5.2.2" class="anchored" data-anchor-id="the-random-block"><span class="header-section-number">5.2.2</span> The <code>@random</code> Block</h4>
+<p>The <code>@random</code> block defines the individual-level parameter distributions directly:</p>
+<ul>
+<li><code>f ~ LogitNormal(logit(tvf), ωf)</code>: Sensitive fraction, bounded between 0 and 1</li>
+<li><code>g ~ LogNormal(log(tvg), ωg)</code>: Growth rate, always positive</li>
+<li><code>k_treatment ~ LogNormal(log(tvk), ωk)</code>: Death rate under treatment, always positive</li>
+</ul>
+<p>Each virtual patient gets parameter values sampled from these distributions. The distribution types ensure parameters stay in valid ranges (see callout below).</p>
+</section>
+<section id="the-covariates-block" class="level4" data-number="5.2.3">
+<h4 data-number="5.2.3" class="anchored" data-anchor-id="the-covariates-block"><span class="header-section-number">5.2.3</span> The <code>@covariates</code> Block</h4>
+<p><code>@covariates treatment</code> declares that the model expects a <code>treatment</code> covariate from each <code>Subject</code>. This is a binary covariate (<code>true</code>/<code>false</code>) that toggles the drug effect in the <code>@pre</code> block — specifically, it multiplies the death rate <code>k</code>, so <code>treatment = false</code> yields <code>k = 0</code> (no killing) while <code>treatment = true</code> yields the estimated death rate.</p>
+</section>
+<section id="the-pre-block-derived-parameters" class="level4" data-number="5.2.4">
+<h4 data-number="5.2.4" class="anchored" data-anchor-id="the-pre-block-derived-parameters"><span class="header-section-number">5.2.4</span> The <code>@pre</code> Block: Derived Parameters</h4>
+<p>The <code>@pre</code> block computes derived individual parameters from the random effects:</p>
+<ul>
+<li><code>k = treatment * k_treatment</code>: The effective death rate. In the control arm (<code>treatment = false</code>), <code>k = 0</code> (no killing). In the treatment arm (<code>treatment = true</code>), <code>k = k_treatment</code>.</li>
+</ul>
+<p>The individual parameters <code>f</code> and <code>g</code> are used directly from the <code>@random</code> block in <code>@init</code> and <code>@dynamics</code>.</p>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Important</span>Why LogitNormal and LogNormal?
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The distribution types in <code>@random</code> ensure:</p>
+<ol type="1">
+<li><strong>Parameters stay in valid ranges:</strong>
+<ul>
+<li><code>f</code> always between 0 and 1 (<code>LogitNormal</code>)</li>
+<li><code>g</code> and <code>k</code> always positive (<code>LogNormal</code>)</li>
+</ul></li>
+<li><strong>Symmetric variability on the transformed scale:</strong>
+<ul>
+<li>On the logit/log scale, a patient one standard deviation above typical is as “far from typical” as one standard deviation below</li>
+</ul></li>
+<li><strong>Realistic distributions:</strong>
+<ul>
+<li>Log-normal for rates (right-skewed, common in PK/PD)</li>
+<li>Logit-normal for fractions (appropriate for bounded parameters)</li>
+</ul></li>
+<li><strong>Median interpretation:</strong>
+<ul>
+<li><code>tvf</code>, <code>tvg</code>, <code>tvk</code> are the <strong>medians</strong> of the individual-level distributions</li>
+</ul></li>
+</ol>
+</div>
+</div>
+</section>
+<section id="the-init-block" class="level4" data-number="5.2.5">
+<h4 data-number="5.2.5" class="anchored" data-anchor-id="the-init-block"><span class="header-section-number">5.2.5</span> The <code>@init</code> Block</h4>
+<p>The <code>@init</code> block sets the initial conditions for the ODE compartments at time zero:</p>
+<ul>
+<li><code>N_sens = f</code> — sensitive cells start as fraction <code>f</code> of the normalized tumor</li>
+<li><code>N_res = 1 - f</code> — resistant cells make up the remaining fraction</li>
+</ul>
+<p>Together they sum to 1 (the normalized baseline tumor size <span class="math inline">\(N_0 = 1\)</span>). Note that <code>@init</code> can reference variables computed in <code>@pre</code> — here it uses <code>f</code>, which means each virtual patient gets individualized initial conditions.</p>
+</section>
+<section id="the-dynamics-block" class="level4" data-number="5.2.6">
+<h4 data-number="5.2.6" class="anchored" data-anchor-id="the-dynamics-block"><span class="header-section-number">5.2.6</span> The <code>@dynamics</code> Block</h4>
+<p>ODE dynamics of treatment-sensitive cells:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>N_sens<span class="op">'</span> <span class="op">=</span> <span class="op">-</span>k <span class="op">*</span> N_sens</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<ul>
+<li>Sensitive cells decrease exponentially when treated</li>
+<li><code>k = 0</code> (control) means no change</li>
+<li><code>k &gt; 0</code> (treatment) means exponential decay</li>
+</ul>
+<p>ODE dynamics of treatment-resistant cells:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>N_res<span class="op">'</span> <span class="op">=</span> g <span class="op">*</span> N_res</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<ul>
+<li>Resistant cells always grow exponentially</li>
+<li>Independent of treatment</li>
+</ul>
+<p>These two ODEs implement the mathematical model for the total number of cells <span class="math inline">\(N(t)\)</span>:</p>
+<p><span class="math display">\[N(t) = N_0 f \exp{(-kt)} + N_0 (1-f) \exp{(gt)}\]</span></p>
+</section>
+<section id="the-derived-block" class="level4" data-number="5.2.7">
+<h4 data-number="5.2.7" class="anchored" data-anchor-id="the-derived-block"><span class="header-section-number">5.2.7</span> The <code>@derived</code> Block</h4>
+<p>The <code>@derived</code> block defines the model outputs and error models:</p>
+<ul>
+<li><code>Nt := @.   N_sens + N_res</code> — the total tumor size, computed as an intermediate variable. The <code>:=</code> operator marks it as block-internal, so <code>Nt</code> is <strong>not</strong> included in the simulation output.</li>
+<li><code>tumor_size ~ @.   Normal(Nt, σ)</code> — the error model for the observed tumor size. The <code>~</code> operator defines a distribution-based output: each simulated observation is drawn from a normal distribution centered on <code>Nt</code> with standard deviation <code>σ</code>. Variables defined with <code>~</code> appear in the simulation results.</li>
+</ul>
+</section>
+</section>
+</section>
+<section id="part-3-simulating-a-typical-patient" class="level2" data-number="6">
+<h2 data-number="6" class="anchored" data-anchor-id="part-3-simulating-a-typical-patient"><span class="header-section-number">6</span> Part 3: Simulating a Typical Patient</h2>
+<section id="setting-up-the-simulation" class="level3" data-number="6.1">
+<h3 data-number="6.1" class="anchored" data-anchor-id="setting-up-the-simulation"><span class="header-section-number">6.1</span> Setting Up the Simulation</h3>
+<p>Let us simulate a “typical” patient (η = 0) receiving treatment.</p>
+<div id="8" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Population parameters</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>pop_params <span class="op">=</span> (</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    tvf <span class="op">=</span> median_f,</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    tvg <span class="op">=</span> median_g,</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    tvk <span class="op">=</span> median_k,</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    ωf <span class="op">=</span> ω_f,</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    ωg <span class="op">=</span> ω_g,</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    ωk <span class="op">=</span> ω_k,</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    σ <span class="op">=</span> resid_σ,</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Observation times (weekly for 18 weeks)</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>obs_times <span class="op">=</span> <span class="fl">7</span> <span class="op">*</span> (<span class="fl">0</span><span class="op">:</span><span class="fl">18</span>)</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a subject for the treatment arm</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>subject_treatment <span class="op">=</span> <span class="fu">Subject</span>(</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    id <span class="op">=</span> <span class="st">"treatment"</span>,</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    covariates <span class="op">=</span> (treatment <span class="op">=</span> <span class="cn">true</span>,),  <span class="co"># Treatment arm</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a subject for the control arm</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>subject_control <span class="op">=</span> <span class="fu">Subject</span>(</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    id <span class="op">=</span> <span class="st">"control"</span>,</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    covariates <span class="op">=</span> (treatment <span class="op">=</span> <span class="cn">false</span>,),  <span class="co"># Control arm</span></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>Subject
+  ID: control
+  Covariates: treatment</code></pre>
+</div>
+</div>
+</section>
+<section id="simulating-the-typical-patient" class="level3" data-number="6.2">
+<h3 data-number="6.2" class="anchored" data-anchor-id="simulating-the-typical-patient"><span class="header-section-number">6.2</span> Simulating the Typical Patient</h3>
+<p>This gives individual parameters equal to population typical values:</p>
+<div id="10" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>typical_randeffs <span class="op">=</span> <span class="fu">center_randeffs</span>(tumor_burden_model, subject_treatment, pop_params)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>(f = 0.27, g = 0.0012999999999999995, k_treatment = 0.009099999999999997)</code></pre>
+</div>
+</div>
+<p>Simulate treatment arm:</p>
+<div id="12" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>sim_treatment <span class="op">=</span> <span class="fu">simobs</span>(</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    tumor_burden_model,</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    subject_treatment,</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    pop_params,</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    typical_randeffs;</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    simulate_error <span class="op">=</span> <span class="cn">false</span>,</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    obstimes <span class="op">=</span> obs_times,</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>SimulatedObservations
+  Simulated variables: tumor_size
+  Time: 0:7:126</code></pre>
+</div>
+</div>
+<p>Simulate control arm:</p>
+<div id="14" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>sim_control <span class="op">=</span> <span class="fu">simobs</span>(</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    tumor_burden_model,</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    subject_control,</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    pop_params,</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    typical_randeffs;</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    simulate_error <span class="op">=</span> <span class="cn">false</span>,</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    obstimes <span class="op">=</span> obs_times,</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>SimulatedObservations
+  Simulated variables: tumor_size
+  Time: 0:7:126</code></pre>
+</div>
+</div>
+<p>For post-processing and plotting, we convert simulations to a <code>DataFrame</code>:</p>
+<div id="16" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>df_sims <span class="op">=</span> <span class="fu">DataFrame</span>([sim_treatment, sim_control])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="visualizing-treatment-vs-control" class="level3" data-number="6.3">
+<h3 data-number="6.3" class="anchored" data-anchor-id="visualizing-treatment-vs-control"><span class="header-section-number">6.3</span> Visualizing Treatment vs Control</h3>
+<div id="18" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create plot using AlgebraOfGraphics</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>specs_sims <span class="op">=</span> <span class="fu">data</span>(df_sims) <span class="op">*</span> <span class="fu">mapping</span>(</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>time <span class="op">=&gt;</span> (t <span class="op">-&gt;</span> t <span class="op">/</span> <span class="fl">7</span>) <span class="op">=&gt;</span> <span class="st">"Time [week]"</span>,</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>tumor_size <span class="op">=&gt;</span> <span class="st">"Normalized tumor size"</span>,</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> <span class="op">:</span>id <span class="op">=&gt;</span> <span class="fu">renamer</span>(<span class="st">"treatment"</span> <span class="op">=&gt;</span> <span class="st">"Treatment"</span>, <span class="st">"control"</span> <span class="op">=&gt;</span> <span class="st">"Control"</span>) <span class="op">=&gt;</span> <span class="st">"Study arm"</span>,</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">visual</span>(Lines)</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>specs_reference <span class="op">=</span> <span class="fu">mapping</span>(</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">1.0</span>],</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>    linestyle <span class="op">=</span> [<span class="st">"Baseline"</span>] <span class="op">=&gt;</span> <span class="st">"Reference"</span> <span class="op">=&gt;</span> AlgebraOfGraphics.<span class="fu">scale</span>(<span class="op">:</span>RefLines),</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">visual</span>(HLines)</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a><span class="fu">draw</span>(specs_sims <span class="op">+</span> specs_reference, <span class="fu">scales</span>(RefLines <span class="op">=</span> (; palette <span class="op">=</span> [<span class="op">:</span>dash])))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="tb_01_model_introduction_tutorial_files/figure-html/cell-10-output-1.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="Tumor dynamics for a typical patient: treatment vs control. Treatment causes initial tumor shrinkage as sensitive cells die, followed by regrowth as resistant cells proliferate. Control arm shows only growth."><img src="tb_01_model_introduction_tutorial_files/figure-html/cell-10-output-1.svg" class="img-fluid figure-img" alt="Tumor dynamics for a typical patient: treatment vs control. Treatment causes initial tumor shrinkage as sensitive cells die, followed by regrowth as resistant cells proliferate. Control arm shows only growth."></a></p>
+<figcaption>Tumor dynamics for a typical patient: treatment vs control. Treatment causes initial tumor shrinkage as sensitive cells die, followed by regrowth as resistant cells proliferate. Control arm shows only growth.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Interpreting the Curves
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p><strong>Treatment arm:</strong></p>
+<ol type="1">
+<li><strong>Weeks 0 - ~13:</strong> Tumor shrinks as treatment kills sensitive cells (27% of initial tumor)</li>
+<li><strong>Days ~13 - 18:</strong> Tumor regrows as resistant cells (73% of initial tumor) continue proliferating</li>
+<li><strong>Nadir (minimum):</strong> Occurs when the declining sensitive population equals the growing resistant population</li>
+</ol>
+<p><strong>Control arm:</strong></p>
+<ol type="1">
+<li>No killing of any cells</li>
+<li>Both populations grow at their respective rates (but <code>f</code> doesn’t affect control since <code>k = 0</code>)</li>
+<li>Exponential growth dominated by the larger resistant population</li>
+</ol>
+</div>
+</div>
+</section>
+</section>
+<section id="part-4-understanding-the-dynamics" class="level2" data-number="7">
+<h2 data-number="7" class="anchored" data-anchor-id="part-4-understanding-the-dynamics"><span class="header-section-number">7</span> Part 4: Understanding the Dynamics</h2>
+<section id="analytical-solution" class="level3" data-number="7.1">
+<h3 data-number="7.1" class="anchored" data-anchor-id="analytical-solution"><span class="header-section-number">7.1</span> Analytical Solution</h3>
+<p>For deeper understanding, let us examine the analytical solution.</p>
+<p>Nadir (minimum tumor size) occurs when <span class="math inline">\(N'(t) = 0\)</span>, i.e., when <span class="math display">\[ -k f \exp{(-kt)} + g (1-f) \exp{(gt)} = 0. \]</span></p>
+<p>Solving this equation yields</p>
+<p><span class="math display">\[ t = \frac{\ln{(kf / (g(1-f)))}}{k + g}. \]</span></p>
+<p>Thus, time to nadir for a typical patient is (in days):</p>
+<div id="20" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>t_nadir <span class="op">=</span> <span class="fu">log</span>(median_k <span class="op">*</span> median_f <span class="op">/</span> (median_g <span class="op">*</span> (<span class="fl">1</span> <span class="op">-</span> median_f))) <span class="op">/</span> (median_k <span class="op">+</span> median_g)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>91.46995902992803</code></pre>
+</div>
+</div>
+<p>Let us compute the tumor size at nadir and after 18 weeks for a typical patient:</p>
+<div id="22" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>sim_nadir <span class="op">=</span> <span class="fu">simobs</span>(</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    tumor_burden_model,</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    subject_treatment,</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    pop_params,</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    typical_randeffs;</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    simulate_error <span class="op">=</span> <span class="cn">false</span>,</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    obstimes <span class="op">=</span> [<span class="fl">0</span>, t_nadir, <span class="fl">18</span> <span class="op">*</span> <span class="fl">7</span>]</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a><span class="fu">simple_table</span>(</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">DataFrame</span>(sim_nadir),</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>    [<span class="op">:</span>time <span class="op">=&gt;</span> <span class="st">"Time [day]"</span>, <span class="op">:</span>tumor_size <span class="op">=&gt;</span> <span class="st">"Tumor size"</span>],</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<table id="st-e8a46dd0">
+    <style>
+        #st-e8a46dd0 {
+            border: none;
+            margin: 0 auto;
+            padding: 0.25rem;
+            border-collapse: separate;
+            border-spacing: 0.85em 0.2em;
+            line-height: 1.2em;
+        }
+        #st-e8a46dd0 tr {
+            background-color: transparent;
+            border: none;
+        }
+        #st-e8a46dd0 tr td {
+            vertical-align: top;
+            padding: 0;
+            border: none;
+            background-color: transparent;
+        }
+        #st-e8a46dd0 br {
+            line-height: 0em;
+            margin: 0;
+        }
+        #st-e8a46dd0 sub {
+            line-height: 0;
+        }
+        #st-e8a46dd0 sup {
+            line-height: 0;
+        }
+    </style>
+    <tbody><tr><td colspan="2" style="border-bottom: 1.5px solid currentColor; padding: 0"></td></tr>
+    <tr>
+        <td style="font-weight:bold;text-align:center;">Time [day]</td>
+        <td style="font-weight:bold;text-align:center;">Tumor size</td>
+    </tr>
+        <tr><td colspan="2" style="border-bottom:1px solid currentColor;padding:0"></td></tr>    <tr>
+        <td style="text-align:center;">0</td>
+        <td style="text-align:center;">1</td>
+    </tr>
+    <tr>
+        <td style="text-align:center;">91.5</td>
+        <td style="text-align:center;">0.94</td>
+    </tr>
+    <tr>
+        <td style="text-align:center;">126</td>
+        <td style="text-align:center;">0.946</td>
+    </tr>
+    <tr><td colspan="2" style="border-bottom: 1.5px solid currentColor; padding: 0"></td></tr>
+</tbody></table>
+</div>
+</div>
+<p>We see that this typical patient would not achieve “complete response” of a tumor size &lt; 0.14.</p>
+</section>
+<section id="sensitivity-to-parameters" class="level3" data-number="7.2">
+<h3 data-number="7.2" class="anchored" data-anchor-id="sensitivity-to-parameters"><span class="header-section-number">7.2</span> Sensitivity to Parameters</h3>
+<p>How do the model outputs change with different parameter values?</p>
+<div id="24" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create DataFrame for all f values</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>f_values <span class="op">=</span> [<span class="fl">0.1</span>, <span class="fl">0.27</span>, <span class="fl">0.5</span>, <span class="fl">0.8</span>]</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Build DataFrame with all trajectories</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>df_sensitivity <span class="op">=</span> <span class="fu">mapreduce</span>(vcat, f_values) <span class="cf">do</span> f</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>    params <span class="op">=</span> <span class="fu">merge</span>(pop_params, (; tvf <span class="op">=</span> f))</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    sim <span class="op">=</span> <span class="fu">simobs</span>(</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>        tumor_burden_model,</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>        subject_treatment,</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>        params,</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>        <span class="fu">center_randeffs</span>(tumor_burden_model, subject_treatment, params);</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>        simulate_error <span class="op">=</span> <span class="cn">false</span>,</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>        obstimes <span class="op">=</span> obs_times,</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">select</span>(<span class="fu">DataFrame</span>(sim), [<span class="op">:</span>time, <span class="op">:</span>tumor_size, <span class="op">:</span>f])</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Create plot using AlgebraOfGraphics</span></span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>specs_sims <span class="op">=</span> <span class="fu">data</span>(df_sensitivity) <span class="op">*</span> <span class="fu">mapping</span>(</span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>time <span class="op">=&gt;</span> (t <span class="op">-&gt;</span> t <span class="op">/</span> <span class="fl">7</span>) <span class="op">=&gt;</span> <span class="st">"Time [week]"</span>,</span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>tumor_size <span class="op">=&gt;</span> <span class="st">"Normalized tumor size"</span>,</span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> <span class="op">:</span>f <span class="op">=&gt;</span> (x <span class="op">-&gt;</span> <span class="fu">string</span>(<span class="fu">round</span>(<span class="fl">100</span> <span class="op">*</span> x; digits <span class="op">=</span> <span class="fl">1</span>), <span class="st">" %"</span>)) <span class="op">=&gt;</span> <span class="st">"Sensitive fraction"</span>,</span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">visual</span>(Lines)</span>
+<span id="cb20-24"><a href="#cb20-24" aria-hidden="true" tabindex="-1"></a>specs_references <span class="op">=</span> <span class="fu">mapping</span>(</span>
+<span id="cb20-25"><a href="#cb20-25" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">1.0</span>, <span class="fl">0.14</span>],</span>
+<span id="cb20-26"><a href="#cb20-26" aria-hidden="true" tabindex="-1"></a>    linestyle <span class="op">=</span> [<span class="st">"Baseline"</span>, <span class="st">"Complete response"</span>] <span class="op">=&gt;</span> <span class="st">"Reference"</span> <span class="op">=&gt;</span> AlgebraOfGraphics.<span class="fu">scale</span>(<span class="op">:</span>RefLines),</span>
+<span id="cb20-27"><a href="#cb20-27" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">visual</span>(HLines)</span>
+<span id="cb20-28"><a href="#cb20-28" aria-hidden="true" tabindex="-1"></a><span class="fu">draw</span>(specs_sims <span class="op">+</span> specs_references, <span class="fu">scales</span>(RefLines <span class="op">=</span> (; palette <span class="op">=</span> [<span class="op">:</span>dash, <span class="op">:</span>dot])))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="tb_01_model_introduction_tutorial_files/figure-html/cell-13-output-1.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="Effect of sensitive fraction (f) on tumor dynamics. Higher sensitive fraction leads to deeper initial response and longer time to regrowth."><img src="tb_01_model_introduction_tutorial_files/figure-html/cell-13-output-1.svg" class="img-fluid figure-img" alt="Effect of sensitive fraction (f) on tumor dynamics. Higher sensitive fraction leads to deeper initial response and longer time to regrowth."></a></p>
+<figcaption>Effect of sensitive fraction (<code>f</code>) on tumor dynamics. Higher sensitive fraction leads to deeper initial response and longer time to regrowth.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Clinical Insight
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The parameter <strong>f</strong> (sensitive fraction) is the primary driver of treatment response:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 26%">
+<col style="width: 73%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">f value</th>
+<th style="text-align: left;">Clinical interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><strong>&lt; 0.15</strong></td>
+<td style="text-align: left;">Poor responder — most cells are resistant from the start</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>0.25-0.35</strong></td>
+<td style="text-align: left;">Typical responder — moderate initial response, eventual progression</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><strong>&gt; 0.50</strong></td>
+<td style="text-align: left;">Good responder — deep initial response, delayed progression</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>&gt; 0.85</strong></td>
+<td style="text-align: left;">Excellent responder — may achieve durable complete response</td>
+</tr>
+</tbody>
+</table>
+<p>This explains why <code>f</code> dominates the global sensitivity analysis (Tutorial 2).</p>
+</div>
+</div>
+</section>
+</section>
+<section id="part-5-population-variability-preview" class="level2" data-number="8">
+<h2 data-number="8" class="anchored" data-anchor-id="part-5-population-variability-preview"><span class="header-section-number">8</span> Part 5: Population Variability Preview</h2>
+<section id="simulating-multiple-patients" class="level3" data-number="8.1">
+<h3 data-number="8.1" class="anchored" data-anchor-id="simulating-multiple-patients"><span class="header-section-number">8.1</span> Simulating Multiple Patients</h3>
+<p>Let us generate trajectories for a small sample of virtual patients.</p>
+<div id="26" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>patients <span class="op">=</span> [<span class="fu">Subject</span>(; id, covariates <span class="op">=</span> (; treatment <span class="op">=</span> <span class="cn">true</span>)) for id <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">100</span>]</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Simple sampling (not using copulas yet - that's Tutorial 4)</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Just to show variability concept</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>patients_sims <span class="op">=</span> <span class="fu">simobs</span>(</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    tumor_burden_model,</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    patients,</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>    pop_params;</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>    obstimes <span class="op">=</span> <span class="fl">0</span><span class="op">:</span>(<span class="fl">7</span> <span class="op">*</span> <span class="fl">18</span>),</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>    simulate_error <span class="op">=</span> <span class="cn">false</span>,</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>Simulated population (Vector{&lt;:Subject})
+  Simulated subjects: 100
+  Simulated variables: tumor_size</code></pre>
+</div>
+</div>
+<p>Let us inspect the variability of the simulated values of parameters <code>f</code>, <code>g</code> and <code>k</code>:</p>
+<div id="28" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>fgk_sims <span class="op">=</span> <span class="fu">postprocess</span>(patients_sims) <span class="cf">do</span> generated, _</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    (; f <span class="op">=</span> <span class="fu">only</span>(<span class="fu">unique</span>(generated.f)), g <span class="op">=</span> <span class="fu">only</span>(<span class="fu">unique</span>(generated.g)), k <span class="op">=</span> <span class="fu">only</span>(<span class="fu">unique</span>(generated.k)))</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span> <span class="op">|&gt;</span> DataFrame</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="fu">table_one</span>(fgk_sims)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<table id="st-bef3e60b">
+    <style>
+        #st-bef3e60b {
+            border: none;
+            margin: 0 auto;
+            padding: 0.25rem;
+            border-collapse: separate;
+            border-spacing: 0.85em 0.2em;
+            line-height: 1.2em;
+        }
+        #st-bef3e60b tr {
+            background-color: transparent;
+            border: none;
+        }
+        #st-bef3e60b tr td {
+            vertical-align: top;
+            padding: 0;
+            border: none;
+            background-color: transparent;
+        }
+        #st-bef3e60b br {
+            line-height: 0em;
+            margin: 0;
+        }
+        #st-bef3e60b sub {
+            line-height: 0;
+        }
+        #st-bef3e60b sup {
+            line-height: 0;
+        }
+    </style>
+    <tbody><tr><td colspan="2" style="border-bottom: 1.5px solid currentColor; padding: 0"></td></tr>
+    <tr>
+        <td style="text-align:center;"></td>
+        <td style="font-weight:bold;text-align:center;">Total</td>
+    </tr>
+        <tr><td colspan="2" style="border-bottom:1px solid currentColor;padding:0"></td></tr>    <tr>
+        <td style="font-weight:bold;text-align:left;">f</td>
+        <td style="text-align:center;"></td>
+    </tr>
+    <tr>
+        <td style="padding-left:12.0pt;text-align:left;">Mean (SD)</td>
+        <td style="text-align:center;">0.445 (0.351)</td>
+    </tr>
+    <tr>
+        <td style="padding-left:12.0pt;text-align:left;">Median [Min, Max]</td>
+        <td style="text-align:center;">0.405 [0.00045, 0.995]</td>
+    </tr>
+    <tr>
+        <td style="font-weight:bold;text-align:left;">g</td>
+        <td style="text-align:center;"></td>
+    </tr>
+    <tr>
+        <td style="padding-left:12.0pt;text-align:left;">Mean (SD)</td>
+        <td style="text-align:center;">0.00315 (0.00642)</td>
+    </tr>
+    <tr>
+        <td style="padding-left:12.0pt;text-align:left;">Median [Min, Max]</td>
+        <td style="text-align:center;">0.000958 [3.08e-5, 0.0502]</td>
+    </tr>
+    <tr>
+        <td style="font-weight:bold;text-align:left;">k</td>
+        <td style="text-align:center;"></td>
+    </tr>
+    <tr>
+        <td style="padding-left:12.0pt;text-align:left;">Mean (SD)</td>
+        <td style="text-align:center;">0.0168 (0.0206)</td>
+    </tr>
+    <tr>
+        <td style="padding-left:12.0pt;text-align:left;">Median [Min, Max]</td>
+        <td style="text-align:center;">0.00898 [0.000233, 0.107]</td>
+    </tr>
+    <tr><td colspan="2" style="border-bottom: 1.5px solid currentColor; padding: 0"></td></tr>
+</tbody></table>
+</div>
+</div>
+<div id="30" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>tumor_size_df <span class="op">=</span> <span class="pp">@chain</span> <span class="fu">DataFrame</span>(patients_sims) <span class="cf">begin</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@select</span> <span class="op">:</span>id <span class="op">:</span>time <span class="op">:</span>tumor_size</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@groupby</span> <span class="op">:</span>id</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@transform</span>! <span class="op">:</span>responder <span class="op">=</span> <span class="fu">minimum</span>(<span class="op">:</span>tumor_size) <span class="op">&lt;</span> <span class="fl">0.14</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>specs_sims <span class="op">=</span> <span class="fu">data</span>(tumor_size_df) <span class="op">*</span> <span class="fu">mapping</span>(</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>time <span class="op">=&gt;</span> (t <span class="op">-&gt;</span> t <span class="op">/</span> <span class="fl">7</span>) <span class="op">=&gt;</span> <span class="st">"Time [week]"</span>,</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>tumor_size <span class="op">=&gt;</span> <span class="st">"Normalized tumor size"</span>,</span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> <span class="op">:</span>responder <span class="op">=&gt;</span> <span class="fu">sorter</span>([<span class="cn">true</span>, <span class="cn">false</span>]) <span class="op">=&gt;</span> <span class="st">"Responder"</span>,</span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>    group <span class="op">=</span> <span class="op">:</span>id</span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">visual</span>(Lines; alpha <span class="op">=</span> <span class="fl">0.6</span>)</span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>specs_references <span class="op">=</span> <span class="fu">mapping</span>(</span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">1.0</span>, <span class="fl">0.14</span>],</span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a>    linestyle <span class="op">=</span> [<span class="st">"Baseline"</span>, <span class="st">"Complete response"</span>] <span class="op">=&gt;</span> <span class="st">"Reference"</span> <span class="op">=&gt;</span> AlgebraOfGraphics.<span class="fu">scale</span>(<span class="op">:</span>RefLines),</span>
+<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">visual</span>(HLines)</span>
+<span id="cb24-17"><a href="#cb24-17" aria-hidden="true" tabindex="-1"></a><span class="fu">draw</span>(</span>
+<span id="cb24-18"><a href="#cb24-18" aria-hidden="true" tabindex="-1"></a>    specs_sims <span class="op">+</span> specs_references,</span>
+<span id="cb24-19"><a href="#cb24-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scales</span>(Color <span class="op">=</span> (; palette <span class="op">=</span> [<span class="op">:</span>green, <span class="op">:</span>gray]), RefLines <span class="op">=</span> (; palette <span class="op">=</span> [<span class="op">:</span>dash, <span class="op">:</span>dot]));</span>
+<span id="cb24-20"><a href="#cb24-20" aria-hidden="true" tabindex="-1"></a>    axis <span class="op">=</span> (; yscale <span class="op">=</span> log10),</span>
+<span id="cb24-21"><a href="#cb24-21" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="tb_01_model_introduction_tutorial_files/figure-html/cell-16-output-1.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="Population variability: 100 virtual patients showing diverse tumor dynamics. Green trajectories achieve complete response, gray trajectories do not."><img src="tb_01_model_introduction_tutorial_files/figure-html/cell-16-output-1.svg" class="img-fluid figure-img" alt="Population variability: 100 virtual patients showing diverse tumor dynamics. Green trajectories achieve complete response, gray trajectories do not."></a></p>
+<figcaption>Population variability: 100 virtual patients showing diverse tumor dynamics. Green trajectories achieve complete response, gray trajectories do not.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Important</span>Looking Ahead
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>This preview shows why we need:</p>
+<ol type="1">
+<li><p><strong>Systematic analysis:</strong> We need to understand which parameters matter most (Tutorial 2: GSA) and whether they can be estimated (Tutorial 3: Identifiability).</p></li>
+<li><p><strong>Copula sampling (Tutorial 4):</strong> The random sampling above ignores parameter correlations. In reality, patients with high <code>f</code> (fraction of treatment-sensitive cells) tend to have low <code>g</code> (growth rate of treatment-resistant cells).</p></li>
+<li><p><strong>Calibration (Tutorial 5):</strong> The response rate from random sampling may not match real clinical trial data.</p></li>
+</ol>
+</div>
+</div>
+</section>
+</section>
+<section id="summary" class="level2" data-number="9">
+<h2 data-number="9" class="anchored" data-anchor-id="summary"><span class="header-section-number">9</span> Summary</h2>
+<section id="key-concepts" class="level3" data-number="9.1">
+<h3 data-number="9.1" class="anchored" data-anchor-id="key-concepts"><span class="header-section-number">9.1</span> Key Concepts</h3>
+<ol type="1">
+<li><p><strong>The tumor burden model</strong> describes cancer response to chemotherapy using two cell populations:</p>
+<ul>
+<li>Treatment-sensitive cells (fraction <code>f</code>) that die at rate <code>k</code></li>
+<li>Treatment-resistant cells (fraction <code>1-f</code>) that grow at rate <code>g</code></li>
+</ul></li>
+<li><p><strong>The mathematical model:</strong> <span class="math display">\[N(t) = N_0 \cdot f \cdot e^{-k \cdot t} + N_0 \cdot (1-f) \cdot e^{g \cdot t}\]</span></p></li>
+<li><p><strong>Parameters from clinical data:</strong></p>
+<ul>
+<li><code>f = 0.27</code> (27% sensitive), <code>g = 0.0013</code> d⁻¹, <code>k = 0.0091</code> d⁻¹</li>
+</ul></li>
+<li><p><strong>Pumas model structure:</strong></p>
+<ul>
+<li><code>@param</code>: Population parameters</li>
+<li><code>@random</code>: Inter-individual variability</li>
+<li><code>@pre</code>: Parameter transformations (logit-normal for <code>f</code>, log-normal for <code>g</code> and <code>k</code>)</li>
+<li><code>@dynamics</code>: ODE system</li>
+<li><code>@derived</code>: Observable outputs</li>
+</ul></li>
+<li><p><strong>Clinical insight:</strong></p>
+<ul>
+<li>The sensitive fraction (<code>f</code>) is the primary driver of response</li>
+<li>Population variability creates diverse outcomes</li>
+</ul></li>
+</ol>
+</section>
+<section id="whats-next" class="level3" data-number="9.2">
+<h3 data-number="9.2" class="anchored" data-anchor-id="whats-next"><span class="header-section-number">9.2</span> What’s Next</h3>
+<p>In <strong>Tutorial 2: Global Sensitivity Analysis</strong>, we will:</p>
+<ul>
+<li>Learn what global sensitivity analysis is and why it differs from local sensitivity</li>
+<li>Understand first-order and total-order sensitivity indices</li>
+<li>Run GSA using Sobol and eFAST methods in Pumas</li>
+<li>Discover that <code>f</code> dominates but the importance of <code>g</code> and <code>k</code> varies across timepoints</li>
+</ul>
+</section>
+<section id="quick-reference-key-functions" class="level3" data-number="9.3">
+<h3 data-number="9.3" class="anchored" data-anchor-id="quick-reference-key-functions"><span class="header-section-number">9.3</span> Quick Reference: Key Functions</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th style="text-align: left;">Function</th>
+<th style="text-align: left;">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>@model begin ... end</code></td>
+<td style="text-align: left;">Define a Pumas model</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>Subject(id, covariates, time)</code></td>
+<td style="text-align: left;">Create a simulation subject</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>simobs(model, subject, params, randeffs)</code></td>
+<td style="text-align: left;">Simulate observations</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>logit(x)</code> / <code>logistic(x)</code></td>
+<td style="text-align: left;">Bounded parameter transformations</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="references" class="level3" data-number="9.4">
+<h3 data-number="9.4" class="anchored" data-anchor-id="references"><span class="header-section-number">9.4</span> References</h3>
+<div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" data-line-spacing="2" role="list">
+<div id="ref-cortes2025" class="csl-entry" role="listitem">
+Cortés-Ríos, J., Magee, M., Sher, A., Jusko, W. J., &amp; Desikan, R. (2025). A step-by-step workflow for performing in silico clinical trials with nonlinear mixed effects models. <em>CPT: Pharmacometrics &amp; Systems Pharmacology</em>. <a href="https://doi.org/10.1002/psp4.70122">https://doi.org/10.1002/psp4.70122</a>
+</div>
+<div id="ref-qi2022" class="csl-entry" role="listitem">
+Qi, T., &amp; Cao, Y. (2022). Virtual clinical trials: A tool for predicting patients who may benefit from treatment beyond progression with pembrolizumab in non-small cell lung cancer. <em>CPT: Pharmacometrics &amp; Systems Pharmacology</em>, <em>12</em>(2), 236–249. <a href="https://doi.org/10.1002/psp4.12896">https://doi.org/10.1002/psp4.12896</a>
+</div>
+</div>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","descPosition":"bottom","loop":false,"openEffect":"zoom","selector":".lightbox"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>

@@ -1,0 +1,2231 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.27">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Vijay Ivaturi">
+<meta name="author" content="David Müller-Widmann">
+
+<title>Model Introduction – In-Silico Clinical Trials with NLME Models</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+  margin-bottom: 0em;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous"></script><script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-ed96de9b727972fe78a7b5d16c58bf87.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-dark-4d9afe2b8d18ee9fa5d0d57b5ed4214d.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-ed96de9b727972fe78a7b5d16c58bf87.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-5b4ad623e5705c0698d39aec6f10cf02.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-0d4a9d19931feb4fee1ddab4b2489000.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../site_libs/bootstrap/bootstrap-5b4ad623e5705c0698d39aec6f10cf02.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script src="../site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="../site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="../site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+<script id="quarto-search-options" type="application/json">{
+  "location": "sidebar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "start",
+  "type": "textbox",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<meta name="mermaid-theme" content="default">
+<script src="../site_libs/quarto-diagram/mermaid.min.js"></script>
+<script src="../site_libs/quarto-diagram/mermaid-init.js"></script>
+<link href="../site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
+
+<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
+<style>
+  .header-container {
+    width: 100%;
+  }
+  .logo {
+    display: block;
+    width: 150px;
+    margin-left: -2.5%;
+  }
+</style>
+<link rel="shortcut icon" href="https://pumas.ai/favicon.ico">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-sidebar floating quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../tutorials/hbv_01_model_introduction_tutorial.html">HBV model</a></li><li class="breadcrumb-item"><a href="../tutorials/hbv_01_model_introduction_tutorial.html">Model Introduction</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-full">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+    <div class="sidebar-title mb-0 py-0">
+      <a href="../">In-Silico Clinical Trials with NLME Models</a> 
+        <div class="sidebar-tools-main">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+</div>
+    </div>
+      </div>
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">In-Silico Clinical Trials with NLME Models</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">Tumor Burden Model</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_01_model_introduction_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Model Introduction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_02_gsa_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Global Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_03_structural_identifiability_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Structural Identifiability Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_04_copula_vpop_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Virtual Population Generation using Gaussian Copulas</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_05_milp_calibration_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MILP-Based Virtual Population Calibration</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/tb_06_vct_simulation_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Virtual Clinical Trial Simulation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">HBV model</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_01_model_introduction_tutorial.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Model Introduction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_02_gsa_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Global Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_03_structural_identifiability_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Structural Identifiability Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_04_copula_vpop_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Virtual Population Generation using Gaussian Copulas</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_05_milp_calibration_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MILP-Based Virtual Population Calibration</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tutorials/hbv_06_vct_simulation_tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Virtual Clinical Trial Simulation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+    <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="2">
+    <h2 id="toc-title">Contents</h2>
+   
+  <ul>
+  <li><a href="#learning-outcomes" id="toc-learning-outcomes" class="nav-link active" data-scroll-target="#learning-outcomes"><span class="header-section-number">1</span> Learning Outcomes</a></li>
+  <li><a href="#background" id="toc-background" class="nav-link" data-scroll-target="#background"><span class="header-section-number">2</span> Background</a>
+  <ul class="collapse">
+  <li><a href="#the-hbv-infection-challenge" id="toc-the-hbv-infection-challenge" class="nav-link" data-scroll-target="#the-hbv-infection-challenge"><span class="header-section-number">2.1</span> The HBV Infection Challenge</a></li>
+  <li><a href="#treatment-goals" id="toc-treatment-goals" class="nav-link" data-scroll-target="#treatment-goals"><span class="header-section-number">2.2</span> Treatment Goals</a></li>
+  <li><a href="#treatment-modalities" id="toc-treatment-modalities" class="nav-link" data-scroll-target="#treatment-modalities"><span class="header-section-number">2.3</span> Treatment Modalities</a></li>
+  </ul></li>
+  <li><a href="#libraries" id="toc-libraries" class="nav-link" data-scroll-target="#libraries"><span class="header-section-number">3</span> Libraries</a></li>
+  <li><a href="#part-1-model-structure-overview" id="toc-part-1-model-structure-overview" class="nav-link" data-scroll-target="#part-1-model-structure-overview"><span class="header-section-number">4</span> Part 1: Model Structure Overview</a>
+  <ul class="collapse">
+  <li><a href="#the-11-ode-system" id="toc-the-11-ode-system" class="nav-link" data-scroll-target="#the-11-ode-system"><span class="header-section-number">4.1</span> The 11-ODE System</a></li>
+  <li><a href="#state-variables-explained" id="toc-state-variables-explained" class="nav-link" data-scroll-target="#state-variables-explained"><span class="header-section-number">4.2</span> State Variables Explained</a></li>
+  <li><a href="#parameter-structure" id="toc-parameter-structure" class="nav-link" data-scroll-target="#parameter-structure"><span class="header-section-number">4.3</span> Parameter Structure</a></li>
+  </ul></li>
+  <li><a href="#part-2-the-pumas-model-definition" id="toc-part-2-the-pumas-model-definition" class="nav-link" data-scroll-target="#part-2-the-pumas-model-definition"><span class="header-section-number">5</span> Part 2: The Pumas Model Definition</a>
+  <ul class="collapse">
+  <li><a href="#model" id="toc-model" class="nav-link" data-scroll-target="#model"><span class="header-section-number">5.1</span> Model</a></li>
+  <li><a href="#parameters" id="toc-parameters" class="nav-link" data-scroll-target="#parameters"><span class="header-section-number">5.2</span> Parameters</a></li>
+  </ul></li>
+  <li><a href="#part-3-understanding-treatment-mechanisms" id="toc-part-3-understanding-treatment-mechanisms" class="nav-link" data-scroll-target="#part-3-understanding-treatment-mechanisms"><span class="header-section-number">6</span> Part 3: Understanding Treatment Mechanisms</a>
+  <ul class="collapse">
+  <li><a href="#nucleoside-analog-effect" id="toc-nucleoside-analog-effect" class="nav-link" data-scroll-target="#nucleoside-analog-effect"><span class="header-section-number">6.1</span> Nucleoside Analog Effect</a></li>
+  <li><a href="#interferon-effect" id="toc-interferon-effect" class="nav-link" data-scroll-target="#interferon-effect"><span class="header-section-number">6.2</span> Interferon Effect</a></li>
+  <li><a href="#treatment-arms" id="toc-treatment-arms" class="nav-link" data-scroll-target="#treatment-arms"><span class="header-section-number">6.3</span> Treatment Arms</a></li>
+  </ul></li>
+  <li><a href="#part-4-basic-simulation" id="toc-part-4-basic-simulation" class="nav-link" data-scroll-target="#part-4-basic-simulation"><span class="header-section-number">7</span> Part 4: Basic Simulation</a>
+  <ul class="collapse">
+  <li><a href="#create-a-subject" id="toc-create-a-subject" class="nav-link" data-scroll-target="#create-a-subject"><span class="header-section-number">7.1</span> Create a Subject</a></li>
+  <li><a href="#simulate-natural-history" id="toc-simulate-natural-history" class="nav-link" data-scroll-target="#simulate-natural-history"><span class="header-section-number">7.2</span> Simulate Natural History</a></li>
+  <li><a href="#visualize-natural-history" id="toc-visualize-natural-history" class="nav-link" data-scroll-target="#visualize-natural-history"><span class="header-section-number">7.3</span> Visualize Natural History</a></li>
+  </ul></li>
+  <li><a href="#part-5-treatment-scenarios" id="toc-part-5-treatment-scenarios" class="nav-link" data-scroll-target="#part-5-treatment-scenarios"><span class="header-section-number">8</span> Part 5: Treatment Scenarios</a>
+  <ul class="collapse">
+  <li><a href="#compare-treatment-scenarios" id="toc-compare-treatment-scenarios" class="nav-link" data-scroll-target="#compare-treatment-scenarios"><span class="header-section-number">8.1</span> Compare Treatment Scenarios</a></li>
+  <li><a href="#clinical-endpoints" id="toc-clinical-endpoints" class="nav-link" data-scroll-target="#clinical-endpoints"><span class="header-section-number">8.2</span> Clinical Endpoints</a></li>
+  </ul></li>
+  <li><a href="#part-6-population-variability-preview" id="toc-part-6-population-variability-preview" class="nav-link" data-scroll-target="#part-6-population-variability-preview"><span class="header-section-number">9</span> Part 6: Population Variability Preview</a>
+  <ul class="collapse">
+  <li><a href="#functional-cure-mechanism-responder-vs-non-responder" id="toc-functional-cure-mechanism-responder-vs-non-responder" class="nav-link" data-scroll-target="#functional-cure-mechanism-responder-vs-non-responder"><span class="header-section-number">9.1</span> Functional Cure Mechanism: Responder vs Non-Responder</a></li>
+  </ul></li>
+  <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary"><span class="header-section-number">10</span> Summary</a>
+  <ul class="collapse">
+  <li><a href="#key-concepts" id="toc-key-concepts" class="nav-link" data-scroll-target="#key-concepts"><span class="header-section-number">10.1</span> Key Concepts</a></li>
+  <li><a href="#model-complexity-comparison" id="toc-model-complexity-comparison" class="nav-link" data-scroll-target="#model-complexity-comparison"><span class="header-section-number">10.2</span> Model Complexity Comparison</a></li>
+  <li><a href="#whats-next" id="toc-whats-next" class="nav-link" data-scroll-target="#whats-next"><span class="header-section-number">10.3</span> What’s Next?</a></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references"><span class="header-section-number">10.4</span> References</a></li>
+  </ul></li>
+  </ul>
+</nav>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
+    </div>
+<!-- main -->
+<main class="content column-page-right" id="quarto-document-content">
+
+<div class="header-container">
+  <img src="https://pumas-assets.s3.amazonaws.com/CompanyLogos/PumasAI/RGB/PNG/Pumas+AI+Primary%404x.png" alt="Pumas Logo" class="logo">
+</div>
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../tutorials/hbv_01_model_introduction_tutorial.html">HBV model</a></li><li class="breadcrumb-item"><a href="../tutorials/hbv_01_model_introduction_tutorial.html">Model Introduction</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">Model Introduction</h1>
+<p class="subtitle lead">Understanding the HBV QSP Model and Treatment Mechanisms</p>
+</div>
+
+
+
+<div class="quarto-title-meta column-page-right">
+
+    <div>
+    <div class="quarto-title-meta-heading">Authors</div>
+    <div class="quarto-title-meta-contents">
+             <p>Vijay Ivaturi </p>
+             <p>David Müller-Widmann </p>
+          </div>
+  </div>
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>HBV Tutorial Series
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>This is <strong>Tutorial 1 of 6</strong> in the HBV series.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Tutorial</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td><strong>Model Introduction (current)</strong></td>
+<td>← You are here</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td><a href="../tutorials/hbv_02_gsa_tutorial.html">Global Sensitivity Analysis</a></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td><a href="../tutorials/hbv_03_structural_identifiability_tutorial.html">Structural Identifiability</a></td>
+<td></td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td><a href="../tutorials/hbv_04_copula_vpop_tutorial.html">Copula Vpop Generation</a></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td><a href="../tutorials/hbv_05_milp_calibration_tutorial.html">MILP Calibration</a></td>
+<td></td>
+</tr>
+<tr class="even">
+<td>6</td>
+<td><a href="../tutorials/hbv_06_vct_simulation_tutorial.html">VCT Simulation</a></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<section id="learning-outcomes" class="level2" data-number="1">
+<h2 data-number="1" class="anchored" data-anchor-id="learning-outcomes"><span class="header-section-number">1</span> Learning Outcomes</h2>
+<p>Hepatitis B virus (HBV) infection is a major global health challenge, with over 290 million people chronically infected. Mathematical models help us understand treatment mechanisms and predict clinical outcomes.</p>
+<p>In this tutorial, you will learn:</p>
+<ul>
+<li>The biology of HBV infection and why it’s difficult to cure</li>
+<li>The structure of the 11-ODE QSP model capturing HBV dynamics</li>
+<li>The treatment mechanisms of NA (nucleoside analogs) and IFN (interferon)</li>
+<li>How to define and simulate the HBV model in Pumas</li>
+<li>Key clinical endpoints: Functional Cure and HBsAg Loss</li>
+</ul>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Prerequisites
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>This tutorial assumes basic familiarity with:</p>
+<ul>
+<li>Pumas model syntax (<code>@param</code>, <code>@reactions</code>, <code>@derived</code>)</li>
+<li>Ordinary differential equations (ODEs) and reaction-network models</li>
+<li>Pharmacokinetic/pharmacodynamic modeling concepts</li>
+</ul>
+<p>If you’ve completed the <a href="../tutorials/tb_01_model_introduction_tutorial.html">Tumor Burden Tutorial Series</a>, you have all the background needed.</p>
+</div>
+</div>
+</section>
+<section id="background" class="level2" data-number="2">
+<h2 data-number="2" class="anchored" data-anchor-id="background"><span class="header-section-number">2</span> Background</h2>
+<section id="the-hbv-infection-challenge" class="level3" data-number="2.1">
+<h3 data-number="2.1" class="anchored" data-anchor-id="the-hbv-infection-challenge"><span class="header-section-number">2.1</span> The HBV Infection Challenge</h3>
+<p><strong>Hepatitis B Virus (HBV)</strong> infects liver cells (hepatocytes) and establishes chronic infection in many patients. Unlike hepatitis C, which can now be cured with antivirals, HBV is much harder to eliminate because:</p>
+<ol type="1">
+<li><strong>cccDNA persistence</strong>: The virus inserts its genetic material (cccDNA) into the liver, creating a reservoir that survives treatment</li>
+<li><strong>Immune exhaustion</strong>: Chronic infection leads to T-cell exhaustion, reducing the body’s ability to clear infected cells</li>
+<li><strong>HBsAg shedding</strong>: Infected cells produce large amounts of surface antigen (HBsAg) that may “decoy” the immune system</li>
+</ol>
+</section>
+<section id="treatment-goals" class="level3" data-number="2.2">
+<h3 data-number="2.2" class="anchored" data-anchor-id="treatment-goals"><span class="header-section-number">2.2</span> Treatment Goals</h3>
+<p>Current treatments aim for different levels of control:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 30%">
+<col style="width: 45%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Endpoint</th>
+<th style="text-align: left;">Definition</th>
+<th style="text-align: left;">Clinical Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><strong>Viral Suppression</strong></td>
+<td style="text-align: left;">HBV DNA &lt; 10^1.4 copies/mL</td>
+<td style="text-align: left;">Virus under control (but not eliminated)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>HBsAg Loss</strong></td>
+<td style="text-align: left;">HBsAg &lt; 0.05 IU/mL</td>
+<td style="text-align: left;">Surface antigen cleared</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><strong>Functional Cure</strong></td>
+<td style="text-align: left;">HBsAg Loss + Viral Suppression for ≥24 weeks off-treatment</td>
+<td style="text-align: left;">Durable control without ongoing treatment</td>
+</tr>
+</tbody>
+</table>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Important</span>Why Functional Cure Matters
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Current treatments (NA therapy) can suppress virus indefinitely, but patients must take medication for life. <strong>Functional cure</strong> means patients can stop treatment without viral rebound— the “holy grail” of HBV therapy.</p>
+</div>
+</div>
+</section>
+<section id="treatment-modalities" class="level3" data-number="2.3">
+<h3 data-number="2.3" class="anchored" data-anchor-id="treatment-modalities"><span class="header-section-number">2.3</span> Treatment Modalities</h3>
+<p><strong>Nucleoside/Nucleotide Analogs (NAs):</strong></p>
+<ul>
+<li>Examples: Entecavir, Tenofovir</li>
+<li>Mechanism: Block viral replication by inhibiting reverse transcriptase</li>
+<li>Effect: Rapidly suppress HBV DNA, slowly reduce HBsAg</li>
+<li>Limitation: Rarely achieve functional cure alone</li>
+</ul>
+<p><strong>Interferon (IFN):</strong></p>
+<ul>
+<li>Examples: Pegylated interferon-alpha (PEG-IFN)</li>
+<li>Mechanism: Enhances immune response, promotes infected cell killing</li>
+<li>Effect: Boosts T-cell activity, accelerates HBsAg decline</li>
+<li>Limitation: Side effects limit duration, variable response</li>
+</ul>
+</section>
+</section>
+<section id="libraries" class="level2" data-number="3">
+<h2 data-number="3" class="anchored" data-anchor-id="libraries"><span class="header-section-number">3</span> Libraries</h2>
+<div id="2" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Pumas</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">DataFramesMeta</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">CategoricalArrays</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">AlgebraOfGraphics</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">CairoMakie</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Random</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="part-1-model-structure-overview" class="level2" data-number="4">
+<h2 data-number="4" class="anchored" data-anchor-id="part-1-model-structure-overview"><span class="header-section-number">4</span> Part 1: Model Structure Overview</h2>
+<section id="the-11-ode-system" class="level3" data-number="4.1">
+<h3 data-number="4.1" class="anchored" data-anchor-id="the-11-ode-system"><span class="header-section-number">4.1</span> The 11-ODE System</h3>
+<p>The HBV QSP model <span class="citation" data-cites="cortes2025HBV">(<a href="#ref-cortes2025HBV" role="doc-biblioref">Cortés‐Ríos et al., 2025</a>)</span> tracks 11 state variables organized into three compartments:</p>
+<div class="cell" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">flowchart LR
+    subgraph Hepatocytes ["Hepatocyte Populations"]
+        T["T&lt;br/&gt;Target cells"]
+        I["I&lt;br/&gt;Infected cells"]
+        R["R&lt;br/&gt;Resistant cells"]
+    end
+
+    subgraph Viral ["Viral Dynamics"]
+        V["V&lt;br/&gt;Virus (HBV DNA)"]
+        S["S&lt;br/&gt;HBsAg"]
+    end
+
+    subgraph Immune ["Immune Response"]
+        E["E&lt;br/&gt;Effector T-cells"]
+        P["P&lt;br/&gt;Dendritic cells"]
+        Q["Q&lt;br/&gt;Delayed signal"]
+        X["X&lt;br/&gt;Cytotoxic effect"]
+        D["D&lt;br/&gt;Dead cell marker"]
+        A["A&lt;br/&gt;ALT proxy"]
+    end
+
+    %% Mass flow (solid): production, conversion, transfer
+    T --&gt;|"infection"| I
+    I --&gt;|"converts"| R
+    R --&gt;|"reverts&lt;br/&gt;ρ_o_ρ_r"| T
+    I --&gt;|"virus production&lt;br/&gt;p_V×ϵ_NA×ϵ_IFN"| V
+    I --&gt;|"HBsAg production&lt;br/&gt;p_S"| S
+    D --&gt;|"drives"| A
+
+    %% Modulation (dashed): catalysis, activation, inhibition
+    V -.-&gt;|"drives&lt;br/&gt;infection"| I
+    E -.-&gt;|"kills"| I
+    E -.-&gt;|"kills (m/n)"| T
+    E -.-&gt;|"kills (m/n)"| R
+    X -.-&gt;|"promotes&lt;br/&gt;conversion"| R
+    E -.-&gt;|"produces&lt;br/&gt;debris"| D
+    I -.-&gt;|"activates"| P
+    P -.-&gt;|"stimulates"| E
+    P -.-&gt;|"delays into"| Q
+    Q -.-&gt;|"exhausts"| E
+    I -.-&gt;|"activates"| X
+    S -.-&gt;|"inhibits&lt;br/&gt;(via HBsAg)"| X
+    V -.-&gt;|"inhibits&lt;br/&gt;(via HBsAg)"| X
+
+    style T fill:#ccffcc,stroke:#00cc00
+    style I fill:#ffcccc,stroke:#cc0000
+    style R fill:#ffffcc,stroke:#cccc00
+    style V fill:#cce5ff,stroke:#0066cc
+    style S fill:#cce5ff,stroke:#0066cc
+    style E fill:#ffccff,stroke:#cc00cc
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section>
+<section id="state-variables-explained" class="level3" data-number="4.2">
+<h3 data-number="4.2" class="anchored" data-anchor-id="state-variables-explained"><span class="header-section-number">4.2</span> State Variables Explained</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 22%">
+<col style="width: 37%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">State</th>
+<th style="text-align: left;">Symbol</th>
+<th style="text-align: left;">Description</th>
+<th style="text-align: left;">Units</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Uninfected hepatocytes</td>
+<td style="text-align: left;">T</td>
+<td style="text-align: left;">Uninfected liver cells</td>
+<td style="text-align: left;">cells</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Infected hepatocytes</td>
+<td style="text-align: left;">I</td>
+<td style="text-align: left;">Cells producing virus</td>
+<td style="text-align: left;">cells</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Refractory hepatocytes</td>
+<td style="text-align: left;">R</td>
+<td style="text-align: left;">Cells resistant to cytotoxic effect</td>
+<td style="text-align: left;">cells</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Viral load</td>
+<td style="text-align: left;">V</td>
+<td style="text-align: left;">HBV DNA</td>
+<td style="text-align: left;">copies/mL</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Subviral particles containing surface antigen</td>
+<td style="text-align: left;">S</td>
+<td style="text-align: left;">HBsAg molecules</td>
+<td style="text-align: left;">molecules</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Effector T-cells</td>
+<td style="text-align: left;">E</td>
+<td style="text-align: left;">Immune cells that kill infected cells</td>
+<td style="text-align: left;">cells</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Dendritic cells</td>
+<td style="text-align: left;">P</td>
+<td style="text-align: left;">Antigen-presenting cells</td>
+<td style="text-align: left;">cells</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Delayed signal</td>
+<td style="text-align: left;">Q</td>
+<td style="text-align: left;">Immune activation delay</td>
+<td style="text-align: left;">-</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Cytotoxic effect</td>
+<td style="text-align: left;">X</td>
+<td style="text-align: left;">Cumulative killing signal</td>
+<td style="text-align: left;">-</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Dead cell marker</td>
+<td style="text-align: left;">D</td>
+<td style="text-align: left;">Products from cell death</td>
+<td style="text-align: left;">-</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">ALT proxy</td>
+<td style="text-align: left;">A</td>
+<td style="text-align: left;">Liver inflammation marker</td>
+<td style="text-align: left;">-</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="parameter-structure" class="level3" data-number="4.3">
+<h3 data-number="4.3" class="anchored" data-anchor-id="parameter-structure"><span class="header-section-number">4.3</span> Parameter Structure</h3>
+<p>The model has <strong>23 fixed parameters</strong> (from literature/prior studies) and <strong>9 estimated parameters</strong> (with inter-individual variability):</p>
+<p><strong>Estimated Parameters (with IIV):</strong></p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th style="text-align: left;">Parameter</th>
+<th style="text-align: left;">Description</th>
+<th style="text-align: left;">Typical Value (log10)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">p_S</td>
+<td style="text-align: left;">HBsAg production rate</td>
+<td style="text-align: left;">7.643</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">β (beta)</td>
+<td style="text-align: left;">HBV infectivity</td>
+<td style="text-align: left;">-4.358</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">m</td>
+<td style="text-align: left;">Immune killing rate</td>
+<td style="text-align: left;">1.618</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">k_P</td>
+<td style="text-align: left;">Antigen presenting cell synthesis</td>
+<td style="text-align: left;">-3.968</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">k_A</td>
+<td style="text-align: left;">ALT production rate</td>
+<td style="text-align: left;">-4.869</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">ϵ_NA</td>
+<td style="text-align: left;">NA efficacy on HBV production</td>
+<td style="text-align: left;">-1.485</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">ϵ_IFN</td>
+<td style="text-align: left;">IFN efficacy on HBV production</td>
+<td style="text-align: left;">-1.466</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">r_E_IFN</td>
+<td style="text-align: left;">IFN immune boost</td>
+<td style="text-align: left;">0.313</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">conv_E</td>
+<td style="text-align: left;">Effector T-cell scaling</td>
+<td style="text-align: left;">2.745</td>
+</tr>
+</tbody>
+</table>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Log10-Scale Parameterization
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Parameters are on the <strong>log10 scale</strong> with additive random effects. This achieves log-normal behavior when used in dynamics as <code>10^param</code>:</p>
+<pre class="text"><code>Individual value = 10^(typical_value + η)</code></pre>
+<p>This is equivalent to multiplicative IIV on the natural scale.</p>
+</div>
+</div>
+</section>
+</section>
+<section id="part-2-the-pumas-model-definition" class="level2" data-number="5">
+<h2 data-number="5" class="anchored" data-anchor-id="part-2-the-pumas-model-definition"><span class="header-section-number">5</span> Part 2: The Pumas Model Definition</h2>
+<p>Let’s build the HBV model.</p>
+<section id="model" class="level3" data-number="5.1">
+<h3 data-number="5.1" class="anchored" data-anchor-id="model"><span class="header-section-number">5.1</span> Model</h3>
+<div id="4" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>hbv_model <span class="op">=</span> <span class="pp">@model</span> <span class="cf">begin</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@param</span> <span class="cf">begin</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Estimated parameters (log10 scale)</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Production/synthesis rate of HBsAg subviral particles from infected hepatocytes [molec./cell/d]"</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        tv_log10_p_S <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">2</span>, upper <span class="op">=</span> <span class="fl">12</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"HBV infectivity [mL/virus/d]"</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        tv_log10_β <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="op">-</span><span class="fl">10</span>, upper <span class="op">=</span> <span class="fl">0</span>)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Killing rate of infected hepatocytes by cellular immunity [mL/cells/d]"</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>        tv_log10_m <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="op">-</span><span class="fl">3</span>, upper <span class="op">=</span> <span class="fl">5</span>)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Synthesis rate of antigen presenting cells [cells/d]"</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        tv_log10_k_P <span class="op">∈</span> <span class="fu">RealDomain</span>()</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Synthesis rate of ALT from debris hepatocytes [10^3 U/cells/d]"</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>        tv_log10_k_A <span class="op">∈</span> <span class="fu">RealDomain</span>()</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>        <span class="st">"PD efficacy of NA on HBV production []"</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>        tv_log10_ϵ_NA <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="op">-</span><span class="fl">5</span>, upper <span class="op">=</span> <span class="fl">0</span>)</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>        <span class="st">"PD efficacy of IFNα on HBV production []"</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>        tv_log10_ϵ_IFN <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="op">-</span><span class="fl">5</span>, upper <span class="op">=</span> <span class="fl">0</span>)</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>        <span class="st">"PD efficacy of IFNα on activation of cellular immunity []"</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>        tv_log10_r_E_IFN <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0</span>, upper <span class="op">=</span> <span class="fl">4</span>)</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Scaling factor for observed effector CD4/8 T cell numbers []"</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>        tv_log10_conv_E <span class="op">∈</span> <span class="fu">RealDomain</span>()</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>        <span class="co"># IIV of estimated parameters in log10 scale</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        Ω <span class="op">∈</span> <span class="fu">PDiagDomain</span>(<span class="fl">9</span>)</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Fixed parameters</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Baseline of HBV [copies/mL]"</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>        ini_V <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Baseline of ALT [U/L]"</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>        ini_A <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Max. proliferation rate of uninfected hepatocytes [1/d]"</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>        r_T <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Max. proliferation rate of cellular immunity [1/d]"</span></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>        r_E <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Max. proliferation rate of innate immunity [1/d]"</span></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>        r_X <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Fraction of cellular immunity that killing uninfected and refractory cells []"</span></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>        n <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Max. rate of conversion of infected cells to refractory cells due to the action of innate immunity [1/d]"</span></span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>        ρ <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Max. rate of conversion of refractory cells back to target cells in the absence of innate immune responses []"</span></span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>        ρ_o_ρ_r <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Production/synthesis rate of HBV from infected hepatocytes [virus/cell/d]"</span></span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>        p_V <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Death rate of infected hepatocytes [1/d]"</span></span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>        d_TI <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Degradation/clearance of HBV HBsAg subviral particles [1/d]"</span></span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>        d_V <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Rate of systemic induction/recovery from exhaustion [1/d]"</span></span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>        d_Q <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Degradation/clearance of innate immunity [1/d]"</span></span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>        d_X <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Degradation/clearance of cellular immunity [1/d]"</span></span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>        d_E <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Degradation/clearance of antigen presenting cells [1/d]"</span></span>
+<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a>        d_P <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Degradation/clearance of debris [1/d]"</span></span>
+<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a>        d_D <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Degradation/clearance of ALT [1/d]"</span></span>
+<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a>        d_A <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Max. rate of exhaustion [1/d]"</span></span>
+<span id="cb3-62"><a href="#cb3-62" aria-hidden="true" tabindex="-1"></a>        d_E_Q <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-63"><a href="#cb3-63" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Hepatocyte carrying capacity in the liver [cells/mL]"</span></span>
+<span id="cb3-64"><a href="#cb3-64" aria-hidden="true" tabindex="-1"></a>        T_max <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-65"><a href="#cb3-65" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Half-maximal (saturation) parameter for the effect of systemic exhaustion []"</span></span>
+<span id="cb3-66"><a href="#cb3-66" aria-hidden="true" tabindex="-1"></a>        ϕ_Q <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-67"><a href="#cb3-67" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Half-maximal (saturation) parameter for the activation of cellular immunity [cells/mL]"</span></span>
+<span id="cb3-68"><a href="#cb3-68" aria-hidden="true" tabindex="-1"></a>        ϕ_E <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-69"><a href="#cb3-69" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Max. inhibitory effect of HBsAg subviral particles on innate immunity []"</span></span>
+<span id="cb3-70"><a href="#cb3-70" aria-hidden="true" tabindex="-1"></a>        S_max <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-71"><a href="#cb3-71" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Half-maximal (saturation) parameter for inhibitory effect of HBsAg subviral particles on the generation of innate immunity [μg/mL]"</span></span>
+<span id="cb3-72"><a href="#cb3-72" aria-hidden="true" tabindex="-1"></a>        ϕ_S <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-73"><a href="#cb3-73" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Hill coefficient for describing HBsAg-induced inhibition of innate immunity []"</span></span>
+<span id="cb3-74"><a href="#cb3-74" aria-hidden="true" tabindex="-1"></a>        nS <span class="op">∈</span> <span class="fu">RealDomain</span>()</span>
+<span id="cb3-75"><a href="#cb3-75" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Threshold of infected hepatocytes to produce dynamical switch from progressive disease to long-lasting control of HBV infection [cells/mL]"</span></span>
+<span id="cb3-76"><a href="#cb3-76" aria-hidden="true" tabindex="-1"></a>        I_threshold <span class="op">∈</span> <span class="fu">RealDomain</span>(; lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-77"><a href="#cb3-77" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-78"><a href="#cb3-78" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Residual errors</span></span>
+<span id="cb3-79"><a href="#cb3-79" aria-hidden="true" tabindex="-1"></a>        σ_add_log10_HBsAg <span class="op">∈</span> <span class="fu">RealDomain</span>(lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-80"><a href="#cb3-80" aria-hidden="true" tabindex="-1"></a>        σ_prop_log10_HBsAg <span class="op">∈</span> <span class="fu">RealDomain</span>(lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-81"><a href="#cb3-81" aria-hidden="true" tabindex="-1"></a>        σ_add_log10_HBV <span class="op">∈</span> <span class="fu">RealDomain</span>(lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-82"><a href="#cb3-82" aria-hidden="true" tabindex="-1"></a>        σ_prop_log10_HBV <span class="op">∈</span> <span class="fu">RealDomain</span>(lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-83"><a href="#cb3-83" aria-hidden="true" tabindex="-1"></a>        σ_prop_log10_ALT <span class="op">∈</span> <span class="fu">RealDomain</span>(lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-84"><a href="#cb3-84" aria-hidden="true" tabindex="-1"></a>        σ_prop_log10_CD8 <span class="op">∈</span> <span class="fu">RealDomain</span>(lower <span class="op">=</span> <span class="fl">0.0</span>)</span>
+<span id="cb3-85"><a href="#cb3-85" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb3-86"><a href="#cb3-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-87"><a href="#cb3-87" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@random</span> <span class="cf">begin</span></span>
+<span id="cb3-88"><a href="#cb3-88" aria-hidden="true" tabindex="-1"></a>        η <span class="op">~</span> <span class="fu">MvNormal</span>(Ω)</span>
+<span id="cb3-89"><a href="#cb3-89" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb3-90"><a href="#cb3-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-91"><a href="#cb3-91" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Time-varying covariates for treatment phases</span></span>
+<span id="cb3-92"><a href="#cb3-92" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@covariates</span> NA IFN</span>
+<span id="cb3-93"><a href="#cb3-93" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-94"><a href="#cb3-94" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@pre</span> <span class="cf">begin</span></span>
+<span id="cb3-95"><a href="#cb3-95" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Individual parameters</span></span>
+<span id="cb3-96"><a href="#cb3-96" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Logit-normal distribution of log10(p_S), scaled to range [2, 12]</span></span>
+<span id="cb3-97"><a href="#cb3-97" aria-hidden="true" tabindex="-1"></a>        p_S <span class="op">=</span> <span class="fu">exp10</span>(<span class="fl">10</span> <span class="op">*</span> <span class="fu">logistic</span>(<span class="fu">logit</span>((tv_log10_p_S <span class="op">-</span> <span class="fl">2</span>) <span class="op">/</span> <span class="fl">10</span>) <span class="op">+</span> η[<span class="fl">1</span>]) <span class="op">+</span> <span class="fl">2</span>)</span>
+<span id="cb3-98"><a href="#cb3-98" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Logit-normal distribution of log10(β), scaled to range [-10, 0]</span></span>
+<span id="cb3-99"><a href="#cb3-99" aria-hidden="true" tabindex="-1"></a>        β <span class="op">=</span> <span class="fu">exp10</span>(<span class="fl">10</span> <span class="op">*</span> (<span class="fu">logistic</span>(<span class="fu">logit</span>(tv_log10_β <span class="op">/</span> <span class="fl">10</span> <span class="op">+</span> <span class="fl">1</span>) <span class="op">+</span> η[<span class="fl">2</span>]) <span class="op">-</span> <span class="fl">1</span>))</span>
+<span id="cb3-100"><a href="#cb3-100" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Logit-normal distribution of log10(m), scaled to range [-3, 5]</span></span>
+<span id="cb3-101"><a href="#cb3-101" aria-hidden="true" tabindex="-1"></a>        m <span class="op">=</span> <span class="fu">exp10</span>(<span class="fl">8</span> <span class="op">*</span> <span class="fu">logistic</span>(<span class="fu">logit</span>((tv_log10_m <span class="op">+</span> <span class="fl">3</span>) <span class="op">/</span> <span class="fl">8</span>) <span class="op">+</span> η[<span class="fl">3</span>]) <span class="op">-</span> <span class="fl">3</span>)</span>
+<span id="cb3-102"><a href="#cb3-102" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Normal distribution of log10(k_P)</span></span>
+<span id="cb3-103"><a href="#cb3-103" aria-hidden="true" tabindex="-1"></a>        k_P <span class="op">=</span> <span class="fu">exp10</span>(tv_log10_k_P <span class="op">+</span> η[<span class="fl">4</span>])</span>
+<span id="cb3-104"><a href="#cb3-104" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Normal distribution of log10(k_A)</span></span>
+<span id="cb3-105"><a href="#cb3-105" aria-hidden="true" tabindex="-1"></a>        k_A <span class="op">=</span> <span class="fu">exp10</span>(tv_log10_k_A <span class="op">+</span> η[<span class="fl">5</span>])</span>
+<span id="cb3-106"><a href="#cb3-106" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Logit-normal distribution of log10(ϵ_NA), scaled to range [-5, 0]</span></span>
+<span id="cb3-107"><a href="#cb3-107" aria-hidden="true" tabindex="-1"></a>        ϵ_NA <span class="op">=</span> <span class="fu">exp10</span>(NA <span class="op">*</span> <span class="fl">5</span> <span class="op">*</span> (<span class="fu">logistic</span>(<span class="fu">logit</span>(tv_log10_ϵ_NA <span class="op">/</span> <span class="fl">5</span> <span class="op">+</span> <span class="fl">1</span>) <span class="op">+</span> η[<span class="fl">6</span>]) <span class="op">-</span> <span class="fl">1</span>))</span>
+<span id="cb3-108"><a href="#cb3-108" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Logit-normal distribution of log10(ϵ_IFN), scaled to range [-5, 0]</span></span>
+<span id="cb3-109"><a href="#cb3-109" aria-hidden="true" tabindex="-1"></a>        ϵ_IFN <span class="op">=</span> <span class="fu">exp10</span>(IFN <span class="op">*</span> <span class="fl">5</span> <span class="op">*</span> (<span class="fu">logistic</span>(<span class="fu">logit</span>(tv_log10_ϵ_IFN <span class="op">/</span> <span class="fl">5</span> <span class="op">+</span> <span class="fl">1</span>) <span class="op">+</span> η[<span class="fl">7</span>]) <span class="op">-</span> <span class="fl">1</span>))</span>
+<span id="cb3-110"><a href="#cb3-110" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Logit-normal distribution of log10(r_E_IFN), scaled to range [0, 4]</span></span>
+<span id="cb3-111"><a href="#cb3-111" aria-hidden="true" tabindex="-1"></a>        r_E_IFN <span class="op">=</span> <span class="fu">exp10</span>(IFN <span class="op">*</span> <span class="fl">4</span> <span class="op">*</span> <span class="fu">logistic</span>(<span class="fu">logit</span>(tv_log10_r_E_IFN <span class="op">/</span> <span class="fl">4</span>) <span class="op">+</span> η[<span class="fl">8</span>]))</span>
+<span id="cb3-112"><a href="#cb3-112" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Normal distribution</span></span>
+<span id="cb3-113"><a href="#cb3-113" aria-hidden="true" tabindex="-1"></a>        conv_E <span class="op">=</span> <span class="fu">exp10</span>(tv_log10_conv_E <span class="op">+</span> η[<span class="fl">9</span>])</span>
+<span id="cb3-114"><a href="#cb3-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-115"><a href="#cb3-115" aria-hidden="true" tabindex="-1"></a>        <span class="co"># HBsAg conversion factor: 96 S-envelope proteins per virion/subviral</span></span>
+<span id="cb3-116"><a href="#cb3-116" aria-hidden="true" tabindex="-1"></a>        <span class="co"># particle, then molecules-to-μg.  Precomputed in @pre so @reactions</span></span>
+<span id="cb3-117"><a href="#cb3-117" aria-hidden="true" tabindex="-1"></a>        <span class="co"># can reference a pure parameter expression (it cannot see @vars).</span></span>
+<span id="cb3-118"><a href="#cb3-118" aria-hidden="true" tabindex="-1"></a>        c_HBsAg <span class="op">=</span> <span class="fl">96</span> <span class="op">*</span> <span class="fl">24000.0e6</span> <span class="op">/</span> <span class="fl">6.022e23</span></span>
+<span id="cb3-119"><a href="#cb3-119" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb3-120"><a href="#cb3-120" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-121"><a href="#cb3-121" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Initial conditions</span></span>
+<span id="cb3-122"><a href="#cb3-122" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@init</span> <span class="cf">begin</span></span>
+<span id="cb3-123"><a href="#cb3-123" aria-hidden="true" tabindex="-1"></a>        V <span class="op">=</span> ini_V</span>
+<span id="cb3-124"><a href="#cb3-124" aria-hidden="true" tabindex="-1"></a>        I <span class="op">=</span> d_V <span class="op">*</span> V <span class="op">/</span> p_V</span>
+<span id="cb3-125"><a href="#cb3-125" aria-hidden="true" tabindex="-1"></a>        T <span class="op">=</span> T_max <span class="op">-</span> I</span>
+<span id="cb3-126"><a href="#cb3-126" aria-hidden="true" tabindex="-1"></a>        S <span class="op">=</span> p_S <span class="op">*</span> I <span class="op">/</span> d_V</span>
+<span id="cb3-127"><a href="#cb3-127" aria-hidden="true" tabindex="-1"></a>        A <span class="op">=</span> ini_A</span>
+<span id="cb3-128"><a href="#cb3-128" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb3-129"><a href="#cb3-129" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-130"><a href="#cb3-130" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Ieff and Peff implement a discontinuous "steady-state-forcing" switch</span></span>
+<span id="cb3-131"><a href="#cb3-131" aria-hidden="true" tabindex="-1"></a>    <span class="co"># that drives the system to clearance when I &lt; I_threshold.  They are</span></span>
+<span id="cb3-132"><a href="#cb3-132" aria-hidden="true" tabindex="-1"></a>    <span class="co"># inlined in every reaction where they appear because Catalyst-based</span></span>
+<span id="cb3-133"><a href="#cb3-133" aria-hidden="true" tabindex="-1"></a>    <span class="co"># @reactions cannot resolve symbols defined in @vars (see @vars block</span></span>
+<span id="cb3-134"><a href="#cb3-134" aria-hidden="true" tabindex="-1"></a>    <span class="co"># below, which keeps them for narrative/observability purposes only).</span></span>
+<span id="cb3-135"><a href="#cb3-135" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@reactions</span> <span class="cf">begin</span></span>
+<span id="cb3-136"><a href="#cb3-136" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ─── Viral infection (V catalyst; virion not consumed) ───────────</span></span>
+<span id="cb3-137"><a href="#cb3-137" aria-hidden="true" tabindex="-1"></a>        β <span class="op">*</span> V, T <span class="op">--&gt;</span> I</span>
+<span id="cb3-138"><a href="#cb3-138" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-139"><a href="#cb3-139" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ─── Hepatocyte proliferation with shared logistic capacity ─────</span></span>
+<span id="cb3-140"><a href="#cb3-140" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Crowding uses (T + Ieff + R) for T and R, and (T + I + R) for I —</span></span>
+<span id="cb3-141"><a href="#cb3-141" aria-hidden="true" tabindex="-1"></a>        <span class="co"># a deliberate artifact of the Ieff switch.</span></span>
+<span id="cb3-142"><a href="#cb3-142" aria-hidden="true" tabindex="-1"></a>        r_T, T <span class="op">--&gt;</span> <span class="fl">2</span> <span class="op">*</span> T</span>
+<span id="cb3-143"><a href="#cb3-143" aria-hidden="true" tabindex="-1"></a>        r_T, I <span class="op">--&gt;</span> <span class="fl">2</span> <span class="op">*</span> I</span>
+<span id="cb3-144"><a href="#cb3-144" aria-hidden="true" tabindex="-1"></a>        r_T, R <span class="op">--&gt;</span> <span class="fl">2</span> <span class="op">*</span> R</span>
+<span id="cb3-145"><a href="#cb3-145" aria-hidden="true" tabindex="-1"></a>        r_T <span class="op">*</span> (T <span class="op">+</span> <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(I), I) <span class="op">+</span> R) <span class="op">/</span> T_max, T <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-146"><a href="#cb3-146" aria-hidden="true" tabindex="-1"></a>        r_T <span class="op">*</span> (T <span class="op">+</span> I <span class="op">+</span> R) <span class="op">/</span> T_max, I <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-147"><a href="#cb3-147" aria-hidden="true" tabindex="-1"></a>        r_T <span class="op">*</span> (T <span class="op">+</span> <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(I), I) <span class="op">+</span> R) <span class="op">/</span> T_max, R <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-148"><a href="#cb3-148" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-149"><a href="#cb3-149" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ─── Background hepatocyte death ─────────────────────────────────</span></span>
+<span id="cb3-150"><a href="#cb3-150" aria-hidden="true" tabindex="-1"></a>        d_TI, T <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-151"><a href="#cb3-151" aria-hidden="true" tabindex="-1"></a>        d_TI, I <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-152"><a href="#cb3-152" aria-hidden="true" tabindex="-1"></a>        d_TI, R <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-153"><a href="#cb3-153" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-154"><a href="#cb3-154" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ─── Refractory → Target reversion ──────────────────────────────</span></span>
+<span id="cb3-155"><a href="#cb3-155" aria-hidden="true" tabindex="-1"></a>        ρ_o_ρ_r, R <span class="op">--&gt;</span> T</span>
+<span id="cb3-156"><a href="#cb3-156" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-157"><a href="#cb3-157" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ─── Innate-immunity conversion I → R (non-conservative switch) ─</span></span>
+<span id="cb3-158"><a href="#cb3-158" aria-hidden="true" tabindex="-1"></a>        <span class="co"># I is consumed proportional to I, but R is produced proportional</span></span>
+<span id="cb3-159"><a href="#cb3-159" aria-hidden="true" tabindex="-1"></a>        <span class="co"># to Ieff. When I ≥ I_threshold the two rates match (true conversion);</span></span>
+<span id="cb3-160"><a href="#cb3-160" aria-hidden="true" tabindex="-1"></a>        <span class="co"># when I &lt; I_threshold, R does not gain mass — the steady-state</span></span>
+<span id="cb3-161"><a href="#cb3-161" aria-hidden="true" tabindex="-1"></a>        <span class="co"># trick forcing clearance.</span></span>
+<span id="cb3-162"><a href="#cb3-162" aria-hidden="true" tabindex="-1"></a>        ρ <span class="op">*</span> X, I <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-163"><a href="#cb3-163" aria-hidden="true" tabindex="-1"></a>        ρ <span class="op">*</span> X <span class="op">*</span> <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(I), I), <span class="fl">0</span> <span class="op">--&gt;</span> R</span>
+<span id="cb3-164"><a href="#cb3-164" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-165"><a href="#cb3-165" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ─── Cellular-immunity killing of infected cells ────────────────</span></span>
+<span id="cb3-166"><a href="#cb3-166" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Same split pattern: I consumed ∝ I; D produced ∝ Ieff.</span></span>
+<span id="cb3-167"><a href="#cb3-167" aria-hidden="true" tabindex="-1"></a>        m <span class="op">*</span> r_E_IFN <span class="op">*</span> E, I <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-168"><a href="#cb3-168" aria-hidden="true" tabindex="-1"></a>        m <span class="op">*</span> r_E_IFN <span class="op">*</span> E <span class="op">*</span> <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(I), I), <span class="fl">0</span> <span class="op">--&gt;</span> D</span>
+<span id="cb3-169"><a href="#cb3-169" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-170"><a href="#cb3-170" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ─── Cellular-immunity killing of target &amp; refractory cells ─────</span></span>
+<span id="cb3-171"><a href="#cb3-171" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Target and refractory behave conservatively (T → D, R → D).</span></span>
+<span id="cb3-172"><a href="#cb3-172" aria-hidden="true" tabindex="-1"></a>        (m <span class="op">/</span> n) <span class="op">*</span> r_E_IFN <span class="op">*</span> E, T <span class="op">--&gt;</span> D</span>
+<span id="cb3-173"><a href="#cb3-173" aria-hidden="true" tabindex="-1"></a>        (m <span class="op">/</span> n) <span class="op">*</span> r_E_IFN <span class="op">*</span> E, R <span class="op">--&gt;</span> D</span>
+<span id="cb3-174"><a href="#cb3-174" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-175"><a href="#cb3-175" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ─── Debris clearance ────────────────────────────────────────────</span></span>
+<span id="cb3-176"><a href="#cb3-176" aria-hidden="true" tabindex="-1"></a>        d_D, D <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-177"><a href="#cb3-177" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-178"><a href="#cb3-178" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ─── ALT: baseline regeneration + D-driven generation + decay ───</span></span>
+<span id="cb3-179"><a href="#cb3-179" aria-hidden="true" tabindex="-1"></a>        d_A <span class="op">*</span> ini_A, <span class="fl">0</span> <span class="op">--&gt;</span> A</span>
+<span id="cb3-180"><a href="#cb3-180" aria-hidden="true" tabindex="-1"></a>        k_A <span class="op">*</span> D, <span class="fl">0</span> <span class="op">--&gt;</span> A</span>
+<span id="cb3-181"><a href="#cb3-181" aria-hidden="true" tabindex="-1"></a>        d_A, A <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-182"><a href="#cb3-182" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-183"><a href="#cb3-183" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ─── Virus production (from Ieff) and clearance ─────────────────</span></span>
+<span id="cb3-184"><a href="#cb3-184" aria-hidden="true" tabindex="-1"></a>        p_V <span class="op">*</span> <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(I), I) <span class="op">*</span> ϵ_NA <span class="op">*</span> ϵ_IFN, <span class="fl">0</span> <span class="op">--&gt;</span> V</span>
+<span id="cb3-185"><a href="#cb3-185" aria-hidden="true" tabindex="-1"></a>        d_V, V <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-186"><a href="#cb3-186" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-187"><a href="#cb3-187" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ─── HBsAg production (from Ieff) and clearance ─────────────────</span></span>
+<span id="cb3-188"><a href="#cb3-188" aria-hidden="true" tabindex="-1"></a>        p_S <span class="op">*</span> <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(I), I), <span class="fl">0</span> <span class="op">--&gt;</span> S</span>
+<span id="cb3-189"><a href="#cb3-189" aria-hidden="true" tabindex="-1"></a>        d_V, S <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-190"><a href="#cb3-190" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-191"><a href="#cb3-191" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ─── Dendritic-cell activation (Hill in Ieff) ───────────────────</span></span>
+<span id="cb3-192"><a href="#cb3-192" aria-hidden="true" tabindex="-1"></a>        k_P <span class="op">*</span> <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(I), I) <span class="op">/</span></span>
+<span id="cb3-193"><a href="#cb3-193" aria-hidden="true" tabindex="-1"></a>            (ϕ_E <span class="op">+</span> <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(I), I)), <span class="fl">0</span> <span class="op">--&gt;</span> P</span>
+<span id="cb3-194"><a href="#cb3-194" aria-hidden="true" tabindex="-1"></a>        d_P, P <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-195"><a href="#cb3-195" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-196"><a href="#cb3-196" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ─── Effector T-cell dynamics (driven by Peff) ──────────────────</span></span>
+<span id="cb3-197"><a href="#cb3-197" aria-hidden="true" tabindex="-1"></a>        d_E <span class="op">*</span> <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(P), P), <span class="fl">0</span> <span class="op">--&gt;</span> E   <span class="co"># baseline from P</span></span>
+<span id="cb3-198"><a href="#cb3-198" aria-hidden="true" tabindex="-1"></a>        r_E <span class="op">*</span> E <span class="op">*</span> <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(P), P), <span class="fl">0</span> <span class="op">--&gt;</span> E   <span class="co"># P-stimulated</span></span>
+<span id="cb3-199"><a href="#cb3-199" aria-hidden="true" tabindex="-1"></a>        d_E_Q <span class="op">*</span> Q<span class="op">^</span><span class="fl">4</span> <span class="op">/</span> (ϕ_Q<span class="op">^</span><span class="fl">4</span> <span class="op">+</span> Q<span class="op">^</span><span class="fl">4</span>), E <span class="op">--&gt;</span> <span class="fl">0</span>   <span class="co"># Q-driven exhaustion</span></span>
+<span id="cb3-200"><a href="#cb3-200" aria-hidden="true" tabindex="-1"></a>        d_E, E <span class="op">--&gt;</span> <span class="fl">0</span>   <span class="co"># natural clearance</span></span>
+<span id="cb3-201"><a href="#cb3-201" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-202"><a href="#cb3-202" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ─── Delayed immune signal Q (first-order lag of Peff) ──────────</span></span>
+<span id="cb3-203"><a href="#cb3-203" aria-hidden="true" tabindex="-1"></a>        d_Q <span class="op">*</span> <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(P), P), <span class="fl">0</span> <span class="op">--&gt;</span> Q</span>
+<span id="cb3-204"><a href="#cb3-204" aria-hidden="true" tabindex="-1"></a>        d_Q, Q <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-205"><a href="#cb3-205" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-206"><a href="#cb3-206" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ─── Cytotoxic effect X: logistic-bounded, HBsAg-inhibited ──────</span></span>
+<span id="cb3-207"><a href="#cb3-207" aria-hidden="true" tabindex="-1"></a>        <span class="co"># X' = r_X·(1-X)·(Ieff/(ϕ_E+Ieff))·(1 − S_max·Hill) − d_X·X</span></span>
+<span id="cb3-208"><a href="#cb3-208" aria-hidden="true" tabindex="-1"></a>        <span class="co"># HBsAg_ug_mL inlined as c_HBsAg·(V+S) (c_HBsAg precomputed in @pre).</span></span>
+<span id="cb3-209"><a href="#cb3-209" aria-hidden="true" tabindex="-1"></a>        r_X <span class="op">*</span> (</span>
+<span id="cb3-210"><a href="#cb3-210" aria-hidden="true" tabindex="-1"></a>                <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(I), I) <span class="op">/</span></span>
+<span id="cb3-211"><a href="#cb3-211" aria-hidden="true" tabindex="-1"></a>                (ϕ_E <span class="op">+</span> <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(I), I))</span>
+<span id="cb3-212"><a href="#cb3-212" aria-hidden="true" tabindex="-1"></a>            ) <span class="op">*</span></span>
+<span id="cb3-213"><a href="#cb3-213" aria-hidden="true" tabindex="-1"></a>            (</span>
+<span id="cb3-214"><a href="#cb3-214" aria-hidden="true" tabindex="-1"></a>                <span class="fl">1</span> <span class="op">-</span> S_max <span class="op">*</span> (c_HBsAg <span class="op">*</span> (V <span class="op">+</span> S))<span class="op">^</span>nS <span class="op">/</span></span>
+<span id="cb3-215"><a href="#cb3-215" aria-hidden="true" tabindex="-1"></a>                (ϕ_S<span class="op">^</span>nS <span class="op">+</span> (c_HBsAg <span class="op">*</span> (V <span class="op">+</span> S))<span class="op">^</span>nS)</span>
+<span id="cb3-216"><a href="#cb3-216" aria-hidden="true" tabindex="-1"></a>            ), <span class="fl">0</span> <span class="op">--&gt;</span> X</span>
+<span id="cb3-217"><a href="#cb3-217" aria-hidden="true" tabindex="-1"></a>        r_X <span class="op">*</span> (</span>
+<span id="cb3-218"><a href="#cb3-218" aria-hidden="true" tabindex="-1"></a>                <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(I), I) <span class="op">/</span></span>
+<span id="cb3-219"><a href="#cb3-219" aria-hidden="true" tabindex="-1"></a>                (ϕ_E <span class="op">+</span> <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(I), I))</span>
+<span id="cb3-220"><a href="#cb3-220" aria-hidden="true" tabindex="-1"></a>            ) <span class="op">*</span></span>
+<span id="cb3-221"><a href="#cb3-221" aria-hidden="true" tabindex="-1"></a>            (</span>
+<span id="cb3-222"><a href="#cb3-222" aria-hidden="true" tabindex="-1"></a>                <span class="fl">1</span> <span class="op">-</span> S_max <span class="op">*</span> (c_HBsAg <span class="op">*</span> (V <span class="op">+</span> S))<span class="op">^</span>nS <span class="op">/</span></span>
+<span id="cb3-223"><a href="#cb3-223" aria-hidden="true" tabindex="-1"></a>                (ϕ_S<span class="op">^</span>nS <span class="op">+</span> (c_HBsAg <span class="op">*</span> (V <span class="op">+</span> S))<span class="op">^</span>nS)</span>
+<span id="cb3-224"><a href="#cb3-224" aria-hidden="true" tabindex="-1"></a>            ), X <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-225"><a href="#cb3-225" aria-hidden="true" tabindex="-1"></a>        d_X, X <span class="op">--&gt;</span> <span class="fl">0</span></span>
+<span id="cb3-226"><a href="#cb3-226" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb3-227"><a href="#cb3-227" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-228"><a href="#cb3-228" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@vars</span> <span class="cf">begin</span></span>
+<span id="cb3-229"><a href="#cb3-229" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Switch between progressive infection (I ≥ I_threshold) and clearance of infection (I &lt; I_threshold)</span></span>
+<span id="cb3-230"><a href="#cb3-230" aria-hidden="true" tabindex="-1"></a>        <span class="co"># In the latter case, the system is forced to reach a steady state in which</span></span>
+<span id="cb3-231"><a href="#cb3-231" aria-hidden="true" tabindex="-1"></a>        <span class="co"># I = 0, viral load V = 0, HBsAg S = 0, and antigen presenting cells P = 0.</span></span>
+<span id="cb3-232"><a href="#cb3-232" aria-hidden="true" tabindex="-1"></a>        Ieff <span class="op">=</span> <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(I), I)</span>
+<span id="cb3-233"><a href="#cb3-233" aria-hidden="true" tabindex="-1"></a>        Peff <span class="op">=</span> <span class="fu">ifelse</span>(I <span class="op">&lt;</span> I_threshold, <span class="fu">zero</span>(P), P)</span>
+<span id="cb3-234"><a href="#cb3-234" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-235"><a href="#cb3-235" aria-hidden="true" tabindex="-1"></a>        <span class="co"># HBsAg [μg/mL]: Each particle of V and S is assumed to harbor 96 molecules of S envelope protein</span></span>
+<span id="cb3-236"><a href="#cb3-236" aria-hidden="true" tabindex="-1"></a>        f_molec2ug <span class="op">:=</span> <span class="fl">24000</span> <span class="op">*</span> <span class="fl">1.0e6</span> <span class="op">/</span> <span class="fl">6.022e23</span></span>
+<span id="cb3-237"><a href="#cb3-237" aria-hidden="true" tabindex="-1"></a>        HBsAg_ug_mL <span class="op">:=</span> <span class="fl">96</span> <span class="op">*</span> (V <span class="op">+</span> S) <span class="op">*</span> f_molec2ug</span>
+<span id="cb3-238"><a href="#cb3-238" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb3-239"><a href="#cb3-239" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-240"><a href="#cb3-240" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Error models: Values are log10-transformed</span></span>
+<span id="cb3-241"><a href="#cb3-241" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@derived</span> <span class="cf">begin</span></span>
+<span id="cb3-242"><a href="#cb3-242" aria-hidden="true" tabindex="-1"></a>        <span class="st">"HBsAg [IU/mL]"</span></span>
+<span id="cb3-243"><a href="#cb3-243" aria-hidden="true" tabindex="-1"></a>        log10_HBsAg <span class="op">~</span> @. <span class="fu">CombinedNormal</span>(<span class="fu">log10</span>(<span class="fu">max</span>(<span class="fl">0</span>, HBsAg_ug_mL) <span class="op">/</span> <span class="fl">0.98e-3</span>), σ_add_log10_HBsAg, σ_prop_log10_HBsAg)</span>
+<span id="cb3-244"><a href="#cb3-244" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-245"><a href="#cb3-245" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Viral load [copies/mL]"</span></span>
+<span id="cb3-246"><a href="#cb3-246" aria-hidden="true" tabindex="-1"></a>        log10_HBV <span class="op">~</span> @. <span class="fu">CombinedNormal</span>(<span class="fu">log10</span>(<span class="fu">max</span>(<span class="fl">0</span>, V)), σ_add_log10_HBV, σ_prop_log10_HBV)</span>
+<span id="cb3-247"><a href="#cb3-247" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-248"><a href="#cb3-248" aria-hidden="true" tabindex="-1"></a>        <span class="st">"ALT [U/L]"</span></span>
+<span id="cb3-249"><a href="#cb3-249" aria-hidden="true" tabindex="-1"></a>        log10_ALT <span class="op">~</span> @. <span class="fu">ProportionalNormal</span>(<span class="fu">log10</span>(<span class="fu">max</span>(<span class="fl">0</span>, A)), σ_prop_log10_ALT)</span>
+<span id="cb3-250"><a href="#cb3-250" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-251"><a href="#cb3-251" aria-hidden="true" tabindex="-1"></a>        <span class="st">"CD8+ T cell counts [cells/mL]"</span></span>
+<span id="cb3-252"><a href="#cb3-252" aria-hidden="true" tabindex="-1"></a>        log10_CD8 <span class="op">~</span> @. <span class="fu">ProportionalNormal</span>(<span class="fu">log10</span>(conv_E <span class="op">*</span> <span class="fu">max</span>(<span class="fl">0</span>, E)), σ_prop_log10_CD8)</span>
+<span id="cb3-253"><a href="#cb3-253" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb3-254"><a href="#cb3-254" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>PumasModel
+  Parameters: tv_log10_p_S, tv_log10_β, tv_log10_m, tv_log10_k_P, tv_log10_k_A, tv_log10_ϵ_NA, tv_log10_ϵ_IFN, tv_log10_r_E_IFN, tv_log10_conv_E, Ω, ini_V, ini_A, r_T, r_E, r_X, n, ρ, ρ_o_ρ_r, p_V, d_TI, d_V, d_Q, d_X, d_E, d_P, d_D, d_A, d_E_Q, T_max, ϕ_Q, ϕ_E, S_max, ϕ_S, nS, I_threshold, σ_add_log10_HBsAg, σ_prop_log10_HBsAg, σ_add_log10_HBV, σ_prop_log10_HBV, σ_prop_log10_ALT, σ_prop_log10_CD8
+  Random effects: η
+  Covariates: NA, IFN
+  Dynamical system variables: T, I, R, D, A, V, S, P, E, Q, X
+  Dynamical system type: Nonlinear ODE
+  Derived: log10_HBsAg, log10_HBV, log10_ALT, log10_CD8, Ieff, Peff
+  Observed: log10_HBsAg, log10_HBV, log10_ALT, log10_CD8, Ieff, Peff</code></pre>
+</div>
+</div>
+</section>
+<section id="parameters" class="level3" data-number="5.2">
+<h3 data-number="5.2" class="anchored" data-anchor-id="parameters"><span class="header-section-number">5.2</span> Parameters</h3>
+<p>The following parameters are fixed and not varied between patients:</p>
+<div id="6" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>hbv_fixed_params <span class="op">=</span> (</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    ini_V <span class="op">=</span> <span class="fu">exp10</span>(<span class="op">-</span><span class="fl">0.481</span>),</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    ini_A <span class="op">=</span> <span class="fu">exp10</span>(<span class="fl">1.25</span>),</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    r_T <span class="op">=</span> <span class="fl">1.0</span>,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    r_E <span class="op">=</span> <span class="fl">0.1</span>,</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    r_X <span class="op">=</span> <span class="fl">1.0</span>,</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    n <span class="op">=</span> <span class="fl">100</span>,</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    ρ <span class="op">=</span> <span class="fl">0.001</span>,</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    ρ_o_ρ_r <span class="op">=</span> <span class="fl">1.0e-5</span>,</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    p_V <span class="op">=</span> <span class="fl">100.0</span>,</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    d_TI <span class="op">=</span> <span class="fl">0.0039</span>,</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    d_V <span class="op">=</span> <span class="fl">0.67</span>,</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    d_Q <span class="op">=</span> <span class="fl">0.00385</span>,</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    d_X <span class="op">=</span> <span class="fl">0.2</span>,</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    d_E <span class="op">=</span> <span class="fl">0.01</span>,</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    d_P <span class="op">=</span> <span class="fl">0.239</span>,</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    d_D <span class="op">=</span> <span class="fl">1.66</span>,</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    d_A <span class="op">=</span> <span class="fl">0.47</span>,</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    d_E_Q <span class="op">=</span> <span class="fl">0.3</span>,</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>    T_max <span class="op">=</span> <span class="fl">1.36e7</span>,</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    ϕ_Q <span class="op">=</span> <span class="fl">0.8</span>,</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    ϕ_E <span class="op">=</span> <span class="fl">100.0</span>,</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    S_max <span class="op">=</span> <span class="fl">1.0</span>,</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    ϕ_S <span class="op">=</span> <span class="fl">0.1473</span>,</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>    nS <span class="op">=</span> <span class="fl">0.486</span>,</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    I_threshold <span class="op">=</span> <span class="fl">1.0e-4</span>,</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>The estimates of the remaining parameters:</p>
+<div id="8" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>hbv_estimated_params <span class="op">=</span> (;</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    tv_log10_p_S <span class="op">=</span> <span class="fl">7.643</span>,</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    tv_log10_β <span class="op">=</span> <span class="op">-</span><span class="fl">4.358</span>,</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    tv_log10_m <span class="op">=</span> <span class="fl">1.618</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    tv_log10_k_P <span class="op">=</span> <span class="op">-</span><span class="fl">3.968</span>,</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    tv_log10_k_A <span class="op">=</span> <span class="op">-</span><span class="fl">4.869</span>,</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    tv_log10_ϵ_NA <span class="op">=</span> <span class="op">-</span><span class="fl">1.485</span>,</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    tv_log10_ϵ_IFN <span class="op">=</span> <span class="op">-</span><span class="fl">1.466</span>,</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    tv_log10_r_E_IFN <span class="op">=</span> <span class="fl">0.313</span>,</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    tv_log10_conv_E <span class="op">=</span> <span class="fl">2.745</span>,</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    Ω <span class="op">=</span> <span class="fu">Diagonal</span>([<span class="fl">0.632</span><span class="op">^</span><span class="fl">2</span>, <span class="fl">2.489</span><span class="op">^</span><span class="fl">2</span>, <span class="fl">0.827</span><span class="op">^</span><span class="fl">2</span>, <span class="fl">1.292</span><span class="op">^</span><span class="fl">2</span>, <span class="fl">1.156</span><span class="op">^</span><span class="fl">2</span>, <span class="fl">1.583</span><span class="op">^</span><span class="fl">2</span>, <span class="fl">1.626</span><span class="op">^</span><span class="fl">2</span>, <span class="fl">2.739</span><span class="op">^</span><span class="fl">2</span>, <span class="fl">1.248</span><span class="op">^</span><span class="fl">2</span>]),</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    σ_add_log10_HBsAg <span class="op">=</span> <span class="fl">0.0972</span>,</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    σ_prop_log10_HBsAg <span class="op">=</span> <span class="fl">2.2204e-16</span>,</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    σ_add_log10_HBV <span class="op">=</span> <span class="fl">0.3206</span>,</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    σ_prop_log10_HBV <span class="op">=</span> <span class="fl">0.0838</span>,</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    σ_prop_log10_ALT <span class="op">=</span> <span class="fl">0.0478</span>,</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    σ_prop_log10_CD8 <span class="op">=</span> <span class="fl">0.4149</span>,</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Taken together, the full set of model parameters is</p>
+<div id="10" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>hbv_params <span class="op">=</span> <span class="fu">merge</span>(hbv_fixed_params, hbv_estimated_params)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+</section>
+<section id="part-3-understanding-treatment-mechanisms" class="level2" data-number="6">
+<h2 data-number="6" class="anchored" data-anchor-id="part-3-understanding-treatment-mechanisms"><span class="header-section-number">6</span> Part 3: Understanding Treatment Mechanisms</h2>
+<section id="nucleoside-analog-effect" class="level3" data-number="6.1">
+<h3 data-number="6.1" class="anchored" data-anchor-id="nucleoside-analog-effect"><span class="header-section-number">6.1</span> Nucleoside Analog Effect</h3>
+<p>Nucleoside analogs (NAs) block viral production by inhibiting reverse transcriptase. During treatment with NAs (<code>NA = true</code>), <span class="math inline">\(\epsilon_{NA} &lt; 1\)</span> and hence the viral production is reduced:</p>
+<p><span class="math display">\[V' = p_V \cdot \underbrace{\epsilon_{NA}}_{\text{treatment reduction}} \epsilon_{IFN} \cdot I - d_V \cdot V\]</span></p>
+</section>
+<section id="interferon-effect" class="level3" data-number="6.2">
+<h3 data-number="6.2" class="anchored" data-anchor-id="interferon-effect"><span class="header-section-number">6.2</span> Interferon Effect</h3>
+<p>Interferon (IFN) has dual mechanisms:</p>
+<ol type="1">
+<li><strong>Viral suppression</strong> (like NA):
+<ul>
+<li>Reduces viral production via <span class="math inline">\(\epsilon_{IFN}\)</span></li>
+</ul></li>
+<li><strong>Immune enhancement</strong>:
+<ul>
+<li>Boosts effector T-cell killing via <code>r_E_IFN</code>: <span class="math inline">\(\text{killing rate} = m \cdot \underbrace{r\_E\_IFN}_{\text{IFN boost}} \cdot E \cdot I\)</span></li>
+</ul></li>
+</ol>
+</section>
+<section id="treatment-arms" class="level3" data-number="6.3">
+<h3 data-number="6.3" class="anchored" data-anchor-id="treatment-arms"><span class="header-section-number">6.3</span> Treatment Arms</h3>
+<p>The model supports four treatment scenarios:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th style="text-align: left;">Arm</th>
+<th style="text-align: left;">NA</th>
+<th style="text-align: left;">IFN</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Control (no treatment)</td>
+<td style="text-align: left;">false</td>
+<td style="text-align: left;">false</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">NA only</td>
+<td style="text-align: left;">true</td>
+<td style="text-align: left;">false</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">IFN only</td>
+<td style="text-align: left;">false</td>
+<td style="text-align: left;">true</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">NA + IFN combination</td>
+<td style="text-align: left;">true</td>
+<td style="text-align: left;">true</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="part-4-basic-simulation" class="level2" data-number="7">
+<h2 data-number="7" class="anchored" data-anchor-id="part-4-basic-simulation"><span class="header-section-number">7</span> Part 4: Basic Simulation</h2>
+<p>Let’s simulate a typical patient to see the natural disease progression. The model starts from a small viral inoculum and establishes chronic infection over 5 years, mimicking the clinical course from initial infection to chronic steady state.</p>
+<section id="create-a-subject" class="level3" data-number="7.1">
+<h3 data-number="7.1" class="anchored" data-anchor-id="create-a-subject"><span class="header-section-number">7.1</span> Create a Subject</h3>
+<p>Create a subject with no treatment:</p>
+<div id="12" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>subject_no_tx <span class="op">=</span> <span class="fu">Subject</span>(</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    id <span class="op">=</span> <span class="st">"No Treatment"</span>,</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    covariates <span class="op">=</span> (NA <span class="op">=</span> <span class="cn">false</span>, IFN <span class="op">=</span> <span class="cn">false</span>),</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>Subject
+  ID: No Treatment
+  Covariates: NA, IFN</code></pre>
+</div>
+</div>
+</section>
+<section id="simulate-natural-history" class="level3" data-number="7.2">
+<h3 data-number="7.2" class="anchored" data-anchor-id="simulate-natural-history"><span class="header-section-number">7.2</span> Simulate Natural History</h3>
+<div id="14" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>sim_no_tx <span class="op">=</span> <span class="fu">simobs</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    hbv_model,</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    subject_no_tx,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    hbv_params,</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">zero_randeffs</span>(hbv_model, subject_no_tx, hbv_params);</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    obstimes <span class="op">=</span> <span class="fl">0</span><span class="op">:</span><span class="fl">7</span><span class="op">:</span>(<span class="fl">5</span> <span class="op">*</span> <span class="fl">365</span>),</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    simulate_error <span class="op">=</span> <span class="cn">false</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>sim_df <span class="op">=</span> <span class="fu">DataFrame</span>(sim_no_tx)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="visualize-natural-history" class="level3" data-number="7.3">
+<h3 data-number="7.3" class="anchored" data-anchor-id="visualize-natural-history"><span class="header-section-number">7.3</span> Visualize Natural History</h3>
+<div id="16" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Prepare data in long format for AoG</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>sim_long <span class="op">=</span> <span class="pp">@chain</span> sim_df <span class="cf">begin</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@select</span> <span class="op">:</span>time <span class="op">:</span>log10_HBV <span class="op">:</span>log10_HBsAg <span class="op">:</span>log10_ALT <span class="op">:</span>log10_CD8</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stack</span>(_, <span class="fu">Not</span>(<span class="st">"time"</span>); variable_name <span class="op">=</span> <span class="st">"biomarker"</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@rsubset</span>! <span class="fu">isfinite</span>(<span class="op">:</span>value)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Create plot with AoG</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>specs <span class="op">=</span> <span class="fu">data</span>(sim_long) <span class="op">*</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mapping</span>(<span class="op">:</span>time <span class="op">=&gt;</span> (t <span class="op">-&gt;</span> t <span class="op">/</span> <span class="fl">365</span>) <span class="op">=&gt;</span> <span class="st">"Time [year]"</span>, <span class="op">:</span>value <span class="op">=&gt;</span> <span class="st">"log₁₀ concentration"</span>) <span class="op">*</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mapping</span>(layout <span class="op">=</span> <span class="op">:</span>biomarker <span class="op">=&gt;</span> <span class="fu">renamer</span>(<span class="st">"log10_HBV"</span> <span class="op">=&gt;</span> <span class="st">"HBV DNA [copies/mL]"</span>, <span class="st">"log10_HBsAg"</span> <span class="op">=&gt;</span> <span class="st">"HBsAg [IU/mL]"</span>, <span class="st">"log10_ALT"</span> <span class="op">=&gt;</span> <span class="st">"ALT [U/L]"</span>, <span class="st">"log10_CD8"</span> <span class="op">=&gt;</span> <span class="st">"CD8+ T Cells [cells/mL]"</span>)) <span class="op">*</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">visual</span>(Lines)</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="fu">draw</span>(specs; facet <span class="op">=</span> (; linkyaxes <span class="op">=</span> <span class="cn">false</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="hbv_01_model_introduction_tutorial_files/figure-html/cell-9-output-1.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="HBV natural history without treatment over 5 years. Top: Viral load (HBV DNA) rises to chronic levels. Bottom: HBsAg reaches a chronic set point. Both remain elevated without intervention."><img src="hbv_01_model_introduction_tutorial_files/figure-html/cell-9-output-1.svg" class="img-fluid figure-img" alt="HBV natural history without treatment over 5 years. Top: Viral load (HBV DNA) rises to chronic levels. Bottom: HBsAg reaches a chronic set point. Both remain elevated without intervention."></a></p>
+<figcaption>HBV natural history without treatment over 5 years. Top: Viral load (HBV DNA) rises to chronic levels. Bottom: HBsAg reaches a chronic set point. Both remain elevated without intervention.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="part-5-treatment-scenarios" class="level2" data-number="8">
+<h2 data-number="8" class="anchored" data-anchor-id="part-5-treatment-scenarios"><span class="header-section-number">8</span> Part 5: Treatment Scenarios</h2>
+<section id="compare-treatment-scenarios" class="level3" data-number="8.1">
+<h3 data-number="8.1" class="anchored" data-anchor-id="compare-treatment-scenarios"><span class="header-section-number">8.1</span> Compare Treatment Scenarios</h3>
+<p>The key to meaningful treatment comparison is a <strong>multi-phase clinical protocol</strong>: the virus must first establish chronic infection before treatment begins.</p>
+<ol type="1">
+<li><strong>Untreated phase</strong> (5 years): Virus establishes chronic steady state</li>
+<li><strong>NA suppression phase</strong> (4 years): Treatment with NAs</li>
+<li><strong>Treatment phase</strong> (48 weeks): Arm-specific intervention</li>
+<li><strong>Off-treatment phase</strong> (24 weeks): Assess durability of response</li>
+</ol>
+<div id="18" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>t_chronic <span class="op">=</span> <span class="fl">5</span> <span class="op">*</span> <span class="fl">365</span>  <span class="co"># 5 years: establish chronic infection</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>t_na_suppressed <span class="op">=</span> t_chronic <span class="op">+</span> <span class="fl">4</span> <span class="op">*</span> <span class="fl">365</span> <span class="co"># 4 years: NA treatment</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>t_eot <span class="op">=</span> t_na_suppressed <span class="op">+</span> <span class="fl">48</span> <span class="op">*</span> <span class="fl">7</span> <span class="co"># end of 48-week treatment</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>t_end <span class="op">=</span> t_eot <span class="op">+</span> <span class="fl">24</span> <span class="op">*</span> <span class="fl">7</span> <span class="co"># end of 24-week follow-up</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="20" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create subjects with time-varying covariates for each treatment arm</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>treatments <span class="op">=</span> [</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"No treatment"</span>, <span class="cn">false</span>, <span class="cn">false</span>),</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"NA"</span>, <span class="cn">true</span>, <span class="cn">false</span>),</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"IFN"</span>, <span class="cn">false</span>, <span class="cn">true</span>),</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"NA + IFN"</span>, <span class="cn">true</span>, <span class="cn">true</span>),</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>pop <span class="op">=</span> <span class="fu">map</span>(treatments) <span class="cf">do</span> (id, tx_NA, tx_IFN)</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fu">Subject</span>(;</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>        id,</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>        covariates_time <span class="op">=</span> [<span class="fl">0.0</span>, t_chronic, t_na_suppressed, t_eot],</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>        covariates <span class="op">=</span> (</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>            NA <span class="op">=</span> [<span class="cn">false</span>, <span class="cn">true</span>, tx_NA, <span class="cn">false</span>],   <span class="co"># treatment only during Phase 2</span></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>            IFN <span class="op">=</span> [<span class="cn">false</span>, <span class="cn">false</span>, tx_IFN, <span class="cn">false</span>],</span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Simulate all arms for a "typical" patient (η = 0)</span></span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>sims <span class="op">=</span> <span class="fu">simobs</span>(</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>    hbv_model,</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>    pop,</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>    hbv_params,</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>    <span class="fu">zero_randeffs</span>(hbv_model, pop, hbv_params);</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>    obstimes <span class="op">=</span> t_na_suppressed<span class="op">:</span>t_end,</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>    simulate_error <span class="op">=</span> <span class="cn">false</span>,</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a><span class="co"># Combine into dataframe</span></span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>df_sims <span class="op">=</span> <span class="fu">stack</span>(<span class="fu">DataFrame</span>(sims), [<span class="st">"log10_HBV"</span>, <span class="st">"log10_HBsAg"</span>, <span class="st">"log10_ALT"</span>, <span class="st">"log10_CD8"</span>], [<span class="st">"time"</span>, <span class="st">"id"</span>]; variable_name <span class="op">=</span> <span class="st">"biomarker"</span>)</span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot simulations</span></span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>specs_data <span class="op">=</span> <span class="fu">data</span>(df_sims) <span class="op">*</span> <span class="fu">mapping</span>(</span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>time <span class="op">=&gt;</span> (t <span class="op">-&gt;</span> (t <span class="op">-</span> t_na_suppressed) <span class="op">/</span> <span class="fl">7</span>) <span class="op">=&gt;</span> <span class="st">"Time after treatment start [week]"</span>,</span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> <span class="op">:</span>id <span class="op">=&gt;</span> <span class="fu">sorter</span>(<span class="st">"No treatment"</span>, <span class="st">"NA"</span>, <span class="st">"IFN"</span>, <span class="st">"NA + IFN"</span>) <span class="op">=&gt;</span> <span class="st">"Treatment"</span>,</span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">visual</span>(Lines; color <span class="op">=</span> (<span class="op">:</span>blue, <span class="fl">0.2</span>))</span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a>specs_refs <span class="op">=</span> <span class="fu">data</span>(</span>
+<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a>    [</span>
+<span id="cb13-39"><a href="#cb13-39" aria-hidden="true" tabindex="-1"></a>        (; value <span class="op">=</span> <span class="fl">1.4</span>, biomarker <span class="op">=</span> <span class="st">"log10_HBV"</span>),</span>
+<span id="cb13-40"><a href="#cb13-40" aria-hidden="true" tabindex="-1"></a>        (; value <span class="op">=</span> <span class="fu">log10</span>(<span class="fl">0.05</span>), biomarker <span class="op">=</span> <span class="st">"log10_HBsAg"</span>),</span>
+<span id="cb13-41"><a href="#cb13-41" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb13-42"><a href="#cb13-42" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">mapping</span>(</span>
+<span id="cb13-43"><a href="#cb13-43" aria-hidden="true" tabindex="-1"></a>    linestyle <span class="op">=</span> <span class="fu">direct</span>(<span class="st">"Functional cure"</span>) <span class="op">=&gt;</span> <span class="st">"Threshold"</span> <span class="op">=&gt;</span> AlgebraOfGraphics.<span class="fu">scale</span>(<span class="op">:</span>RefLines)</span>
+<span id="cb13-44"><a href="#cb13-44" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">visual</span>(HLines)</span>
+<span id="cb13-45"><a href="#cb13-45" aria-hidden="true" tabindex="-1"></a>specs <span class="op">=</span> (specs_data <span class="op">+</span> specs_refs) <span class="op">*</span> <span class="fu">mapping</span>(</span>
+<span id="cb13-46"><a href="#cb13-46" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>value <span class="op">=&gt;</span> <span class="st">"log₁₀ concentration"</span>,</span>
+<span id="cb13-47"><a href="#cb13-47" aria-hidden="true" tabindex="-1"></a>    layout <span class="op">=</span> <span class="op">:</span>biomarker <span class="op">=&gt;</span> <span class="fu">renamer</span>(<span class="st">"log10_HBV"</span> <span class="op">=&gt;</span> <span class="st">"HBV DNA [copies/mL]"</span>, <span class="st">"log10_HBsAg"</span> <span class="op">=&gt;</span> <span class="st">"HBsAg [IU/mL]"</span>, <span class="st">"log10_ALT"</span> <span class="op">=&gt;</span> <span class="st">"ALT [U/L]"</span>, <span class="st">"log10_CD8"</span> <span class="op">=&gt;</span> <span class="st">"CD8+ T Cells [cells/mL]"</span>),</span>
+<span id="cb13-48"><a href="#cb13-48" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-49"><a href="#cb13-49" aria-hidden="true" tabindex="-1"></a><span class="fu">draw</span>(</span>
+<span id="cb13-50"><a href="#cb13-50" aria-hidden="true" tabindex="-1"></a>    specs,</span>
+<span id="cb13-51"><a href="#cb13-51" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scales</span>(RefLines <span class="op">=</span> (; palette <span class="op">=</span> [<span class="op">:</span>dash]));</span>
+<span id="cb13-52"><a href="#cb13-52" aria-hidden="true" tabindex="-1"></a>    axis <span class="op">=</span> (; xticks <span class="op">=</span> [<span class="fl">0</span>, <span class="fl">24</span>, <span class="fl">48</span>, <span class="fl">72</span>]),</span>
+<span id="cb13-53"><a href="#cb13-53" aria-hidden="true" tabindex="-1"></a>    facet <span class="op">=</span> (; linkxaxes <span class="op">=</span> <span class="cn">true</span>, linkyaxes <span class="op">=</span> <span class="cn">false</span>),</span>
+<span id="cb13-54"><a href="#cb13-54" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="hbv_01_model_introduction_tutorial_files/figure-html/cell-11-output-1.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="Effect of treatment on biomarkers in chronic NA-suppressed HBV (5 years of untreated chronic infection + 4 years of NA treatment) for a typical patient. NA reduces HBsAg gradually, IFN provides immune-mediated decline, and combination of NA and IFN achieves the steepest reduction. Gray dashed line marks end of treatment (week 48)."><img src="hbv_01_model_introduction_tutorial_files/figure-html/cell-11-output-1.svg" class="img-fluid figure-img" alt="Effect of treatment on biomarkers in chronic NA-suppressed HBV (5 years of untreated chronic infection + 4 years of NA treatment) for a typical patient. NA reduces HBsAg gradually, IFN provides immune-mediated decline, and combination of NA and IFN achieves the steepest reduction. Gray dashed line marks end of treatment (week 48)."></a></p>
+<figcaption>Effect of treatment on biomarkers in chronic NA-suppressed HBV (5 years of untreated chronic infection + 4 years of NA treatment) for a typical patient. NA reduces HBsAg gradually, IFN provides immune-mediated decline, and combination of NA and IFN achieves the steepest reduction. Gray dashed line marks end of treatment (week 48).</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="clinical-endpoints" class="level3" data-number="8.2">
+<h3 data-number="8.2" class="anchored" data-anchor-id="clinical-endpoints"><span class="header-section-number">8.2</span> Clinical Endpoints</h3>
+<p>Common clinical endpoints are:</p>
+<ol type="1">
+<li><p><em>HBsAg loss</em>: HBsAg &lt; 0.05 IU/mL for 24 weeks post-treatment.</p></li>
+<li><p><em>Functional cure</em>: Undetectable HBV DNA &lt; 10^1.4 copies/mL and HBsAg &lt; 0.05 IU/mL for 24 weeks post-treatment.</p></li>
+</ol>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Important</span>Why does the typical patient not achieve functional cure?
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Notice that HBsAg barely declines during treatment and rebounds immediately when treatment stops. This is <strong>expected behavior</strong> — it reflects a key clinical reality of HBV therapy.</p>
+<p><strong>HBsAg production is not directly reduced by drugs.</strong> Looking at the ODE: <span class="math inline">\(S' = p_S \cdot I - d_V \cdot S\)</span>. Neither NA nor IFN appear in this equation. While HBsAg is always cleared at rate <span class="math inline">\(d_V\)</span>, its production (<span class="math inline">\(p_S \cdot I\)</span>) depends entirely on the number of infected cells. For HBsAg to decline meaningfully, <span class="math inline">\(I\)</span> itself must be reduced.</p>
+<p><strong>Infected cell clearance requires immune activation.</strong> <span class="math inline">\(I\)</span> decreases through immune killing (<span class="math inline">\(m \cdot E \cdot I\)</span>), but in chronic infection the effector T cells (<span class="math inline">\(E\)</span>) are exhausted (high <span class="math inline">\(Q\)</span> suppresses <span class="math inline">\(E\)</span>). The typical patient’s immune system cannot clear <span class="math inline">\(I\)</span> below the critical threshold (<span class="math inline">\(10^{-4}\)</span>~cells/mL).</p>
+<p><strong>Functional cure requires the threshold switch.</strong> When <span class="math inline">\(I\)</span> drops below <span class="math inline">\(10^{-4}\)</span>~cells/mL, the model transitions to a “cured” state where viral and HBsAg production stops entirely. At population mean parameters, <span class="math inline">\(I\)</span> never reaches this threshold — which is why the typical patient rebounds after treatment.</p>
+<p><strong>Only patients with favorable random effects achieve FC.</strong> Patients with stronger immune killing (higher <span class="math inline">\(m\)</span>), better IFN response (higher <span class="math inline">\(r^{E}_{IFN}\)</span>), and less exhaustion can push <span class="math inline">\(I\)</span> below threshold during treatment. This matches clinical observations: FC rates are only ~5–15% with IFN-based regimens. We demonstrate this mechanism below.</p>
+</div>
+</div>
+</section>
+</section>
+<section id="part-6-population-variability-preview" class="level2" data-number="9">
+<h2 data-number="9" class="anchored" data-anchor-id="part-6-population-variability-preview"><span class="header-section-number">9</span> Part 6: Population Variability Preview</h2>
+<p>Let’s see how parameter variability affects outcomes using the multi-phase protocol. We use the <strong>estimated IIV</strong> from the NLME fit to generate virtual patients and simulate 50 patients to capture the range of outcomes.</p>
+<div id="22" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Simulate 50 patients with IIV using the estimated Ω</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>sims <span class="op">=</span> <span class="fu">map</span>(<span class="fl">1</span><span class="op">:</span><span class="fl">50</span>) <span class="cf">do</span> id</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    subj <span class="op">=</span> <span class="fu">Subject</span>(;</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>        id,</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>        covariates_time <span class="op">=</span> [<span class="fl">0.0</span>, t_chronic, t_na_suppressed, t_eot],</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>        covariates <span class="op">=</span> (</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>            NA <span class="op">=</span> [<span class="cn">false</span>, <span class="cn">true</span>, <span class="cn">true</span>, <span class="cn">false</span>],</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>            IFN <span class="op">=</span> [<span class="cn">false</span>, <span class="cn">false</span>, <span class="cn">true</span>, <span class="cn">false</span>],</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Simulate with IIV:</span></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Sampling of random effects is repeated until random effects allow for successful simulation of the dynamics</span></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>    randeffs <span class="op">=</span> <span class="fu">sample_randeffs</span>(hbv_model, subj, hbv_params)</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>    sim <span class="op">=</span> <span class="fu">simobs</span>(</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>        hbv_model, subj, hbv_params, randeffs;</span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>        obstimes <span class="op">=</span> t_na_suppressed<span class="op">:</span>t_end,</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>        simulate_error <span class="op">=</span> <span class="cn">false</span></span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> !<span class="fu">isvalid</span>(sim)</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>        randeffs <span class="op">=</span> <span class="fu">sample_randeffs</span>(hbv_model, subj, hbv_params)</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a>        sim <span class="op">=</span> <span class="fu">simobs</span>(</span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>            hbv_model, subj, hbv_params, randeffs;</span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>            obstimes <span class="op">=</span> t_na_suppressed<span class="op">:</span>t_end,</span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>            simulate_error <span class="op">=</span> <span class="cn">false</span></span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> sim</span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb14-31"><a href="#cb14-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-32"><a href="#cb14-32" aria-hidden="true" tabindex="-1"></a><span class="co"># Combine into dataframe</span></span>
+<span id="cb14-33"><a href="#cb14-33" aria-hidden="true" tabindex="-1"></a>df_sims <span class="op">=</span> <span class="fu">stack</span>(<span class="fu">DataFrame</span>(sims), [<span class="st">"log10_HBV"</span>, <span class="st">"log10_HBsAg"</span>, <span class="st">"log10_ALT"</span>, <span class="st">"log10_CD8"</span>], [<span class="st">"time"</span>, <span class="st">"id"</span>]; variable_name <span class="op">=</span> <span class="st">"biomarker"</span>)</span>
+<span id="cb14-34"><a href="#cb14-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-35"><a href="#cb14-35" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot simulations</span></span>
+<span id="cb14-36"><a href="#cb14-36" aria-hidden="true" tabindex="-1"></a>specs_data <span class="op">=</span> <span class="fu">data</span>(df_sims) <span class="op">*</span> <span class="fu">mapping</span>(</span>
+<span id="cb14-37"><a href="#cb14-37" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>time <span class="op">=&gt;</span> (t <span class="op">-&gt;</span> (t <span class="op">-</span> t_na_suppressed) <span class="op">/</span> <span class="fl">7</span>) <span class="op">=&gt;</span> <span class="st">"Time after treatment start [week]"</span>,</span>
+<span id="cb14-38"><a href="#cb14-38" aria-hidden="true" tabindex="-1"></a>    group <span class="op">=</span> <span class="op">:</span>id,</span>
+<span id="cb14-39"><a href="#cb14-39" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">visual</span>(Lines; color <span class="op">=</span> (<span class="op">:</span>gray, <span class="fl">0.4</span>))</span>
+<span id="cb14-40"><a href="#cb14-40" aria-hidden="true" tabindex="-1"></a>specs_refs <span class="op">=</span> <span class="fu">data</span>(</span>
+<span id="cb14-41"><a href="#cb14-41" aria-hidden="true" tabindex="-1"></a>    [</span>
+<span id="cb14-42"><a href="#cb14-42" aria-hidden="true" tabindex="-1"></a>        (; value <span class="op">=</span> <span class="fl">1.4</span>, biomarker <span class="op">=</span> <span class="st">"log10_HBV"</span>),</span>
+<span id="cb14-43"><a href="#cb14-43" aria-hidden="true" tabindex="-1"></a>        (; value <span class="op">=</span> <span class="fu">log10</span>(<span class="fl">0.05</span>), biomarker <span class="op">=</span> <span class="st">"log10_HBsAg"</span>),</span>
+<span id="cb14-44"><a href="#cb14-44" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb14-45"><a href="#cb14-45" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">mapping</span>(</span>
+<span id="cb14-46"><a href="#cb14-46" aria-hidden="true" tabindex="-1"></a>    linestyle <span class="op">=</span> <span class="fu">direct</span>(<span class="st">"Functional cure"</span>) <span class="op">=&gt;</span> <span class="st">"Threshold"</span> <span class="op">=&gt;</span> AlgebraOfGraphics.<span class="fu">scale</span>(<span class="op">:</span>RefLine),</span>
+<span id="cb14-47"><a href="#cb14-47" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">visual</span>(HLines)</span>
+<span id="cb14-48"><a href="#cb14-48" aria-hidden="true" tabindex="-1"></a>specs <span class="op">=</span> (specs_data <span class="op">+</span> specs_refs) <span class="op">*</span> <span class="fu">mapping</span>(</span>
+<span id="cb14-49"><a href="#cb14-49" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>value <span class="op">=&gt;</span> <span class="st">"log₁₀ concentration"</span>,</span>
+<span id="cb14-50"><a href="#cb14-50" aria-hidden="true" tabindex="-1"></a>    layout <span class="op">=</span> <span class="op">:</span>biomarker <span class="op">=&gt;</span> <span class="fu">renamer</span>(<span class="st">"log10_HBV"</span> <span class="op">=&gt;</span> <span class="st">"HBV DNA [copies/mL]"</span>, <span class="st">"log10_HBsAg"</span> <span class="op">=&gt;</span> <span class="st">"HBsAg [IU/mL]"</span>, <span class="st">"log10_ALT"</span> <span class="op">=&gt;</span> <span class="st">"ALT [U/L]"</span>, <span class="st">"log10_CD8"</span> <span class="op">=&gt;</span> <span class="st">"CD8+ T Cells [cells/mL]"</span>),</span>
+<span id="cb14-51"><a href="#cb14-51" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb14-52"><a href="#cb14-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-53"><a href="#cb14-53" aria-hidden="true" tabindex="-1"></a><span class="fu">draw</span>(</span>
+<span id="cb14-54"><a href="#cb14-54" aria-hidden="true" tabindex="-1"></a>    specs,</span>
+<span id="cb14-55"><a href="#cb14-55" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scales</span>(RefLine <span class="op">=</span> (; palette <span class="op">=</span> [<span class="op">:</span>dash]));</span>
+<span id="cb14-56"><a href="#cb14-56" aria-hidden="true" tabindex="-1"></a>    axis <span class="op">=</span> (; xticks <span class="op">=</span> [<span class="fl">0</span>, <span class="fl">24</span>, <span class="fl">48</span>, <span class="fl">72</span>]),</span>
+<span id="cb14-57"><a href="#cb14-57" aria-hidden="true" tabindex="-1"></a>    facet <span class="op">=</span> (; linkxaxes <span class="op">=</span> <span class="cn">true</span>, linkyaxes <span class="op">=</span> <span class="cn">false</span>),</span>
+<span id="cb14-58"><a href="#cb14-58" aria-hidden="true" tabindex="-1"></a>    legend <span class="op">=</span> (; position <span class="op">=</span> <span class="op">:</span>bottom),</span>
+<span id="cb14-59"><a href="#cb14-59" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="hbv_01_model_introduction_tutorial_files/figure-html/cell-12-output-1.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="Biomarker dynamics with inter-individual variability under NA+IFN treatment. Each line is a virtual patient sampled from the estimated population distribution. Most patients rebound after treatment stops (week 48), but patients with favorable immune parameters show steeper HBsAg decline."><img src="hbv_01_model_introduction_tutorial_files/figure-html/cell-12-output-1.svg" class="img-fluid figure-img" alt="Biomarker dynamics with inter-individual variability under NA+IFN treatment. Each line is a virtual patient sampled from the estimated population distribution. Most patients rebound after treatment stops (week 48), but patients with favorable immune parameters show steeper HBsAg decline."></a></p>
+<figcaption>Biomarker dynamics with inter-individual variability under NA+IFN treatment. Each line is a virtual patient sampled from the estimated population distribution. Most patients rebound after treatment stops (week 48), but patients with favorable immune parameters show steeper HBsAg decline.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<section id="functional-cure-mechanism-responder-vs-non-responder" class="level3" data-number="9.1">
+<h3 data-number="9.1" class="anchored" data-anchor-id="functional-cure-mechanism-responder-vs-non-responder"><span class="header-section-number">9.1</span> Functional Cure Mechanism: Responder vs Non-Responder</h3>
+<p>To understand <em>how</em> functional cure works in this model, let’s compare two patients with NA+IFN treatment: the <strong>typical patient</strong> (population mean, η = 0) and a <strong>responder</strong> with favorable random effects (stronger immune killing and better IFN response).</p>
+<p>The key state variable is <strong>infected cells (I)</strong>: when I crosses below the threshold (<span class="math inline">\(10^{-4}\)</span> cells/mL), the model switches to a “cured” state where viral and HBsAg production ceases permanently.</p>
+<div id="24" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Construct a typical patient and a responder</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>covariates_time <span class="op">=</span> [<span class="fl">0.0</span>, t_chronic, t_na_suppressed, t_eot]</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>covariates <span class="op">=</span> (NA <span class="op">=</span> [<span class="cn">false</span>, <span class="cn">true</span>, <span class="cn">true</span>, <span class="cn">false</span>], IFN <span class="op">=</span> [<span class="cn">false</span>, <span class="cn">false</span>, <span class="cn">true</span>, <span class="cn">false</span>])</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Typical patient: η = 0</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>typical_subject <span class="op">=</span> <span class="fu">Subject</span>(; id <span class="op">=</span> <span class="st">"Typical"</span>, covariates_time, covariates)</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>typical_randeffs <span class="op">=</span> <span class="fu">zero_randeffs</span>(hbv_model, typical_subject, hbv_params)</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Responder: favorable random effects</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="co"># For instance, higher immune enhancement</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>responder_subject <span class="op">=</span> <span class="fu">Subject</span>(; id <span class="op">=</span> <span class="st">"Responder"</span>, covariates_time, covariates)</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>responder_randeffs <span class="op">=</span> (; η <span class="op">=</span> [<span class="fl">0.0</span>, <span class="fl">0.0</span>, <span class="fl">0.0</span>, <span class="fl">0.0</span>, <span class="fl">0.0</span>, <span class="fl">0.0</span>, <span class="fl">0.0</span>, <span class="fl">3.0</span>, <span class="fl">0.0</span>])</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Simulate both</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>sims <span class="op">=</span> <span class="fu">simobs</span>(</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>    hbv_model, [typical_subject, responder_subject], hbv_params,</span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>    [typical_randeffs, responder_randeffs];</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>    obstimes <span class="op">=</span> t_na_suppressed<span class="op">:</span>t_end,</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>    simulate_error <span class="op">=</span> <span class="cn">false</span>,</span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Combine into DataFrame</span></span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a>df_sims <span class="op">=</span> <span class="pp">@chain</span> <span class="fu">DataFrame</span>(sims) <span class="cf">begin</span></span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@rtransform</span>! <span class="op">:</span>log10_I <span class="op">=</span> <span class="fu">log10</span>(<span class="op">:</span>I)</span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stack</span>(_, [<span class="st">"log10_I"</span>, <span class="st">"log10_HBV"</span>, <span class="st">"log10_HBsAg"</span>, <span class="st">"log10_ALT"</span>, <span class="st">"log10_CD8"</span>], [<span class="st">"time"</span>, <span class="st">"id"</span>]; variable_name <span class="op">=</span> <span class="st">"biomarker"</span>)</span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@rsubset</span>! <span class="fu">isfinite</span>(<span class="op">:</span>value)</span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot simulations</span></span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a>specs_data <span class="op">=</span> <span class="fu">data</span>(df_sims) <span class="op">*</span> <span class="fu">mapping</span>(</span>
+<span id="cb15-29"><a href="#cb15-29" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>time <span class="op">=&gt;</span> (t <span class="op">-&gt;</span> (t <span class="op">-</span> t_na_suppressed) <span class="op">/</span> <span class="fl">7</span>) <span class="op">=&gt;</span> <span class="st">"Time after treatment start [week]"</span>,</span>
+<span id="cb15-30"><a href="#cb15-30" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> <span class="op">:</span>id <span class="op">=&gt;</span> <span class="fu">sorter</span>(<span class="st">"Typical"</span>, <span class="st">"Responder"</span>) <span class="op">=&gt;</span> <span class="st">"Patient"</span>,</span>
+<span id="cb15-31"><a href="#cb15-31" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">visual</span>(Lines)</span>
+<span id="cb15-32"><a href="#cb15-32" aria-hidden="true" tabindex="-1"></a>specs_refs <span class="op">=</span> <span class="fu">data</span>(</span>
+<span id="cb15-33"><a href="#cb15-33" aria-hidden="true" tabindex="-1"></a>    [</span>
+<span id="cb15-34"><a href="#cb15-34" aria-hidden="true" tabindex="-1"></a>        (; value <span class="op">=</span> <span class="fl">1.4</span>, biomarker <span class="op">=</span> <span class="st">"log10_HBV"</span>),</span>
+<span id="cb15-35"><a href="#cb15-35" aria-hidden="true" tabindex="-1"></a>        (; value <span class="op">=</span> <span class="fu">log10</span>(<span class="fl">0.05</span>), biomarker <span class="op">=</span> <span class="st">"log10_HBsAg"</span>),</span>
+<span id="cb15-36"><a href="#cb15-36" aria-hidden="true" tabindex="-1"></a>        (; value <span class="op">=</span> <span class="op">-</span><span class="fl">4</span>, biomarker <span class="op">=</span> <span class="st">"log10_I"</span>),</span>
+<span id="cb15-37"><a href="#cb15-37" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb15-38"><a href="#cb15-38" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">mapping</span>(</span>
+<span id="cb15-39"><a href="#cb15-39" aria-hidden="true" tabindex="-1"></a>    linestyle <span class="op">=</span> AlgebraOfGraphics.<span class="fu">direct</span>([<span class="st">"Functional cure"</span>, <span class="st">"Functional cure"</span>, <span class="st">"Infected cells"</span>]) <span class="op">=&gt;</span> <span class="st">"Threshold"</span> <span class="op">=&gt;</span> AlgebraOfGraphics.<span class="fu">scale</span>(<span class="op">:</span>RefLines)</span>
+<span id="cb15-40"><a href="#cb15-40" aria-hidden="true" tabindex="-1"></a>) <span class="op">*</span> <span class="fu">visual</span>(HLines)</span>
+<span id="cb15-41"><a href="#cb15-41" aria-hidden="true" tabindex="-1"></a>specs <span class="op">=</span> (specs_data <span class="op">+</span> specs_refs) <span class="op">*</span> <span class="fu">mapping</span>(</span>
+<span id="cb15-42"><a href="#cb15-42" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>value <span class="op">=&gt;</span> <span class="st">"log₁₀ concentration"</span>,</span>
+<span id="cb15-43"><a href="#cb15-43" aria-hidden="true" tabindex="-1"></a>    layout <span class="op">=</span> <span class="op">:</span>biomarker <span class="op">=&gt;</span> <span class="fu">renamer</span>(<span class="st">"log10_I"</span> <span class="op">=&gt;</span> <span class="st">"Infected cells [cells/mL]"</span>, <span class="st">"log10_HBV"</span> <span class="op">=&gt;</span> <span class="st">"HBV DNA [copies/mL]"</span>, <span class="st">"log10_HBsAg"</span> <span class="op">=&gt;</span> <span class="st">"HBsAg [IU/mL]"</span>, <span class="st">"log10_ALT"</span> <span class="op">=&gt;</span> <span class="st">"ALT [U/L]"</span>, <span class="st">"log10_CD8"</span> <span class="op">=&gt;</span> <span class="st">"CD8+ T Cells [cells/mL]"</span>),</span>
+<span id="cb15-44"><a href="#cb15-44" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-45"><a href="#cb15-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-46"><a href="#cb15-46" aria-hidden="true" tabindex="-1"></a><span class="fu">draw</span>(</span>
+<span id="cb15-47"><a href="#cb15-47" aria-hidden="true" tabindex="-1"></a>    specs,</span>
+<span id="cb15-48"><a href="#cb15-48" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scales</span>(RefLines <span class="op">=</span> (; palette <span class="op">=</span> [<span class="op">:</span>dash, <span class="op">:</span>dot]));</span>
+<span id="cb15-49"><a href="#cb15-49" aria-hidden="true" tabindex="-1"></a>    axis <span class="op">=</span> (; xticks <span class="op">=</span> [<span class="fl">0</span>, <span class="fl">24</span>, <span class="fl">48</span>, <span class="fl">72</span>]),</span>
+<span id="cb15-50"><a href="#cb15-50" aria-hidden="true" tabindex="-1"></a>    facet <span class="op">=</span> (; linkxaxes <span class="op">=</span> <span class="cn">true</span>, linkyaxes <span class="op">=</span> <span class="cn">false</span>),</span>
+<span id="cb15-51"><a href="#cb15-51" aria-hidden="true" tabindex="-1"></a>    legend <span class="op">=</span> (; position <span class="op">=</span> <span class="op">:</span>bottom, nbanks <span class="op">=</span> <span class="fl">2</span>),</span>
+<span id="cb15-52"><a href="#cb15-52" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="hbv_01_model_introduction_tutorial_files/figure-html/cell-13-output-1.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="Functional cure mechanism. The responder’s stronger immune response drives the concentration of infected cells below the threshold, triggering the switch to durable viral control. Thereby, the responder achieves HBsAg loss that persists off-treatment, while the typical patient rebounds."><img src="hbv_01_model_introduction_tutorial_files/figure-html/cell-13-output-1.svg" class="img-fluid figure-img" alt="Functional cure mechanism. The responder’s stronger immune response drives the concentration of infected cells below the threshold, triggering the switch to durable viral control. Thereby, the responder achieves HBsAg loss that persists off-treatment, while the typical patient rebounds."></a></p>
+<figcaption>Functional cure mechanism. The responder’s stronger immune response drives the concentration of infected cells below the threshold, triggering the switch to durable viral control. Thereby, the responder achieves HBsAg loss that persists off-treatment, while the typical patient rebounds.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>The Threshold Switch is Key
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The responder achieves functional cure because their stronger immune response (higher <span class="math inline">\(m\)</span> and <span class="math inline">\(r_{E,IFN}\)</span>) drives infected cells below <span class="math inline">\(10^{-4}\)</span> cells/mL. At that point, the model’s threshold switch activates:</p>
+<ul>
+<li>Viral production stops: <span class="math inline">\(V' = -d_V \cdot V\)</span> (exponential decay)</li>
+<li>HBsAg production stops: <span class="math inline">\(S' = -d_V \cdot S\)</span> (exponential decay)</li>
+<li>Immune activation ceases, preventing overshoot</li>
+</ul>
+<p>This creates a <strong>stable cured equilibrium</strong> — even after treatment stops, the virus cannot re-establish because the immune system maintains control.</p>
+<p>In a Virtual Clinical Trial (Tutorial 6), we sample thousands of virtual patients from the estimated population distribution to predict realistic FC rates.</p>
+</div>
+</div>
+</section>
+</section>
+<section id="summary" class="level2" data-number="10">
+<h2 data-number="10" class="anchored" data-anchor-id="summary"><span class="header-section-number">10</span> Summary</h2>
+<section id="key-concepts" class="level3" data-number="10.1">
+<h3 data-number="10.1" class="anchored" data-anchor-id="key-concepts"><span class="header-section-number">10.1</span> Key Concepts</h3>
+<ol type="1">
+<li><p><strong>HBV infection is difficult to cure</strong> due to cccDNA persistence and immune exhaustion</p></li>
+<li><p><strong>The 11-ODE QSP model captures:</strong></p>
+<ul>
+<li>Hepatocyte populations (T, I, R)</li>
+<li>Viral dynamics (V, S)</li>
+<li>Immune response (E, P, Q, X, D, A)</li>
+</ul></li>
+<li><p><strong>Treatment mechanisms:</strong></p>
+<ul>
+<li>NA: Blocks viral production</li>
+<li>IFN: Enhances immune killing + reduces viral production</li>
+</ul></li>
+<li><p><strong>Clinical endpoints:</strong></p>
+<ul>
+<li>HBsAg Loss: HBsAg &lt; 0.05 IU/mL</li>
+<li>Functional Cure: HBsAg Loss + viral suppression (HBV DNA &lt; 10^1.4 copies/mL)</li>
+</ul></li>
+</ol>
+</section>
+<section id="model-complexity-comparison" class="level3" data-number="10.2">
+<h3 data-number="10.2" class="anchored" data-anchor-id="model-complexity-comparison"><span class="header-section-number">10.2</span> Model Complexity Comparison</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th style="text-align: left;">Aspect</th>
+<th style="text-align: left;">Tumor Burden</th>
+<th style="text-align: left;">HBV QSP</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">State variables</td>
+<td style="text-align: left;">2</td>
+<td style="text-align: left;">11</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Estimated parameters</td>
+<td style="text-align: left;">3</td>
+<td style="text-align: left;">9</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Fixed parameters</td>
+<td style="text-align: left;">0</td>
+<td style="text-align: left;">22</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Treatment covariates</td>
+<td style="text-align: left;">1</td>
+<td style="text-align: left;">2</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Clinical endpoints</td>
+<td style="text-align: left;">Response rate</td>
+<td style="text-align: left;">FC, HBsAg Loss</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="whats-next" class="level3" data-number="10.3">
+<h3 data-number="10.3" class="anchored" data-anchor-id="whats-next"><span class="header-section-number">10.3</span> What’s Next?</h3>
+<p>In <a href="../tutorials/hbv_02_gsa_tutorial.html">Tutorial 2: Global Sensitivity Analysis</a>, we’ll identify which parameters most influence HBV treatment outcomes using Sobol and eFAST sensitivity analysis.</p>
+</section>
+<section id="references" class="level3" data-number="10.4">
+<h3 data-number="10.4" class="anchored" data-anchor-id="references"><span class="header-section-number">10.4</span> References</h3>
+<div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" data-line-spacing="2" role="list">
+<div id="ref-cortes2025HBV" class="csl-entry" role="listitem">
+Cortés‐Ríos, J., Ren, T., Hanan, N., Sher, A., Nader, A., Magee, M., Jusko, W. J., &amp; Desikan, R. (2025). Hepatitis b in silico trials capture functional cure, indicate mechanistic pathways, and suggest prognostic biomarker signatures. <em>Clinical Pharmacology &amp;Amp; Therapeutics</em>, <em>118</em>(3), 600–612. <a href="https://doi.org/10.1002/cpt.3718">https://doi.org/10.1002/cpt.3718</a>
+</div>
+</div>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","descPosition":"bottom","loop":false,"openEffect":"zoom","selector":".lightbox"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>
